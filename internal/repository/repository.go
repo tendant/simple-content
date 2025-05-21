@@ -14,12 +14,16 @@ type ContentRepository interface {
 	Update(ctx context.Context, content *domain.Content) error
 	Delete(ctx context.Context, id uuid.UUID) error
 	List(ctx context.Context, ownerID, tenantID uuid.UUID) ([]*domain.Content, error)
+
+	// New methods for derived content
+	GetByParentID(ctx context.Context, parentID uuid.UUID) ([]*domain.Content, error)
+	GetDerivedContentTree(ctx context.Context, rootID uuid.UUID, maxDepth int) ([]*domain.Content, error)
 }
 
 // ContentMetadataRepository defines the interface for content metadata operations
 type ContentMetadataRepository interface {
-	Set(ctx context.Context, contentID uuid.UUID, metadata map[string]interface{}) error
-	Get(ctx context.Context, contentID uuid.UUID) (map[string]interface{}, error)
+	Set(ctx context.Context, metadata *domain.ContentMetadata) error
+	Get(ctx context.Context, contentID uuid.UUID) (*domain.ContentMetadata, error)
 }
 
 // ObjectRepository defines the interface for object operations

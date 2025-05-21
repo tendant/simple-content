@@ -19,6 +19,10 @@ This document outlines the architecture and design for a generic content managem
 - Can have multiple versions.
 - Each version can be stored in one or more storage backends.
 
+### Derived Content
+- We need to be able to create derived content from an existing content, existing content can be either original content or another derived content.
+- For now, we only support up to 5 level of derived content.
+
 ### Object
 - Represents the actual binary stored in a storage backend.
 - One content version may have multiple associated objects (across backends).

@@ -90,3 +90,64 @@ func (r *ContentRepository) List(ctx context.Context, ownerID, tenantID uuid.UUI
 
 	return result, nil
 }
+
+// GetByParentID retrieves all content directly derived from a specific parent
+func (r *ContentRepository) GetByParentID(ctx context.Context, parentID uuid.UUID) ([]*domain.Content, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	var result []*domain.Content
+	for _, content := range r.contents {
+		if content.ParentID != nil && *content.ParentID == parentID {
+			result = append(result, content)
+		}
+	}
+
+	return result, nil
+}
+
+// GetDerivedContentTree retrieves the entire tree of derived content up to maxDepth
+func (r *ContentRepository) GetDerivedContentTree(ctx context.Context, rootID uuid.UUID, maxDepth int) ([]*domain.Content, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	// Check if root content exists
+	rootContent, exists := r.contents[rootID]
+	if !exists {
+		return nil, errors.New("root content not found")
+	}
+
+	var result []*domain.Content
+
+	// Add the root content itself
+	result = append(result, rootContent)
+
+	// Use a queue for breadth-first traversal
+	type queueItem struct {
+		id    uuid.UUID
+		depth int
+	}
+
+	queue := []queueItem{{id: rootID, depth: 0}}
+
+	for len(queue) > 0 {
+		// Dequeue a content ID and its depth
+		current := queue[0]
+		queue = queue[1:]
+
+		// Skip if we've reached max depth
+		if current.depth >= maxDepth {
+			continue
+		}
+
+		// Find all direct children
+		for _, content := range r.contents {
+			if content.ParentID != nil && *content.ParentID == current.id {
+				result = append(result, content)
+				queue = append(queue, queueItem{id: content.ID, depth: current.depth + 1})
+			}
+		}
+	}
+
+	return result, nil
+}

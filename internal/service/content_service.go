@@ -2,6 +2,8 @@ package service
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -29,23 +31,63 @@ func NewContentService(
 	}
 }
 
-// CreateContent creates a new content
+// CreateContent creates a new original content
 func (s *ContentService) CreateContent(
 	ctx context.Context,
 	ownerID, tenantID uuid.UUID,
 ) (*domain.Content, error) {
 	now := time.Now()
 	content := &domain.Content{
-		ID:        uuid.New(),
-		CreatedAt: now,
-		UpdatedAt: now,
-		OwnerID:   ownerID,
-		TenantID:  tenantID,
-		Status:    "active",
+		ID:              uuid.New(),
+		ParentID:        nil, // Explicitly nil for original content
+		CreatedAt:       now,
+		UpdatedAt:       now,
+		OwnerID:         ownerID,
+		TenantID:        tenantID,
+		Status:          "active",
+		DerivationType:  "original",
+		DerivationLevel: 0, // Original content has level 0
 	}
 
 	if err := s.contentRepo.Create(ctx, content); err != nil {
 		return nil, err
+	}
+
+	return content, nil
+}
+
+// CreateDerivedContent creates a new content derived from an existing content
+func (s *ContentService) CreateDerivedContent(
+	ctx context.Context,
+	parentID uuid.UUID,
+	ownerID, tenantID uuid.UUID,
+) (*domain.Content, error) {
+	// Verify parent content exists
+	parentContent, err := s.contentRepo.Get(ctx, parentID)
+	if err != nil {
+		return nil, fmt.Errorf("parent content not found: %w", err)
+	}
+
+	// Check derivation level limit
+	if parentContent.DerivationLevel >= 5 {
+		return nil, errors.New("maximum derivation depth reached (limit: 5 levels)")
+	}
+
+	now := time.Now()
+	content := &domain.Content{
+		ID:              uuid.New(),
+		ParentID:        &parentID,
+		CreatedAt:       now,
+		UpdatedAt:       now,
+		OwnerID:         ownerID,
+		TenantID:        tenantID,
+		Status:          "active",
+		DerivationType:  "derived",
+		DerivationLevel: parentContent.DerivationLevel + 1,
+	}
+
+	if err := s.contentRepo.Create(ctx, content); err != nil {
+		return nil, fmt.Errorf("failed to create derived content: %w", err)
 	}
 
 	return content, nil
@@ -86,18 +128,48 @@ func (s *ContentService) ListContents(ctx context.Context, ownerID, tenantID uui
 	return s.contentRepo.List(ctx, ownerID, tenantID)
 }
 
+// GetDerivedContent retrieves all content directly derived from a specific parent
+func (s *ContentService) GetDerivedContent(ctx context.Context, parentID uuid.UUID) ([]*domain.Content, error) {
+	return s.contentRepo.GetByParentID(ctx, parentID)
+}
+
+// GetDerivedContentTree retrieves the entire tree of derived content
+func (s *ContentService) GetDerivedContentTree(ctx context.Context, rootID uuid.UUID) ([]*domain.Content, error) {
+	// Use a max depth of 5 for the derivation tree
+	return s.contentRepo.GetDerivedContentTree(ctx, rootID, 5)
+}
+
 // SetContentMetadata sets metadata for a content
-func (s *ContentService) SetContentMetadata(ctx context.Context, contentID uuid.UUID, metadata map[string]interface{}) error {
+func (s *ContentService) SetContentMetadata(
+	ctx context.Context,
+	contentID uuid.UUID,
+	contentType, title, description string,
+	tags []string,
+	fileSize int64,
+	createdBy string,
+	customMetadata map[string]interface{},
+) error {
 	// Verify content exists
 	if _, err := s.contentRepo.Get(ctx, contentID); err != nil {
 		return err
 	}
 
-	return s.metadataRepo.Set(ctx, contentID, metadata)
+	metadata := &domain.ContentMetadata{
+		ContentID:   contentID,
+		ContentType: contentType,
+		Title:       title,
+		Description: description,
+		Tags:        tags,
+		FileSize:    fileSize,
+		CreatedBy:   createdBy,
+		Metadata:    customMetadata,
+	}
+
+	return s.metadataRepo.Set(ctx, metadata)
 }
 
 // GetContentMetadata retrieves metadata for a content
-func (s *ContentService) GetContentMetadata(ctx context.Context, contentID uuid.UUID) (map[string]interface{}, error) {
+func (s *ContentService) GetContentMetadata(ctx context.Context, contentID uuid.UUID) (*domain.ContentMetadata, error) {
 	// Verify content exists
 	if _, err := s.contentRepo.Get(ctx, contentID); err != nil {
 		return nil, err
