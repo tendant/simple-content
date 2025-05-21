@@ -18,6 +18,18 @@ type ObjectHandler struct {
 	objectService *service.ObjectService
 }
 
+// StandaloneObjectResponse is the response body for an object
+type StandaloneObjectResponse struct {
+	ID               string    `json:"id"`
+	ContentID        string    `json:"content_id"`
+	StorageBackendID string    `json:"storage_backend_id"`
+	Version          int       `json:"version"`
+	ObjectKey        string    `json:"object_key"`
+	Status           string    `json:"status"`
+	CreatedAt        time.Time `json:"created_at"`
+	UpdatedAt        time.Time `json:"updated_at"`
+}
+
 // NewObjectHandler creates a new object handler
 func NewObjectHandler(objectService *service.ObjectService) *ObjectHandler {
 	return &ObjectHandler{
@@ -29,6 +41,7 @@ func NewObjectHandler(objectService *service.ObjectService) *ObjectHandler {
 func (h *ObjectHandler) Routes() chi.Router {
 	r := chi.NewRouter()
 
+	r.Post("/", h.CreateObject)
 	r.Get("/{id}", h.GetObject)
 	r.Delete("/{id}", h.DeleteObject)
 	r.Post("/{id}/upload", h.UploadObject)
@@ -37,6 +50,54 @@ func (h *ObjectHandler) Routes() chi.Router {
 	r.Get("/{id}/metadata", h.GetMetadata)
 
 	return r
+}
+
+// CreateStandaloneObjectRequest represents a request to create an object directly
+type CreateStandaloneObjectRequest struct {
+	ContentID        string `json:"content_id"`
+	StorageBackendID string `json:"storage_backend_id"`
+	Version          int    `json:"version"`
+}
+
+// CreateObject creates a new object
+func (h *ObjectHandler) CreateObject(w http.ResponseWriter, r *http.Request) {
+	var req CreateStandaloneObjectRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	contentID, err := uuid.Parse(req.ContentID)
+	if err != nil {
+		http.Error(w, "Invalid content ID", http.StatusBadRequest)
+		return
+	}
+
+	storageBackendID, err := uuid.Parse(req.StorageBackendID)
+	if err != nil {
+		http.Error(w, "Invalid storage backend ID", http.StatusBadRequest)
+		return
+	}
+
+	object, err := h.objectService.CreateObject(r.Context(), contentID, storageBackendID, req.Version)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	resp := StandaloneObjectResponse{
+		ID:               object.ID.String(),
+		ContentID:        object.ContentID.String(),
+		StorageBackendID: object.StorageBackendID.String(),
+		Version:          object.Version,
+		ObjectKey:        object.ObjectKey,
+		Status:           object.Status,
+		CreatedAt:        object.CreatedAt,
+		UpdatedAt:        object.UpdatedAt,
+	}
+
+	w.WriteHeader(http.StatusCreated)
+	render.JSON(w, r, resp)
 }
 
 // GetObject retrieves an object by ID
@@ -54,7 +115,7 @@ func (h *ObjectHandler) GetObject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp := ObjectResponse{
+	resp := StandaloneObjectResponse{
 		ID:               object.ID.String(),
 		ContentID:        object.ContentID.String(),
 		StorageBackendID: object.StorageBackendID.String(),

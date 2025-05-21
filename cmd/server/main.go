@@ -15,6 +15,7 @@ import (
 	"github.com/tendant/simple-content/internal/api"
 	"github.com/tendant/simple-content/internal/repository/memory"
 	"github.com/tendant/simple-content/internal/service"
+	fsStorage "github.com/tendant/simple-content/internal/storage/fs"
 	memoryStorage "github.com/tendant/simple-content/internal/storage/memory"
 )
 
@@ -29,10 +30,38 @@ func main() {
 	// Initialize storage backends
 	memBackend := memoryStorage.NewMemoryBackend()
 
+	// Initialize file system backend
+	fsConfig := fsStorage.Config{
+		BaseDir:   "./data/storage", // Default base directory
+		URLPrefix: "",               // No URL prefix by default (direct access)
+	}
+	fsBackend, err := fsStorage.NewFSBackend(fsConfig)
+	if err != nil {
+		log.Fatalf("Failed to initialize file system storage: %v", err)
+	}
+
 	// Initialize services
 	contentService := service.NewContentService(contentRepo, contentMetadataRepo, objectRepo)
 	objectService := service.NewObjectService(objectRepo, objectMetadataRepo, storageBackendRepo, memBackend)
 	storageBackendService := service.NewStorageBackendService(storageBackendRepo)
+
+	// Register the file system backend with the object service
+	objectService.RegisterBackend("fs", fsBackend)
+	objectService.RegisterBackend("fs-test", fsBackend)
+
+	// Create a default file system storage backend in the database
+	ctx := context.Background()
+	_, err = storageBackendService.CreateStorageBackend(
+		ctx,
+		"fs-default",
+		"fs",
+		map[string]interface{}{
+			"base_dir": fsConfig.BaseDir,
+		},
+	)
+	if err != nil {
+		log.Printf("Warning: Failed to create default file system storage backend: %v", err)
+	}
 
 	// Initialize API handlers
 	contentHandler := api.NewContentHandler(contentService, objectService)
