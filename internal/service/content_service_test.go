@@ -1,0 +1,285 @@
+package service_test
+
+import (
+	"context"
+	"testing"
+
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/tendant/simple-content/internal/repository/memory"
+	"github.com/tendant/simple-content/internal/service"
+)
+
+func setupContentService() *service.ContentService {
+	contentRepo := memory.NewContentRepository()
+	metadataRepo := memory.NewContentMetadataRepository()
+	objectRepo := memory.NewObjectRepository()
+	return service.NewContentService(contentRepo, metadataRepo, objectRepo)
+}
+
+func TestContentService_CreateContent(t *testing.T) {
+	svc := setupContentService()
+	ctx := context.Background()
+
+	ownerID := uuid.New()
+	tenantID := uuid.New()
+
+	content, err := svc.CreateContent(ctx, ownerID, tenantID)
+	assert.NoError(t, err)
+	assert.NotNil(t, content)
+	assert.Equal(t, ownerID, content.OwnerID)
+	assert.Equal(t, tenantID, content.TenantID)
+	assert.Equal(t, "original", content.DerivationType)
+	assert.Equal(t, 0, content.DerivationLevel)
+	assert.Nil(t, content.ParentID)
+}
+
+func TestContentService_CreateDerivedContent(t *testing.T) {
+	svc := setupContentService()
+	ctx := context.Background()
+
+	// Create parent content
+	ownerID := uuid.New()
+	tenantID := uuid.New()
+	parent, err := svc.CreateContent(ctx, ownerID, tenantID)
+	assert.NoError(t, err)
+
+	// Create derived content
+	derived, err := svc.CreateDerivedContent(ctx, parent.ID, ownerID, tenantID)
+	assert.NoError(t, err)
+	assert.NotNil(t, derived)
+	assert.Equal(t, parent.ID, *derived.ParentID)
+	assert.Equal(t, "derived", derived.DerivationType)
+	assert.Equal(t, 1, derived.DerivationLevel)
+
+	// Create second-level derived content
+	secondLevel, err := svc.CreateDerivedContent(ctx, derived.ID, ownerID, tenantID)
+	assert.NoError(t, err)
+	assert.NotNil(t, secondLevel)
+	assert.Equal(t, derived.ID, *secondLevel.ParentID)
+	assert.Equal(t, "derived", secondLevel.DerivationType)
+	assert.Equal(t, 2, secondLevel.DerivationLevel)
+}
+
+func TestContentService_CreateDerivedContent_MaxDepthLimit(t *testing.T) {
+	svc := setupContentService()
+	ctx := context.Background()
+
+	// Create a chain of derived content up to the max depth
+	ownerID := uuid.New()
+	tenantID := uuid.New()
+
+	// Level 0 (original)
+	content, err := svc.CreateContent(ctx, ownerID, tenantID)
+	assert.NoError(t, err)
+	assert.Equal(t, 0, content.DerivationLevel)
+
+	// Levels 1-5
+	currentID := content.ID
+	for i := 1; i <= 5; i++ {
+		derived, err := svc.CreateDerivedContent(ctx, currentID, ownerID, tenantID)
+		assert.NoError(t, err)
+		assert.Equal(t, i, derived.DerivationLevel)
+		currentID = derived.ID
+	}
+
+	// Attempt to create level 6 (should fail)
+	_, err = svc.CreateDerivedContent(ctx, currentID, ownerID, tenantID)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "maximum derivation depth")
+}
+
+func TestContentService_GetDerivedContent(t *testing.T) {
+	svc := setupContentService()
+	ctx := context.Background()
+
+	// Create parent content
+	ownerID := uuid.New()
+	tenantID := uuid.New()
+	parent, err := svc.CreateContent(ctx, ownerID, tenantID)
+	assert.NoError(t, err)
+
+	// Create two derived contents
+	derived1, err := svc.CreateDerivedContent(ctx, parent.ID, ownerID, tenantID)
+	assert.NoError(t, err)
+
+	derived2, err := svc.CreateDerivedContent(ctx, parent.ID, ownerID, tenantID)
+	assert.NoError(t, err)
+
+	// Get derived content
+	derivedContents, err := svc.GetDerivedContent(ctx, parent.ID)
+	assert.NoError(t, err)
+	assert.Len(t, derivedContents, 2)
+
+	// Verify the derived contents
+	derivedIDs := []uuid.UUID{derived1.ID, derived2.ID}
+	for _, content := range derivedContents {
+		assert.Contains(t, derivedIDs, content.ID)
+		assert.Equal(t, parent.ID, *content.ParentID)
+		assert.Equal(t, "derived", content.DerivationType)
+		assert.Equal(t, 1, content.DerivationLevel)
+	}
+}
+
+func TestContentService_GetDerivedContentTree(t *testing.T) {
+	svc := setupContentService()
+	ctx := context.Background()
+
+	// Create a tree of content:
+	// root -> child1 -> grandchild
+	//      -> child2
+
+	ownerID := uuid.New()
+	tenantID := uuid.New()
+
+	// Create root content
+	root, err := svc.CreateContent(ctx, ownerID, tenantID)
+	assert.NoError(t, err)
+
+	// Create first child
+	child1, err := svc.CreateDerivedContent(ctx, root.ID, ownerID, tenantID)
+	assert.NoError(t, err)
+
+	// Create second child
+	child2, err := svc.CreateDerivedContent(ctx, root.ID, ownerID, tenantID)
+	assert.NoError(t, err)
+
+	// Create grandchild
+	grandchild, err := svc.CreateDerivedContent(ctx, child1.ID, ownerID, tenantID)
+	assert.NoError(t, err)
+
+	// Get the entire tree
+	tree, err := svc.GetDerivedContentTree(ctx, root.ID)
+	assert.NoError(t, err)
+	assert.Len(t, tree, 4) // root + 2 children + 1 grandchild
+
+	// Verify the tree contents
+	contentIDs := []uuid.UUID{root.ID, child1.ID, child2.ID, grandchild.ID}
+	for _, content := range tree {
+		assert.Contains(t, contentIDs, content.ID)
+	}
+}
+
+func TestContentService_SetContentMetadata(t *testing.T) {
+	svc := setupContentService()
+	ctx := context.Background()
+
+	// Create content
+	ownerID := uuid.New()
+	tenantID := uuid.New()
+	content, err := svc.CreateContent(ctx, ownerID, tenantID)
+	assert.NoError(t, err)
+
+	// Set metadata
+	contentType := "video/mp4"
+	title := "Test Video"
+	description := "A test video"
+	tags := []string{"test", "video"}
+	fileSize := int64(1024)
+	createdBy := "Test User"
+	customMetadata := map[string]interface{}{
+		"duration": "00:01:30",
+	}
+
+	err = svc.SetContentMetadata(
+		ctx,
+		content.ID,
+		contentType,
+		title,
+		description,
+		tags,
+		fileSize,
+		createdBy,
+		customMetadata,
+	)
+	assert.NoError(t, err)
+
+	// Get metadata
+	metadata, err := svc.GetContentMetadata(ctx, content.ID)
+	assert.NoError(t, err)
+	assert.Equal(t, contentType, metadata.ContentType)
+	assert.Equal(t, title, metadata.Title)
+	assert.Equal(t, description, metadata.Description)
+	assert.Equal(t, tags, metadata.Tags)
+	assert.Equal(t, fileSize, metadata.FileSize)
+	assert.Equal(t, createdBy, metadata.CreatedBy)
+	assert.Equal(t, "00:01:30", metadata.Metadata["duration"])
+}
+
+func TestContentService_IndependentMetadata(t *testing.T) {
+	svc := setupContentService()
+	ctx := context.Background()
+
+	// Create original content
+	ownerID := uuid.New()
+	tenantID := uuid.New()
+	original, err := svc.CreateContent(ctx, ownerID, tenantID)
+	assert.NoError(t, err)
+
+	// Set metadata for original content
+	err = svc.SetContentMetadata(
+		ctx,
+		original.ID,
+		"video/mp4",
+		"Original Video",
+		"An original video",
+		[]string{"original", "video"},
+		int64(2048),
+		"User 1",
+		map[string]interface{}{
+			"duration":   "00:05:30",
+			"resolution": "1920x1080",
+		},
+	)
+	assert.NoError(t, err)
+
+	// Create derived content
+	derived, err := svc.CreateDerivedContent(ctx, original.ID, ownerID, tenantID)
+	assert.NoError(t, err)
+
+	// Set different metadata for derived content
+	err = svc.SetContentMetadata(
+		ctx,
+		derived.ID,
+		"image/jpeg",
+		"Thumbnail",
+		"A thumbnail from the original video",
+		[]string{"derived", "image", "thumbnail"},
+		int64(512),
+		"System",
+		map[string]interface{}{
+			"width":  1280,
+			"height": 720,
+		},
+	)
+	assert.NoError(t, err)
+
+	// Get and verify original metadata
+	originalMetadata, err := svc.GetContentMetadata(ctx, original.ID)
+	assert.NoError(t, err)
+	assert.Equal(t, "video/mp4", originalMetadata.ContentType)
+	assert.Equal(t, "Original Video", originalMetadata.Title)
+	assert.Equal(t, "00:05:30", originalMetadata.Metadata["duration"])
+
+	// Get and verify derived metadata
+	derivedMetadata, err := svc.GetContentMetadata(ctx, derived.ID)
+	assert.NoError(t, err)
+	assert.Equal(t, "image/jpeg", derivedMetadata.ContentType)
+	assert.Equal(t, "Thumbnail", derivedMetadata.Title)
+	// Check that the width value exists and is correct, regardless of type
+	width, ok := derivedMetadata.Metadata["width"]
+	assert.True(t, ok, "width field should exist in metadata")
+
+	// Convert to int for comparison, handling both int and float64 cases
+	var widthValue int
+	switch v := width.(type) {
+	case int:
+		widthValue = v
+	case float64:
+		widthValue = int(v)
+	default:
+		t.Fatalf("unexpected type for width: %T", width)
+	}
+
+	assert.Equal(t, 1280, widthValue)
+}
