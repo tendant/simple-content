@@ -1,0 +1,387 @@
+package api
+
+import (
+	"encoding/json"
+	"net/http"
+	"time"
+
+	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/render"
+	"github.com/google/uuid"
+	"github.com/tendant/simple-content/internal/service"
+)
+
+// ContentHandler handles HTTP requests for content
+type ContentHandler struct {
+	contentService *service.ContentService
+	objectService  *service.ObjectService
+}
+
+// NewContentHandler creates a new content handler
+func NewContentHandler(
+	contentService *service.ContentService,
+	objectService *service.ObjectService,
+) *ContentHandler {
+	return &ContentHandler{
+		contentService: contentService,
+		objectService:  objectService,
+	}
+}
+
+// Routes returns the routes for content
+func (h *ContentHandler) Routes() chi.Router {
+	r := chi.NewRouter()
+
+	r.Post("/", h.CreateContent)
+	r.Get("/{id}", h.GetContent)
+	r.Delete("/{id}", h.DeleteContent)
+	r.Get("/list", h.ListContents)
+
+	r.Put("/{id}/metadata", h.UpdateMetadata)
+	r.Get("/{id}/metadata", h.GetMetadata)
+
+	r.Post("/{id}/objects", h.CreateObject)
+	r.Get("/{id}/objects", h.ListObjects)
+	r.Get("/{id}/download", h.GetDownload)
+
+	return r
+}
+
+// CreateContentRequest is the request body for creating a content
+type CreateContentRequest struct {
+	OwnerID  string `json:"owner_id"`
+	TenantID string `json:"tenant_id"`
+}
+
+// ContentResponse is the response body for a content
+type ContentResponse struct {
+	ID        string    `json:"id"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+	OwnerID   string    `json:"owner_id"`
+	TenantID  string    `json:"tenant_id"`
+	Status    string    `json:"status"`
+}
+
+// CreateContent creates a new content
+func (h *ContentHandler) CreateContent(w http.ResponseWriter, r *http.Request) {
+	var req CreateContentRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	ownerID, err := uuid.Parse(req.OwnerID)
+	if err != nil {
+		http.Error(w, "Invalid owner ID", http.StatusBadRequest)
+		return
+	}
+
+	tenantID, err := uuid.Parse(req.TenantID)
+	if err != nil {
+		http.Error(w, "Invalid tenant ID", http.StatusBadRequest)
+		return
+	}
+
+	content, err := h.contentService.CreateContent(r.Context(), ownerID, tenantID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	resp := ContentResponse{
+		ID:        content.ID.String(),
+		CreatedAt: content.CreatedAt,
+		UpdatedAt: content.UpdatedAt,
+		OwnerID:   content.OwnerID.String(),
+		TenantID:  content.TenantID.String(),
+		Status:    content.Status,
+	}
+
+	render.Status(r, http.StatusCreated)
+	render.JSON(w, r, resp)
+}
+
+// GetContent retrieves a content by ID
+func (h *ContentHandler) GetContent(w http.ResponseWriter, r *http.Request) {
+	idStr := chi.URLParam(r, "id")
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		http.Error(w, "Invalid content ID", http.StatusBadRequest)
+		return
+	}
+
+	content, err := h.contentService.GetContent(r.Context(), id)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+
+	resp := ContentResponse{
+		ID:        content.ID.String(),
+		CreatedAt: content.CreatedAt,
+		UpdatedAt: content.UpdatedAt,
+		OwnerID:   content.OwnerID.String(),
+		TenantID:  content.TenantID.String(),
+		Status:    content.Status,
+	}
+
+	render.JSON(w, r, resp)
+}
+
+// DeleteContent deletes a content by ID
+func (h *ContentHandler) DeleteContent(w http.ResponseWriter, r *http.Request) {
+	idStr := chi.URLParam(r, "id")
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		http.Error(w, "Invalid content ID", http.StatusBadRequest)
+		return
+	}
+
+	if err := h.contentService.DeleteContent(r.Context(), id); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// ListContentsRequest is the query parameters for listing contents
+type ListContentsRequest struct {
+	OwnerID  string `json:"owner_id"`
+	TenantID string `json:"tenant_id"`
+}
+
+// ListContents lists contents by owner ID and tenant ID
+func (h *ContentHandler) ListContents(w http.ResponseWriter, r *http.Request) {
+	ownerIDStr := r.URL.Query().Get("owner_id")
+	tenantIDStr := r.URL.Query().Get("tenant_id")
+
+	var ownerID, tenantID uuid.UUID
+	var err error
+
+	if ownerIDStr != "" {
+		ownerID, err = uuid.Parse(ownerIDStr)
+		if err != nil {
+			http.Error(w, "Invalid owner ID", http.StatusBadRequest)
+			return
+		}
+	}
+
+	if tenantIDStr != "" {
+		tenantID, err = uuid.Parse(tenantIDStr)
+		if err != nil {
+			http.Error(w, "Invalid tenant ID", http.StatusBadRequest)
+			return
+		}
+	}
+
+	contents, err := h.contentService.ListContents(r.Context(), ownerID, tenantID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	var resp []ContentResponse
+	for _, content := range contents {
+		resp = append(resp, ContentResponse{
+			ID:        content.ID.String(),
+			CreatedAt: content.CreatedAt,
+			UpdatedAt: content.UpdatedAt,
+			OwnerID:   content.OwnerID.String(),
+			TenantID:  content.TenantID.String(),
+			Status:    content.Status,
+		})
+	}
+
+	render.JSON(w, r, resp)
+}
+
+// UpdateMetadata updates metadata for a content
+func (h *ContentHandler) UpdateMetadata(w http.ResponseWriter, r *http.Request) {
+	idStr := chi.URLParam(r, "id")
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		http.Error(w, "Invalid content ID", http.StatusBadRequest)
+		return
+	}
+
+	var metadata map[string]interface{}
+	if err := json.NewDecoder(r.Body).Decode(&metadata); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if err := h.contentService.SetContentMetadata(r.Context(), id, metadata); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// GetMetadata retrieves metadata for a content
+func (h *ContentHandler) GetMetadata(w http.ResponseWriter, r *http.Request) {
+	idStr := chi.URLParam(r, "id")
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		http.Error(w, "Invalid content ID", http.StatusBadRequest)
+		return
+	}
+
+	metadata, err := h.contentService.GetContentMetadata(r.Context(), id)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	render.JSON(w, r, metadata)
+}
+
+// CreateObjectRequest is the request body for creating an object
+type CreateObjectRequest struct {
+	StorageBackendID string `json:"storage_backend_id"`
+	Version          int    `json:"version"`
+}
+
+// ObjectResponse is the response body for an object
+type ObjectResponse struct {
+	ID               string    `json:"id"`
+	ContentID        string    `json:"content_id"`
+	StorageBackendID string    `json:"storage_backend_id"`
+	Version          int       `json:"version"`
+	ObjectKey        string    `json:"object_key"`
+	Status           string    `json:"status"`
+	CreatedAt        time.Time `json:"created_at"`
+	UpdatedAt        time.Time `json:"updated_at"`
+}
+
+// CreateObject creates a new object for a content
+func (h *ContentHandler) CreateObject(w http.ResponseWriter, r *http.Request) {
+	contentIDStr := chi.URLParam(r, "id")
+	contentID, err := uuid.Parse(contentIDStr)
+	if err != nil {
+		http.Error(w, "Invalid content ID", http.StatusBadRequest)
+		return
+	}
+
+	var req CreateObjectRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	storageBackendID, err := uuid.Parse(req.StorageBackendID)
+	if err != nil {
+		http.Error(w, "Invalid storage backend ID", http.StatusBadRequest)
+		return
+	}
+
+	object, err := h.objectService.CreateObject(r.Context(), contentID, storageBackendID, req.Version)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	resp := ObjectResponse{
+		ID:               object.ID.String(),
+		ContentID:        object.ContentID.String(),
+		StorageBackendID: object.StorageBackendID.String(),
+		Version:          object.Version,
+		ObjectKey:        object.ObjectKey,
+		Status:           object.Status,
+		CreatedAt:        object.CreatedAt,
+		UpdatedAt:        object.UpdatedAt,
+	}
+
+	render.Status(r, http.StatusCreated)
+	render.JSON(w, r, resp)
+}
+
+// ListObjects lists objects for a content
+func (h *ContentHandler) ListObjects(w http.ResponseWriter, r *http.Request) {
+	contentIDStr := chi.URLParam(r, "id")
+	contentID, err := uuid.Parse(contentIDStr)
+	if err != nil {
+		http.Error(w, "Invalid content ID", http.StatusBadRequest)
+		return
+	}
+
+	objects, err := h.objectService.GetObjectsByContentID(r.Context(), contentID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	var resp []ObjectResponse
+	for _, object := range objects {
+		resp = append(resp, ObjectResponse{
+			ID:               object.ID.String(),
+			ContentID:        object.ContentID.String(),
+			StorageBackendID: object.StorageBackendID.String(),
+			Version:          object.Version,
+			ObjectKey:        object.ObjectKey,
+			Status:           object.Status,
+			CreatedAt:        object.CreatedAt,
+			UpdatedAt:        object.UpdatedAt,
+		})
+	}
+
+	render.JSON(w, r, resp)
+}
+
+// GetDownload gets a download URL for a content
+func (h *ContentHandler) GetDownload(w http.ResponseWriter, r *http.Request) {
+	contentIDStr := chi.URLParam(r, "id")
+	contentID, err := uuid.Parse(contentIDStr)
+	if err != nil {
+		http.Error(w, "Invalid content ID", http.StatusBadRequest)
+		return
+	}
+
+	// Get the latest object for this content
+	objects, err := h.objectService.GetObjectsByContentID(r.Context(), contentID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if len(objects) == 0 {
+		http.Error(w, "No objects found for this content", http.StatusNotFound)
+		return
+	}
+
+	// Find the latest version
+	var latestObject *ObjectResponse
+	latestVersion := 0
+	for _, object := range objects {
+		if object.Version > latestVersion {
+			latestVersion = object.Version
+			resp := ObjectResponse{
+				ID:               object.ID.String(),
+				ContentID:        object.ContentID.String(),
+				StorageBackendID: object.StorageBackendID.String(),
+				Version:          object.Version,
+				ObjectKey:        object.ObjectKey,
+				Status:           object.Status,
+				CreatedAt:        object.CreatedAt,
+				UpdatedAt:        object.UpdatedAt,
+			}
+			latestObject = &resp
+		}
+	}
+
+	if latestObject == nil {
+		http.Error(w, "No active objects found for this content", http.StatusNotFound)
+		return
+	}
+
+	// For in-memory backend, we can't provide a direct URL, so we'll return the object ID
+	// In a real implementation, this would return a signed URL or redirect to a download endpoint
+	response := map[string]string{
+		"object_id": latestObject.ID,
+		"message":   "For in-memory backend, use the object_id to download the content directly",
+	}
+
+	render.JSON(w, r, response)
+}
