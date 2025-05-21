@@ -8,14 +8,14 @@ import (
 
 // Object represents a physical object stored in a storage backend
 type Object struct {
-	ID               uuid.UUID `json:"id"`
-	ContentID        uuid.UUID `json:"content_id"`
-	StorageBackendID uuid.UUID `json:"storage_backend_id"`
-	Version          int       `json:"version"`
-	ObjectKey        string    `json:"object_key"`
-	Status           string    `json:"status"`
-	CreatedAt        time.Time `json:"created_at"`
-	UpdatedAt        time.Time `json:"updated_at"`
+	ID                 uuid.UUID `json:"id"`
+	ContentID          uuid.UUID `json:"content_id"`
+	StorageBackendName string    `json:"storage_backend_name"`
+	Version            int       `json:"version"`
+	ObjectKey          string    `json:"object_key"`
+	Status             string    `json:"status"`
+	CreatedAt          time.Time `json:"created_at"`
+	UpdatedAt          time.Time `json:"updated_at"`
 }
 
 // ObjectMetadata represents metadata about an object

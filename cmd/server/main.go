@@ -49,7 +49,7 @@ func main() {
 	objectService.RegisterBackend("fs", fsBackend)
 	objectService.RegisterBackend("fs-test", fsBackend)
 
-	// Create a default file system storage backend in the database
+	// Create a default file system storage backend
 	ctx := context.Background()
 	_, err = storageBackendService.CreateStorageBackend(
 		ctx,

@@ -5,7 +5,6 @@ import (
 	"errors"
 	"sync"
 
-	"github.com/google/uuid"
 	"github.com/tendant/simple-content/internal/domain"
 	"github.com/tendant/simple-content/internal/repository"
 )
@@ -13,13 +12,13 @@ import (
 // StorageBackendRepository is an in-memory implementation of the StorageBackendRepository interface
 type StorageBackendRepository struct {
 	mu       sync.RWMutex
-	backends map[uuid.UUID]*domain.StorageBackend
+	backends map[string]*domain.StorageBackend
 }
 
 // NewStorageBackendRepository creates a new in-memory storage backend repository
 func NewStorageBackendRepository() repository.StorageBackendRepository {
 	return &StorageBackendRepository{
-		backends: make(map[uuid.UUID]*domain.StorageBackend),
+		backends: make(map[string]*domain.StorageBackend),
 	}
 }
 
@@ -28,27 +27,20 @@ func (r *StorageBackendRepository) Create(ctx context.Context, backend *domain.S
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	if _, exists := r.backends[backend.ID]; exists {
-		return errors.New("storage backend already exists")
+	if _, exists := r.backends[backend.Name]; exists {
+		return errors.New("storage backend with this name already exists")
 	}
 
-	// Check for duplicate name
-	for _, b := range r.backends {
-		if b.Name == backend.Name {
-			return errors.New("storage backend with this name already exists")
-		}
-	}
-
-	r.backends[backend.ID] = backend
+	r.backends[backend.Name] = backend
 	return nil
 }
 
-// Get retrieves a storage backend by ID
-func (r *StorageBackendRepository) Get(ctx context.Context, id uuid.UUID) (*domain.StorageBackend, error) {
+// Get retrieves a storage backend by name
+func (r *StorageBackendRepository) Get(ctx context.Context, name string) (*domain.StorageBackend, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	backend, exists := r.backends[id]
+	backend, exists := r.backends[name]
 	if !exists {
 		return nil, errors.New("storage backend not found")
 	}
@@ -56,50 +48,29 @@ func (r *StorageBackendRepository) Get(ctx context.Context, id uuid.UUID) (*doma
 	return backend, nil
 }
 
-// GetByName retrieves a storage backend by name
-func (r *StorageBackendRepository) GetByName(ctx context.Context, name string) (*domain.StorageBackend, error) {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-
-	for _, backend := range r.backends {
-		if backend.Name == name {
-			return backend, nil
-		}
-	}
-
-	return nil, errors.New("storage backend not found")
-}
-
 // Update updates an existing storage backend
 func (r *StorageBackendRepository) Update(ctx context.Context, backend *domain.StorageBackend) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	if _, exists := r.backends[backend.ID]; !exists {
+	if _, exists := r.backends[backend.Name]; !exists {
 		return errors.New("storage backend not found")
 	}
 
-	// Check for duplicate name
-	for id, b := range r.backends {
-		if b.Name == backend.Name && id != backend.ID {
-			return errors.New("storage backend with this name already exists")
-		}
-	}
-
-	r.backends[backend.ID] = backend
+	r.backends[backend.Name] = backend
 	return nil
 }
 
-// Delete removes a storage backend by ID
-func (r *StorageBackendRepository) Delete(ctx context.Context, id uuid.UUID) error {
+// Delete removes a storage backend by name
+func (r *StorageBackendRepository) Delete(ctx context.Context, name string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	if _, exists := r.backends[id]; !exists {
+	if _, exists := r.backends[name]; !exists {
 		return errors.New("storage backend not found")
 	}
 
-	delete(r.backends, id)
+	delete(r.backends, name)
 	return nil
 }
 

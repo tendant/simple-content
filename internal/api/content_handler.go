@@ -446,20 +446,20 @@ func (h *ContentHandler) GetMetadata(w http.ResponseWriter, r *http.Request) {
 
 // CreateObjectRequest is the request body for creating an object
 type CreateObjectRequest struct {
-	StorageBackendID string `json:"storage_backend_id"`
-	Version          int    `json:"version"`
+	StorageBackendName string `json:"storage_backend_name"`
+	Version            int    `json:"version"`
 }
 
 // ObjectResponse is the response body for an object
 type ObjectResponse struct {
-	ID               string    `json:"id"`
-	ContentID        string    `json:"content_id"`
-	StorageBackendID string    `json:"storage_backend_id"`
-	Version          int       `json:"version"`
-	ObjectKey        string    `json:"object_key"`
-	Status           string    `json:"status"`
-	CreatedAt        time.Time `json:"created_at"`
-	UpdatedAt        time.Time `json:"updated_at"`
+	ID                 string    `json:"id"`
+	ContentID          string    `json:"content_id"`
+	StorageBackendName string    `json:"storage_backend_name"`
+	Version            int       `json:"version"`
+	ObjectKey          string    `json:"object_key"`
+	Status             string    `json:"status"`
+	CreatedAt          time.Time `json:"created_at"`
+	UpdatedAt          time.Time `json:"updated_at"`
 }
 
 // CreateObject creates a new object for a content
@@ -477,27 +477,21 @@ func (h *ContentHandler) CreateObject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	storageBackendID, err := uuid.Parse(req.StorageBackendID)
-	if err != nil {
-		http.Error(w, "Invalid storage backend ID", http.StatusBadRequest)
-		return
-	}
-
-	object, err := h.objectService.CreateObject(r.Context(), contentID, storageBackendID, req.Version)
+	object, err := h.objectService.CreateObject(r.Context(), contentID, req.StorageBackendName, req.Version)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	resp := ObjectResponse{
-		ID:               object.ID.String(),
-		ContentID:        object.ContentID.String(),
-		StorageBackendID: object.StorageBackendID.String(),
-		Version:          object.Version,
-		ObjectKey:        object.ObjectKey,
-		Status:           object.Status,
-		CreatedAt:        object.CreatedAt,
-		UpdatedAt:        object.UpdatedAt,
+		ID:                 object.ID.String(),
+		ContentID:          object.ContentID.String(),
+		StorageBackendName: object.StorageBackendName,
+		Version:            object.Version,
+		ObjectKey:          object.ObjectKey,
+		Status:             object.Status,
+		CreatedAt:          object.CreatedAt,
+		UpdatedAt:          object.UpdatedAt,
 	}
 
 	render.Status(r, http.StatusCreated)
@@ -522,14 +516,14 @@ func (h *ContentHandler) ListObjects(w http.ResponseWriter, r *http.Request) {
 	var resp []ObjectResponse
 	for _, object := range objects {
 		resp = append(resp, ObjectResponse{
-			ID:               object.ID.String(),
-			ContentID:        object.ContentID.String(),
-			StorageBackendID: object.StorageBackendID.String(),
-			Version:          object.Version,
-			ObjectKey:        object.ObjectKey,
-			Status:           object.Status,
-			CreatedAt:        object.CreatedAt,
-			UpdatedAt:        object.UpdatedAt,
+			ID:                 object.ID.String(),
+			ContentID:          object.ContentID.String(),
+			StorageBackendName: object.StorageBackendName,
+			Version:            object.Version,
+			ObjectKey:          object.ObjectKey,
+			Status:             object.Status,
+			CreatedAt:          object.CreatedAt,
+			UpdatedAt:          object.UpdatedAt,
 		})
 	}
 
@@ -564,14 +558,14 @@ func (h *ContentHandler) GetDownload(w http.ResponseWriter, r *http.Request) {
 		if object.Version > latestVersion {
 			latestVersion = object.Version
 			resp := ObjectResponse{
-				ID:               object.ID.String(),
-				ContentID:        object.ContentID.String(),
-				StorageBackendID: object.StorageBackendID.String(),
-				Version:          object.Version,
-				ObjectKey:        object.ObjectKey,
-				Status:           object.Status,
-				CreatedAt:        object.CreatedAt,
-				UpdatedAt:        object.UpdatedAt,
+				ID:                 object.ID.String(),
+				ContentID:          object.ContentID.String(),
+				StorageBackendName: object.StorageBackendName,
+				Version:            object.Version,
+				ObjectKey:          object.ObjectKey,
+				Status:             object.Status,
+				CreatedAt:          object.CreatedAt,
+				UpdatedAt:          object.UpdatedAt,
 			}
 			latestObject = &resp
 		}

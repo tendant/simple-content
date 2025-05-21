@@ -55,11 +55,11 @@ func (s *ObjectService) GetBackend(name string) (storage.Backend, error) {
 func (s *ObjectService) CreateObject(
 	ctx context.Context,
 	contentID uuid.UUID,
-	storageBackendID uuid.UUID,
+	storageBackendName string,
 	version int,
 ) (*domain.Object, error) {
 	// Verify storage backend exists
-	storageBackend, err := s.storageBackendRepo.Get(ctx, storageBackendID)
+	storageBackend, err := s.storageBackendRepo.Get(ctx, storageBackendName)
 	if err != nil {
 		return nil, err
 	}
@@ -69,14 +69,14 @@ func (s *ObjectService) CreateObject(
 	objectKey := fmt.Sprintf("%s/%s", contentID, objectID)
 
 	object := &domain.Object{
-		ID:               objectID,
-		ContentID:        contentID,
-		StorageBackendID: storageBackendID,
-		Version:          version,
-		ObjectKey:        objectKey,
-		Status:           "pending",
-		CreatedAt:        now,
-		UpdatedAt:        now,
+		ID:                 objectID,
+		ContentID:          contentID,
+		StorageBackendName: storageBackendName,
+		Version:            version,
+		ObjectKey:          objectKey,
+		Status:             "pending",
+		CreatedAt:          now,
+		UpdatedAt:          now,
 	}
 
 	if err := s.objectRepo.Create(ctx, object); err != nil {
@@ -86,7 +86,6 @@ func (s *ObjectService) CreateObject(
 	// Set initial metadata
 	initialMetadata := map[string]interface{}{
 		"storage_backend_type": storageBackend.Type,
-		"storage_backend_name": storageBackend.Name,
 	}
 	if err := s.objectMetadataRepo.Set(ctx, objectID, initialMetadata); err != nil {
 		return nil, err
@@ -119,7 +118,7 @@ func (s *ObjectService) DeleteObject(ctx context.Context, id uuid.UUID) error {
 	}
 
 	// Get the storage backend
-	storageBackend, err := s.storageBackendRepo.Get(ctx, object.StorageBackendID)
+	storageBackend, err := s.storageBackendRepo.Get(ctx, object.StorageBackendName)
 	if err != nil {
 		return err
 	}
@@ -129,7 +128,7 @@ func (s *ObjectService) DeleteObject(ctx context.Context, id uuid.UUID) error {
 	if storageBackend.Type == "memory" {
 		backend = s.defaultBackend
 	} else {
-		backend, err = s.GetBackend(storageBackend.Name)
+		backend, err = s.GetBackend(object.StorageBackendName)
 		if err != nil {
 			return err
 		}
@@ -152,7 +151,7 @@ func (s *ObjectService) UploadObject(ctx context.Context, id uuid.UUID, reader i
 	}
 
 	// Get the storage backend
-	storageBackend, err := s.storageBackendRepo.Get(ctx, object.StorageBackendID)
+	storageBackend, err := s.storageBackendRepo.Get(ctx, object.StorageBackendName)
 	if err != nil {
 		return err
 	}
@@ -162,7 +161,7 @@ func (s *ObjectService) UploadObject(ctx context.Context, id uuid.UUID, reader i
 	if storageBackend.Type == "memory" {
 		backend = s.defaultBackend
 	} else {
-		backend, err = s.GetBackend(storageBackend.Name)
+		backend, err = s.GetBackend(object.StorageBackendName)
 		if err != nil {
 			return err
 		}
@@ -187,7 +186,7 @@ func (s *ObjectService) DownloadObject(ctx context.Context, id uuid.UUID) (io.Re
 	}
 
 	// Get the storage backend
-	storageBackend, err := s.storageBackendRepo.Get(ctx, object.StorageBackendID)
+	storageBackend, err := s.storageBackendRepo.Get(ctx, object.StorageBackendName)
 	if err != nil {
 		return nil, err
 	}
@@ -197,7 +196,7 @@ func (s *ObjectService) DownloadObject(ctx context.Context, id uuid.UUID) (io.Re
 	if storageBackend.Type == "memory" {
 		backend = s.defaultBackend
 	} else {
-		backend, err = s.GetBackend(storageBackend.Name)
+		backend, err = s.GetBackend(object.StorageBackendName)
 		if err != nil {
 			return nil, err
 		}
@@ -215,7 +214,7 @@ func (s *ObjectService) GetUploadURL(ctx context.Context, id uuid.UUID) (string,
 	}
 
 	// Get the storage backend
-	storageBackend, err := s.storageBackendRepo.Get(ctx, object.StorageBackendID)
+	storageBackend, err := s.storageBackendRepo.Get(ctx, object.StorageBackendName)
 	if err != nil {
 		return "", err
 	}
@@ -225,7 +224,7 @@ func (s *ObjectService) GetUploadURL(ctx context.Context, id uuid.UUID) (string,
 	if storageBackend.Type == "memory" {
 		backend = s.defaultBackend
 	} else {
-		backend, err = s.GetBackend(storageBackend.Name)
+		backend, err = s.GetBackend(object.StorageBackendName)
 		if err != nil {
 			return "", err
 		}
@@ -243,7 +242,7 @@ func (s *ObjectService) GetDownloadURL(ctx context.Context, id uuid.UUID) (strin
 	}
 
 	// Get the storage backend
-	storageBackend, err := s.storageBackendRepo.Get(ctx, object.StorageBackendID)
+	storageBackend, err := s.storageBackendRepo.Get(ctx, object.StorageBackendName)
 	if err != nil {
 		return "", err
 	}
@@ -253,7 +252,7 @@ func (s *ObjectService) GetDownloadURL(ctx context.Context, id uuid.UUID) (strin
 	if storageBackend.Type == "memory" {
 		backend = s.defaultBackend
 	} else {
-		backend, err = s.GetBackend(storageBackend.Name)
+		backend, err = s.GetBackend(object.StorageBackendName)
 		if err != nil {
 			return "", err
 		}

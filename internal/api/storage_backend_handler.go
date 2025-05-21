@@ -7,7 +7,6 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
-	"github.com/google/uuid"
 	"github.com/tendant/simple-content/internal/service"
 )
 
@@ -45,7 +44,6 @@ type CreateStorageBackendRequest struct {
 
 // StorageBackendResponse is the response body for a storage backend
 type StorageBackendResponse struct {
-	ID        string                 `json:"id"`
 	Name      string                 `json:"name"`
 	Type      string                 `json:"type"`
 	Config    map[string]interface{} `json:"config"`
@@ -69,7 +67,6 @@ func (h *StorageBackendHandler) CreateStorageBackend(w http.ResponseWriter, r *h
 	}
 
 	resp := StorageBackendResponse{
-		ID:        backend.ID.String(),
 		Name:      backend.Name,
 		Type:      backend.Type,
 		Config:    backend.Config,
@@ -82,23 +79,17 @@ func (h *StorageBackendHandler) CreateStorageBackend(w http.ResponseWriter, r *h
 	render.JSON(w, r, resp)
 }
 
-// GetStorageBackend retrieves a storage backend by ID
+// GetStorageBackend retrieves a storage backend by name
 func (h *StorageBackendHandler) GetStorageBackend(w http.ResponseWriter, r *http.Request) {
-	idStr := chi.URLParam(r, "id")
-	id, err := uuid.Parse(idStr)
-	if err != nil {
-		http.Error(w, "Invalid storage backend ID", http.StatusBadRequest)
-		return
-	}
+	name := chi.URLParam(r, "id") // Using "id" parameter for backward compatibility
 
-	backend, err := h.storageBackendService.GetStorageBackend(r.Context(), id)
+	backend, err := h.storageBackendService.GetStorageBackend(r.Context(), name)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
 
 	resp := StorageBackendResponse{
-		ID:        backend.ID.String(),
 		Name:      backend.Name,
 		Type:      backend.Type,
 		Config:    backend.Config,
@@ -112,7 +103,6 @@ func (h *StorageBackendHandler) GetStorageBackend(w http.ResponseWriter, r *http
 
 // UpdateStorageBackendRequest is the request body for updating a storage backend
 type UpdateStorageBackendRequest struct {
-	Name     string                 `json:"name"`
 	Type     string                 `json:"type"`
 	Config   map[string]interface{} `json:"config"`
 	IsActive bool                   `json:"is_active"`
@@ -120,12 +110,7 @@ type UpdateStorageBackendRequest struct {
 
 // UpdateStorageBackend updates a storage backend
 func (h *StorageBackendHandler) UpdateStorageBackend(w http.ResponseWriter, r *http.Request) {
-	idStr := chi.URLParam(r, "id")
-	id, err := uuid.Parse(idStr)
-	if err != nil {
-		http.Error(w, "Invalid storage backend ID", http.StatusBadRequest)
-		return
-	}
+	name := chi.URLParam(r, "id") // Using "id" parameter for backward compatibility
 
 	var req UpdateStorageBackendRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -133,13 +118,12 @@ func (h *StorageBackendHandler) UpdateStorageBackend(w http.ResponseWriter, r *h
 		return
 	}
 
-	backend, err := h.storageBackendService.GetStorageBackend(r.Context(), id)
+	backend, err := h.storageBackendService.GetStorageBackend(r.Context(), name)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
 
-	backend.Name = req.Name
 	backend.Type = req.Type
 	backend.Config = req.Config
 	backend.IsActive = req.IsActive
@@ -150,7 +134,6 @@ func (h *StorageBackendHandler) UpdateStorageBackend(w http.ResponseWriter, r *h
 	}
 
 	resp := StorageBackendResponse{
-		ID:        backend.ID.String(),
 		Name:      backend.Name,
 		Type:      backend.Type,
 		Config:    backend.Config,
@@ -164,14 +147,9 @@ func (h *StorageBackendHandler) UpdateStorageBackend(w http.ResponseWriter, r *h
 
 // DeleteStorageBackend deletes a storage backend
 func (h *StorageBackendHandler) DeleteStorageBackend(w http.ResponseWriter, r *http.Request) {
-	idStr := chi.URLParam(r, "id")
-	id, err := uuid.Parse(idStr)
-	if err != nil {
-		http.Error(w, "Invalid storage backend ID", http.StatusBadRequest)
-		return
-	}
+	name := chi.URLParam(r, "id") // Using "id" parameter for backward compatibility
 
-	if err := h.storageBackendService.DeleteStorageBackend(r.Context(), id); err != nil {
+	if err := h.storageBackendService.DeleteStorageBackend(r.Context(), name); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -190,7 +168,6 @@ func (h *StorageBackendHandler) ListStorageBackends(w http.ResponseWriter, r *ht
 	var resp []StorageBackendResponse
 	for _, backend := range backends {
 		resp = append(resp, StorageBackendResponse{
-			ID:        backend.ID.String(),
 			Name:      backend.Name,
 			Type:      backend.Type,
 			Config:    backend.Config,

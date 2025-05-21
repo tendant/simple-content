@@ -4,7 +4,6 @@ import (
 	"context"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/tendant/simple-content/internal/domain"
 	"github.com/tendant/simple-content/internal/repository"
 )
@@ -32,7 +31,6 @@ func (s *StorageBackendService) CreateStorageBackend(
 ) (*domain.StorageBackend, error) {
 	now := time.Now()
 	backend := &domain.StorageBackend{
-		ID:        uuid.New(),
 		Name:      name,
 		Type:      backendType,
 		Config:    config,
@@ -48,14 +46,9 @@ func (s *StorageBackendService) CreateStorageBackend(
 	return backend, nil
 }
 
-// GetStorageBackend retrieves a storage backend by ID
-func (s *StorageBackendService) GetStorageBackend(ctx context.Context, id uuid.UUID) (*domain.StorageBackend, error) {
-	return s.storageBackendRepo.Get(ctx, id)
-}
-
-// GetStorageBackendByName retrieves a storage backend by name
-func (s *StorageBackendService) GetStorageBackendByName(ctx context.Context, name string) (*domain.StorageBackend, error) {
-	return s.storageBackendRepo.GetByName(ctx, name)
+// GetStorageBackend retrieves a storage backend by name
+func (s *StorageBackendService) GetStorageBackend(ctx context.Context, name string) (*domain.StorageBackend, error) {
+	return s.storageBackendRepo.Get(ctx, name)
 }
 
 // UpdateStorageBackend updates a storage backend
@@ -65,8 +58,8 @@ func (s *StorageBackendService) UpdateStorageBackend(ctx context.Context, backen
 }
 
 // DeleteStorageBackend deletes a storage backend
-func (s *StorageBackendService) DeleteStorageBackend(ctx context.Context, id uuid.UUID) error {
-	return s.storageBackendRepo.Delete(ctx, id)
+func (s *StorageBackendService) DeleteStorageBackend(ctx context.Context, name string) error {
+	return s.storageBackendRepo.Delete(ctx, name)
 }
 
 // ListStorageBackends lists all storage backends

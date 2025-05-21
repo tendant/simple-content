@@ -44,10 +44,9 @@ type ObjectMetadataRepository interface {
 // StorageBackendRepository defines the interface for storage backend operations
 type StorageBackendRepository interface {
 	Create(ctx context.Context, backend *domain.StorageBackend) error
-	Get(ctx context.Context, id uuid.UUID) (*domain.StorageBackend, error)
-	GetByName(ctx context.Context, name string) (*domain.StorageBackend, error)
+	Get(ctx context.Context, name string) (*domain.StorageBackend, error)
 	Update(ctx context.Context, backend *domain.StorageBackend) error
-	Delete(ctx context.Context, id uuid.UUID) error
+	Delete(ctx context.Context, name string) error
 	List(ctx context.Context) ([]*domain.StorageBackend, error)
 }
 
