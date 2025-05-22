@@ -47,6 +47,137 @@ type S3Backend struct {
 	sseKMSKeyID     string
 }
 
+// S3BackendForTesting is a version of S3Backend that can be used for testing
+// It allows injecting mock clients
+type S3BackendForTesting struct {
+	Client          s3ClientInterface
+	PresignClient   presignClientInterface
+	Bucket          string
+	PresignDuration time.Duration
+	EnableSSE       bool
+	SSEAlgorithm    string
+	SSEKMSKeyID     string
+}
+
+// Interfaces for mocking
+type s3ClientInterface interface {
+	PutObject(ctx context.Context, params *s3.PutObjectInput, optFns ...func(*s3.Options)) (*s3.PutObjectOutput, error)
+	GetObject(ctx context.Context, params *s3.GetObjectInput, optFns ...func(*s3.Options)) (*s3.GetObjectOutput, error)
+	DeleteObject(ctx context.Context, params *s3.DeleteObjectInput, optFns ...func(*s3.Options)) (*s3.DeleteObjectOutput, error)
+	HeadBucket(ctx context.Context, params *s3.HeadBucketInput, optFns ...func(*s3.Options)) (*s3.HeadBucketOutput, error)
+	CreateBucket(ctx context.Context, params *s3.CreateBucketInput, optFns ...func(*s3.Options)) (*s3.CreateBucketOutput, error)
+}
+
+type presignClientInterface interface {
+	PresignPutObject(ctx context.Context, params *s3.PutObjectInput, optFns ...func(*s3.PresignOptions)) (*PresignOutput, error)
+	PresignGetObject(ctx context.Context, params *s3.GetObjectInput, optFns ...func(*s3.PresignOptions)) (*PresignOutput, error)
+}
+
+// PresignOutput is a simplified version of the AWS SDK's PresignedHTTPRequest
+type PresignOutput struct {
+	URL string
+}
+
+// GetUploadURL returns a pre-signed URL for uploading content
+func (b *S3BackendForTesting) GetUploadURL(ctx context.Context, objectKey string) (string, error) {
+	input := &s3.PutObjectInput{
+		Bucket: aws.String(b.Bucket),
+		Key:    aws.String(objectKey),
+	}
+
+	// Add server-side encryption if enabled
+	if b.EnableSSE {
+		if b.SSEAlgorithm == "AES256" {
+			input.ServerSideEncryption = types.ServerSideEncryptionAes256
+		} else if b.SSEAlgorithm == "aws:kms" {
+			input.ServerSideEncryption = types.ServerSideEncryptionAwsKms
+			if b.SSEKMSKeyID != "" {
+				input.SSEKMSKeyId = aws.String(b.SSEKMSKeyID)
+			}
+		}
+	}
+
+	result, err := b.PresignClient.PresignPutObject(ctx, input)
+	if err != nil {
+		return "", fmt.Errorf("failed to generate presigned URL: %w", err)
+	}
+
+	return result.URL, nil
+}
+
+// Upload uploads content directly to S3
+func (b *S3BackendForTesting) Upload(ctx context.Context, objectKey string, reader io.Reader) error {
+	input := &s3.PutObjectInput{
+		Bucket: aws.String(b.Bucket),
+		Key:    aws.String(objectKey),
+		Body:   reader,
+	}
+
+	// Add server-side encryption if enabled
+	if b.EnableSSE {
+		if b.SSEAlgorithm == "AES256" {
+			input.ServerSideEncryption = types.ServerSideEncryptionAes256
+		} else if b.SSEAlgorithm == "aws:kms" {
+			input.ServerSideEncryption = types.ServerSideEncryptionAwsKms
+			if b.SSEKMSKeyID != "" {
+				input.SSEKMSKeyId = aws.String(b.SSEKMSKeyID)
+			}
+		}
+	}
+
+	_, err := b.Client.PutObject(ctx, input)
+	if err != nil {
+		return fmt.Errorf("failed to upload object: %w", err)
+	}
+
+	return nil
+}
+
+// GetDownloadURL returns a pre-signed URL for downloading content
+func (b *S3BackendForTesting) GetDownloadURL(ctx context.Context, objectKey string) (string, error) {
+	input := &s3.GetObjectInput{
+		Bucket: aws.String(b.Bucket),
+		Key:    aws.String(objectKey),
+	}
+
+	result, err := b.PresignClient.PresignGetObject(ctx, input)
+	if err != nil {
+		return "", fmt.Errorf("failed to generate presigned URL: %w", err)
+	}
+
+	return result.URL, nil
+}
+
+// Download downloads content directly from S3
+func (b *S3BackendForTesting) Download(ctx context.Context, objectKey string) (io.ReadCloser, error) {
+	input := &s3.GetObjectInput{
+		Bucket: aws.String(b.Bucket),
+		Key:    aws.String(objectKey),
+	}
+
+	result, err := b.Client.GetObject(ctx, input)
+	if err != nil {
+		return nil, fmt.Errorf("failed to download object: %w", err)
+	}
+
+	return result.Body, nil
+}
+
+// Delete deletes content from S3
+func (b *S3BackendForTesting) Delete(ctx context.Context, objectKey string) error {
+	input := &s3.DeleteObjectInput{
+		Bucket: aws.String(b.Bucket),
+		Key:    aws.String(objectKey),
+	}
+
+	_, err := b.Client.DeleteObject(ctx, input)
+	if err != nil {
+		return fmt.Errorf("failed to delete object: %w", err)
+	}
+
+	return nil
+}
+
 // NewS3Backend creates a new S3 storage backend
 func NewS3Backend(config Config) (storage.Backend, error) {
 	// Validate config
