@@ -171,9 +171,6 @@ func (r *PSQLObjectRepository) GetByContentID(ctx context.Context, contentID uui
 			object.FileName = *nullableFileName
 		}
 
-		// Set VersionID based on Version for compatibility
-		object.VersionID = fmt.Sprintf("v%d", object.Version)
-
 		if nullableObjectType != nil {
 			object.ObjectType = *nullableObjectType
 		}

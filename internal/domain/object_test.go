@@ -21,7 +21,6 @@ func TestObject(t *testing.T) {
 		ObjectKey:          "test-key",
 		FileName:           "test-file.txt",
 		Version:            1,
-		VersionID:          "v1",
 		ObjectType:         "file",
 		Status:             ObjectStatusCreated,
 		CreatedAt:          now,
@@ -35,7 +34,6 @@ func TestObject(t *testing.T) {
 	assert.Equal(t, "test-key", obj.ObjectKey)
 	assert.Equal(t, "test-file.txt", obj.FileName)
 	assert.Equal(t, 1, obj.Version)
-	assert.Equal(t, "v1", obj.VersionID)
 	assert.Equal(t, "file", obj.ObjectType)
 	assert.Equal(t, ObjectStatusCreated, obj.Status)
 	assert.Equal(t, now, obj.CreatedAt)
