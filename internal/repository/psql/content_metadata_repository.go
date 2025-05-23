@@ -70,7 +70,7 @@ func (r *PSQLContentMetadataRepository) Set(ctx context.Context, metadata *domai
 		`
 	}
 
-	now := time.Now()
+	now := time.Now().UTC()
 	var updatedAt time.Time
 	err = r.db.QueryRow(
 		ctx,

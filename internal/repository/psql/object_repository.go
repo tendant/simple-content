@@ -40,7 +40,7 @@ func (r *PSQLObjectRepository) Create(ctx context.Context, object *domain.Object
 	}
 
 	// Set timestamps if not provided
-	now := time.Now()
+	now := time.Now().UTC()
 	if object.CreatedAt.IsZero() {
 		object.CreatedAt = now
 	}
