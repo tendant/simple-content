@@ -6,6 +6,16 @@ import (
 	"github.com/google/uuid"
 )
 
+const (
+	ObjectStatusPending    = "pending"
+	ObjectStatusUploading  = "uploading"
+	ObjectStatusUploaded   = "uploaded"
+	ObjectStatusProcessing = "processing"
+	ObjectStatusProcessed  = "processed"
+	ObjectStatusFailed     = "failed"
+	ObjectStatusDeleted    = "deleted"
+)
+
 // Object represents a physical object stored in a storage backend
 type Object struct {
 	ID                 uuid.UUID `json:"id"`
@@ -24,13 +34,13 @@ type Object struct {
 
 // ObjectMetadata represents metadata about an object
 type ObjectMetadata struct {
-	ObjectID    uuid.UUID              `json:"object_id"`
-	SizeBytes   int64                  `json:"size_bytes"`
-	MimeType    string                 `json:"mime_type"`
-	ETag        string                 `json:"etag,omitempty"`
-	Metadata    map[string]interface{} `json:"metadata"`
-	CreatedAt   time.Time             `json:"created_at"`
-	UpdatedAt   time.Time             `json:"updated_at"`
+	ObjectID  uuid.UUID              `json:"object_id"`
+	SizeBytes int64                  `json:"size_bytes"`
+	MimeType  string                 `json:"mime_type"`
+	ETag      string                 `json:"etag,omitempty"`
+	Metadata  map[string]interface{} `json:"metadata"`
+	CreatedAt time.Time              `json:"created_at"`
+	UpdatedAt time.Time              `json:"updated_at"`
 }
 
 // ObjectPreview represents a preview generated from an object

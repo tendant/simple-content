@@ -6,6 +6,16 @@ import (
 	"github.com/google/uuid"
 )
 
+const (
+	ContentStatusCreated  = "created"
+	ContentStatusUploaded = "uploaded"
+)
+
+const (
+	ContentDerivationTypeOriginal = "original"
+	ContentDerivationTypeDerived  = "derived"
+)
+
 // Content represents a logical content entity
 type Content struct {
 	ID             uuid.UUID `json:"id"`
