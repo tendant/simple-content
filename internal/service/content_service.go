@@ -42,8 +42,8 @@ func (s *ContentService) CreateContent(
 		UpdatedAt:      now,
 		OwnerID:        ownerID,
 		TenantID:       tenantID,
-		Status:         "created",
-		DerivationType: "original",
+		Status:         domain.ContentStatusCreated,
+		DerivationType: domain.ContentDerivationTypeOriginal,
 	}
 
 	if err := s.contentRepo.Create(ctx, content); err != nil {
@@ -73,8 +73,8 @@ func (s *ContentService) CreateDerivedContent(
 		UpdatedAt:      now,
 		OwnerID:        ownerID,
 		TenantID:       tenantID,
-		Status:         "created",
-		DerivationType: "derived",
+		Status:         domain.ContentStatusCreated,
+		DerivationType: domain.ContentDerivationTypeDerived,
 	}
 
 	if err := s.contentRepo.Create(ctx, content); err != nil {

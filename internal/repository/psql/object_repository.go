@@ -50,7 +50,7 @@ func (r *PSQLObjectRepository) Create(ctx context.Context, object *domain.Object
 
 	// Default status if not provided
 	if object.Status == "" {
-		object.Status = "pending"
+		object.Status = domain.ObjectStatusPending
 	}
 
 	// Convert version to string for version_id
