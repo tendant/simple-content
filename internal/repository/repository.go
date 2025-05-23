@@ -37,8 +37,8 @@ type ObjectRepository interface {
 
 // ObjectMetadataRepository defines the interface for object metadata operations
 type ObjectMetadataRepository interface {
-	Set(ctx context.Context, objectID uuid.UUID, metadata map[string]interface{}) error
-	Get(ctx context.Context, objectID uuid.UUID) (map[string]interface{}, error)
+	Set(ctx context.Context, metadata *domain.ObjectMetadata) error
+	Get(ctx context.Context, objectID uuid.UUID) (*domain.ObjectMetadata, error)
 }
 
 // StorageBackendRepository defines the interface for storage backend operations
