@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"time"
 
@@ -38,15 +37,13 @@ func (s *ContentService) CreateContent(
 ) (*domain.Content, error) {
 	now := time.Now()
 	content := &domain.Content{
-		ID:              uuid.New(),
-		ParentID:        nil, // Explicitly nil for original content
-		CreatedAt:       now,
-		UpdatedAt:       now,
-		OwnerID:         ownerID,
-		TenantID:        tenantID,
-		Status:          "active",
-		DerivationType:  "original",
-		DerivationLevel: 0, // Original content has level 0
+		ID:             uuid.New(),
+		CreatedAt:      now,
+		UpdatedAt:      now,
+		OwnerID:        ownerID,
+		TenantID:       tenantID,
+		Status:         "active",
+		DerivationType: "original",
 	}
 
 	if err := s.contentRepo.Create(ctx, content); err != nil {
@@ -63,32 +60,29 @@ func (s *ContentService) CreateDerivedContent(
 	ownerID, tenantID uuid.UUID,
 ) (*domain.Content, error) {
 	// Verify parent content exists
-	parentContent, err := s.contentRepo.Get(ctx, parentID)
+	_, err := s.contentRepo.Get(ctx, parentID)
 	if err != nil {
 		return nil, fmt.Errorf("parent content not found: %w", err)
 	}
 
-	// Check derivation level limit
-	if parentContent.DerivationLevel >= 5 {
-		return nil, errors.New("maximum derivation depth reached (limit: 5 levels)")
-	}
-
+	// Create derived content
 	now := time.Now()
 	content := &domain.Content{
-		ID:              uuid.New(),
-		ParentID:        &parentID,
-		CreatedAt:       now,
-		UpdatedAt:       now,
-		OwnerID:         ownerID,
-		TenantID:        tenantID,
-		Status:          "active",
-		DerivationType:  "derived",
-		DerivationLevel: parentContent.DerivationLevel + 1,
+		ID:             uuid.New(),
+		CreatedAt:      now,
+		UpdatedAt:      now,
+		OwnerID:        ownerID,
+		TenantID:       tenantID,
+		Status:         "active",
+		DerivationType: "derived",
 	}
 
 	if err := s.contentRepo.Create(ctx, content); err != nil {
 		return nil, fmt.Errorf("failed to create derived content: %w", err)
 	}
+
+	// Note: Content derivation relationships will be handled by the ContentDerivedRepository
+	// which will be implemented separately
 
 	return content, nil
 }
@@ -150,19 +144,28 @@ func (s *ContentService) SetContentMetadata(
 	customMetadata map[string]interface{},
 ) error {
 	// Verify content exists
-	if _, err := s.contentRepo.Get(ctx, contentID); err != nil {
-		return err
+	_, err := s.contentRepo.Get(ctx, contentID)
+	if err != nil {
+		return fmt.Errorf("content not found: %w", err)
 	}
 
+	// Prepare metadata
 	metadata := &domain.ContentMetadata{
-		ContentID:   contentID,
-		ContentType: contentType,
-		Title:       title,
-		Description: description,
-		Tags:        tags,
-		FileSize:    fileSize,
-		CreatedBy:   createdBy,
-		Metadata:    customMetadata,
+		ContentID: contentID,
+		Tags:      tags,
+		FileSize:  fileSize,
+		Metadata:  make(map[string]interface{}),
+	}
+
+	// Store content type, title, description, and created by in the metadata map
+	metadata.Metadata["content_type"] = contentType
+	metadata.Metadata["title"] = title
+	metadata.Metadata["description"] = description
+	metadata.Metadata["created_by"] = createdBy
+
+	// Copy custom metadata
+	for k, v := range customMetadata {
+		metadata.Metadata[k] = v
 	}
 
 	return s.metadataRepo.Set(ctx, metadata)
