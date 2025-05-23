@@ -78,7 +78,7 @@ func (r *PSQLObjectMetadataRepository) Set(ctx context.Context, objectMetadata *
 		`
 	}
 
-	now := time.Now()
+	now := time.Now().UTC()
 	if objectMetadata.UpdatedAt.IsZero() {
 		objectMetadata.UpdatedAt = now
 	}
