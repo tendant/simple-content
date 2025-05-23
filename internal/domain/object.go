@@ -11,8 +11,12 @@ type Object struct {
 	ID                 uuid.UUID `json:"id"`
 	ContentID          uuid.UUID `json:"content_id"`
 	StorageBackendName string    `json:"storage_backend_name"`
-	Version            int       `json:"version"`
+	StorageClass       string    `json:"storage_class,omitempty"`
 	ObjectKey          string    `json:"object_key"`
+	FileName           string    `json:"file_name,omitempty"`
+	Version            int       `json:"version"` // Used for compatibility with version_id field
+	VersionID          string    `json:"version_id,omitempty"`
+	ObjectType         string    `json:"object_type,omitempty"`
 	Status             string    `json:"status"`
 	CreatedAt          time.Time `json:"created_at"`
 	UpdatedAt          time.Time `json:"updated_at"`
@@ -20,8 +24,13 @@ type Object struct {
 
 // ObjectMetadata represents metadata about an object
 type ObjectMetadata struct {
-	ObjectID uuid.UUID              `json:"object_id"`
-	Metadata map[string]interface{} `json:"metadata"`
+	ObjectID    uuid.UUID              `json:"object_id"`
+	SizeBytes   int64                  `json:"size_bytes"`
+	MimeType    string                 `json:"mime_type"`
+	ETag        string                 `json:"etag,omitempty"`
+	Metadata    map[string]interface{} `json:"metadata"`
+	CreatedAt   time.Time             `json:"created_at"`
+	UpdatedAt   time.Time             `json:"updated_at"`
 }
 
 // ObjectPreview represents a preview generated from an object
