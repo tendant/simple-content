@@ -50,7 +50,7 @@ func (r *PSQLContentRepository) Create(ctx context.Context, content *domain.Cont
 
 	// Default status if not provided
 	if content.Status == "" {
-		content.Status = "created"
+		content.Status = domain.ContentStatusCreated
 	}
 
 	err := r.db.QueryRow(

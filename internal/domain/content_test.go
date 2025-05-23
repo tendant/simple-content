@@ -18,10 +18,10 @@ func TestContent_DerivationValidation(t *testing.T) {
 		UpdatedAt:      now,
 		OwnerID:        uuid.New(),
 		TenantID:       uuid.New(),
-		Status:         "created",
-		DerivationType: "original",
+		Status:         domain.ContentStatusCreated,
+		DerivationType: domain.ContentDerivationTypeOriginal,
 	}
-	assert.Equal(t, "original", original.DerivationType)
+	assert.Equal(t, domain.ContentDerivationTypeOriginal, original.DerivationType)
 
 	// Test derived content
 	derived := &domain.Content{
@@ -30,10 +30,10 @@ func TestContent_DerivationValidation(t *testing.T) {
 		UpdatedAt:      now,
 		OwnerID:        uuid.New(),
 		TenantID:       uuid.New(),
-		Status:         "created",
-		DerivationType: "derived",
+		Status:         domain.ContentStatusCreated,
+		DerivationType: domain.ContentDerivationTypeDerived,
 	}
-	assert.Equal(t, "derived", derived.DerivationType)
+	assert.Equal(t, domain.ContentDerivationTypeDerived, derived.DerivationType)
 }
 
 func TestContentMetadata_Validation(t *testing.T) {
