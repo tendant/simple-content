@@ -28,7 +28,7 @@ func (r *PSQLObjectRepository) Create(ctx context.Context, object *domain.Object
 	query := `
 		INSERT INTO content.object (
 			id, content_id, storage_backend_name, storage_class, object_key, 
-			file_name, version_id, object_type, status, created_at, updated_at
+			file_name, version, object_type, status, created_at, updated_at
 		) VALUES (
 			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11
 		) RETURNING id, created_at, updated_at
@@ -50,11 +50,8 @@ func (r *PSQLObjectRepository) Create(ctx context.Context, object *domain.Object
 
 	// Default status if not provided
 	if object.Status == "" {
-		object.Status = domain.ObjectStatusPending
+		object.Status = domain.ObjectStatusCreated
 	}
-
-	// Convert version to string for version_id
-	versionID := fmt.Sprintf("v%d", object.Version)
 
 	err := r.db.QueryRow(
 		ctx,
@@ -65,8 +62,8 @@ func (r *PSQLObjectRepository) Create(ctx context.Context, object *domain.Object
 		object.StorageClass,
 		object.ObjectKey,
 		object.ObjectKey, // Using ObjectKey as file_name by default
-		versionID,
-		"original", // Default object_type
+		object.Version,
+		object.ObjectType, // Default object_type
 		object.Status,
 		object.CreatedAt,
 		object.UpdatedAt,
@@ -79,7 +76,7 @@ func (r *PSQLObjectRepository) Create(ctx context.Context, object *domain.Object
 func (r *PSQLObjectRepository) Get(ctx context.Context, id uuid.UUID) (*domain.Object, error) {
 	query := `
 		SELECT 
-			id, content_id, storage_backend_name, storage_class, object_key, file_name, version, version_id, object_type,
+			id, content_id, storage_backend_name, storage_class, object_key, file_name, version, object_type,
 			status, created_at, updated_at
 		FROM content.object
 		WHERE id = $1 AND deleted_at IS NULL
@@ -87,7 +84,7 @@ func (r *PSQLObjectRepository) Get(ctx context.Context, id uuid.UUID) (*domain.O
 
 	object := &domain.Object{}
 
-	var nullableStorageClass, nullableFileName, nullableVersionID, nullableObjectType *string
+	var nullableStorageClass, nullableFileName, nullableObjectType *string
 
 	err := r.db.QueryRow(ctx, query, id).Scan(
 		&object.ID,
@@ -97,7 +94,6 @@ func (r *PSQLObjectRepository) Get(ctx context.Context, id uuid.UUID) (*domain.O
 		&object.ObjectKey,
 		&nullableFileName,
 		&object.Version,
-		&nullableVersionID,
 		&nullableObjectType,
 		&object.Status,
 		&object.CreatedAt,
@@ -119,10 +115,6 @@ func (r *PSQLObjectRepository) Get(ctx context.Context, id uuid.UUID) (*domain.O
 		object.FileName = *nullableFileName
 	}
 
-	if nullableVersionID != nil {
-		object.VersionID = *nullableVersionID
-	}
-
 	if nullableObjectType != nil {
 		object.ObjectType = *nullableObjectType
 	}
@@ -134,7 +126,7 @@ func (r *PSQLObjectRepository) Get(ctx context.Context, id uuid.UUID) (*domain.O
 func (r *PSQLObjectRepository) GetByContentID(ctx context.Context, contentID uuid.UUID) ([]*domain.Object, error) {
 	query := `
 		SELECT 
-			id, content_id, storage_backend_name, storage_class, object_key, file_name, version, version_id, object_type,
+			id, content_id, storage_backend_name, storage_class, object_key, file_name, version, object_type,
 			status, created_at, updated_at
 		FROM content.object
 		WHERE content_id = $1 AND deleted_at IS NULL
@@ -151,7 +143,7 @@ func (r *PSQLObjectRepository) GetByContentID(ctx context.Context, contentID uui
 
 	for rows.Next() {
 		object := &domain.Object{}
-		var nullableStorageClass, nullableFileName, nullableVersionID, nullableObjectType *string
+		var nullableStorageClass, nullableFileName, nullableObjectType *string
 
 		err := rows.Scan(
 			&object.ID,
@@ -161,7 +153,6 @@ func (r *PSQLObjectRepository) GetByContentID(ctx context.Context, contentID uui
 			&object.ObjectKey,
 			&nullableFileName,
 			&object.Version,
-			&nullableVersionID,
 			&nullableObjectType,
 			&object.Status,
 			&object.CreatedAt,
@@ -178,10 +169,6 @@ func (r *PSQLObjectRepository) GetByContentID(ctx context.Context, contentID uui
 
 		if nullableFileName != nil {
 			object.FileName = *nullableFileName
-		}
-
-		if nullableVersionID != nil {
-			object.VersionID = *nullableVersionID
 		}
 
 		if nullableObjectType != nil {
@@ -207,7 +194,7 @@ func (r *PSQLObjectRepository) Update(ctx context.Context, object *domain.Object
 			storage_class = $3,
 			object_key = $4,
 			file_name = $5,
-			version_id = $6,
+			version = $6,
 			object_type = $7,
 			status = $8,
 			updated_at = $9
@@ -218,9 +205,6 @@ func (r *PSQLObjectRepository) Update(ctx context.Context, object *domain.Object
 	// Update timestamp
 	object.UpdatedAt = time.Now()
 
-	// Convert version to string for version_id
-	versionID := fmt.Sprintf("v%d", object.Version)
-
 	err := r.db.QueryRow(
 		ctx,
 		query,
@@ -229,7 +213,7 @@ func (r *PSQLObjectRepository) Update(ctx context.Context, object *domain.Object
 		object.StorageClass,
 		object.ObjectKey,
 		object.FileName,
-		versionID,
+		object.Version,
 		object.ObjectType,
 		object.Status,
 		object.UpdatedAt,

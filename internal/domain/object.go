@@ -7,7 +7,7 @@ import (
 )
 
 const (
-	ObjectStatusPending    = "pending"
+	ObjectStatusCreated    = "created"
 	ObjectStatusUploading  = "uploading"
 	ObjectStatusUploaded   = "uploaded"
 	ObjectStatusProcessing = "processing"
@@ -25,7 +25,6 @@ type Object struct {
 	ObjectKey          string    `json:"object_key"`
 	FileName           string    `json:"file_name,omitempty"`
 	Version            int       `json:"version"` // Used for compatibility with version_id field
-	VersionID          string    `json:"version_id,omitempty"`
 	ObjectType         string    `json:"object_type,omitempty"`
 	Status             string    `json:"status"`
 	CreatedAt          time.Time `json:"created_at"`
