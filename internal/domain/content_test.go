@@ -18,7 +18,7 @@ func TestContent_DerivationValidation(t *testing.T) {
 		UpdatedAt:      now,
 		OwnerID:        uuid.New(),
 		TenantID:       uuid.New(),
-		Status:         "active",
+		Status:         "created",
 		DerivationType: "original",
 	}
 	assert.Equal(t, "original", original.DerivationType)
@@ -30,7 +30,7 @@ func TestContent_DerivationValidation(t *testing.T) {
 		UpdatedAt:      now,
 		OwnerID:        uuid.New(),
 		TenantID:       uuid.New(),
-		Status:         "active",
+		Status:         "created",
 		DerivationType: "derived",
 	}
 	assert.Equal(t, "derived", derived.DerivationType)
@@ -47,9 +47,9 @@ func TestContentMetadata_Validation(t *testing.T) {
 		Checksum:          "abc123",
 		ChecksumAlgorithm: "md5",
 		Metadata: map[string]interface{}{
-			"duration":   "00:01:30",
-			"resolution": "1920x1080",
-			"title":      "Test Video",
+			"duration":    "00:01:30",
+			"resolution":  "1920x1080",
+			"title":       "Test Video",
 			"description": "A test video description",
 			"created_by":  "Test User",
 		},
