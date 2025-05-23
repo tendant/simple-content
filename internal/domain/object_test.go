@@ -23,7 +23,7 @@ func TestObject(t *testing.T) {
 		Version:            1,
 		VersionID:          "v1",
 		ObjectType:         "file",
-		Status:             ObjectStatusPending,
+		Status:             ObjectStatusCreated,
 		CreatedAt:          now,
 		UpdatedAt:          now,
 	}
@@ -37,7 +37,7 @@ func TestObject(t *testing.T) {
 	assert.Equal(t, 1, obj.Version)
 	assert.Equal(t, "v1", obj.VersionID)
 	assert.Equal(t, "file", obj.ObjectType)
-	assert.Equal(t, ObjectStatusPending, obj.Status)
+	assert.Equal(t, ObjectStatusCreated, obj.Status)
 	assert.Equal(t, now, obj.CreatedAt)
 	assert.Equal(t, now, obj.UpdatedAt)
 }

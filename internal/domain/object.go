@@ -7,7 +7,7 @@ import (
 )
 
 const (
-	ObjectStatusPending    = "pending"
+	ObjectStatusCreated    = "created"
 	ObjectStatusUploading  = "uploading"
 	ObjectStatusUploaded   = "uploaded"
 	ObjectStatusProcessing = "processing"
