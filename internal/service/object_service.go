@@ -84,10 +84,15 @@ func (s *ObjectService) CreateObject(
 	}
 
 	// Set initial metadata
-	initialMetadata := map[string]interface{}{
-		"storage_backend_type": storageBackend.Type,
+	objectMetadata := &domain.ObjectMetadata{
+		ObjectID: objectID,
+		Metadata: map[string]interface{}{
+			"storage_backend_type": storageBackend.Type,
+			"object_type": object.ObjectType,
+			"file_name": object.FileName,
+		},
 	}
-	if err := s.objectMetadataRepo.Set(ctx, objectID, initialMetadata); err != nil {
+	if err := s.objectMetadataRepo.Set(ctx, objectMetadata); err != nil {
 		return nil, err
 	}
 
@@ -269,7 +274,12 @@ func (s *ObjectService) SetObjectMetadata(ctx context.Context, objectID uuid.UUI
 		return err
 	}
 
-	return s.objectMetadataRepo.Set(ctx, objectID, metadata)
+	// Create or update the object metadata
+	objectMetadata := &domain.ObjectMetadata{
+		ObjectID: objectID,
+		Metadata: metadata,
+	}
+	return s.objectMetadataRepo.Set(ctx, objectMetadata)
 }
 
 // GetObjectMetadata retrieves metadata for an object
@@ -279,5 +289,11 @@ func (s *ObjectService) GetObjectMetadata(ctx context.Context, objectID uuid.UUI
 		return nil, err
 	}
 
-	return s.objectMetadataRepo.Get(ctx, objectID)
+	// Get the object metadata
+	objectMetadata, err := s.objectMetadataRepo.Get(ctx, objectID)
+	if err != nil {
+		return nil, err
+	}
+
+	return objectMetadata.Metadata, nil
 }

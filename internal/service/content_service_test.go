@@ -30,8 +30,7 @@ func TestContentService_CreateContent(t *testing.T) {
 	assert.Equal(t, ownerID, content.OwnerID)
 	assert.Equal(t, tenantID, content.TenantID)
 	assert.Equal(t, "original", content.DerivationType)
-	assert.Equal(t, 0, content.DerivationLevel)
-	assert.Nil(t, content.ParentID)
+	// Note: DerivationLevel and ParentID have been removed from the Content struct
 }
 
 func TestContentService_CreateDerivedContent(t *testing.T) {
@@ -48,17 +47,15 @@ func TestContentService_CreateDerivedContent(t *testing.T) {
 	derived, err := svc.CreateDerivedContent(ctx, parent.ID, ownerID, tenantID)
 	assert.NoError(t, err)
 	assert.NotNil(t, derived)
-	assert.Equal(t, parent.ID, *derived.ParentID)
+	// Parent relationship is now tracked in ContentDerived table
 	assert.Equal(t, "derived", derived.DerivationType)
-	assert.Equal(t, 1, derived.DerivationLevel)
 
 	// Create second-level derived content
 	secondLevel, err := svc.CreateDerivedContent(ctx, derived.ID, ownerID, tenantID)
 	assert.NoError(t, err)
 	assert.NotNil(t, secondLevel)
-	assert.Equal(t, derived.ID, *secondLevel.ParentID)
+	// Parent relationship is now tracked in ContentDerived table
 	assert.Equal(t, "derived", secondLevel.DerivationType)
-	assert.Equal(t, 2, secondLevel.DerivationLevel)
 }
 
 func TestContentService_CreateDerivedContent_MaxDepthLimit(t *testing.T) {
@@ -72,14 +69,14 @@ func TestContentService_CreateDerivedContent_MaxDepthLimit(t *testing.T) {
 	// Level 0 (original)
 	content, err := svc.CreateContent(ctx, ownerID, tenantID)
 	assert.NoError(t, err)
-	assert.Equal(t, 0, content.DerivationLevel)
+	// DerivationLevel is now tracked in the ContentDerived table
 
 	// Levels 1-5
 	currentID := content.ID
 	for i := 1; i <= 5; i++ {
 		derived, err := svc.CreateDerivedContent(ctx, currentID, ownerID, tenantID)
 		assert.NoError(t, err)
-		assert.Equal(t, i, derived.DerivationLevel)
+		// Note: DerivationLevel has been removed from the Content struct
 		currentID = derived.ID
 	}
 
@@ -115,9 +112,7 @@ func TestContentService_GetDerivedContent(t *testing.T) {
 	derivedIDs := []uuid.UUID{derived1.ID, derived2.ID}
 	for _, content := range derivedContents {
 		assert.Contains(t, derivedIDs, content.ID)
-		assert.Equal(t, parent.ID, *content.ParentID)
 		assert.Equal(t, "derived", content.DerivationType)
-		assert.Equal(t, 1, content.DerivationLevel)
 	}
 }
 
@@ -197,12 +192,13 @@ func TestContentService_SetContentMetadata(t *testing.T) {
 	// Get metadata
 	metadata, err := svc.GetContentMetadata(ctx, content.ID)
 	assert.NoError(t, err)
-	assert.Equal(t, contentType, metadata.ContentType)
-	assert.Equal(t, title, metadata.Title)
-	assert.Equal(t, description, metadata.Description)
+	// ContentType, Title, Description, and CreatedBy are now stored in the Metadata map
+	assert.Equal(t, contentType, metadata.Metadata["content_type"])
+	assert.Equal(t, title, metadata.Metadata["title"])
+	assert.Equal(t, description, metadata.Metadata["description"])
 	assert.Equal(t, tags, metadata.Tags)
 	assert.Equal(t, fileSize, metadata.FileSize)
-	assert.Equal(t, createdBy, metadata.CreatedBy)
+	assert.Equal(t, createdBy, metadata.Metadata["created_by"])
 	assert.Equal(t, "00:01:30", metadata.Metadata["duration"])
 }
 
@@ -257,15 +253,15 @@ func TestContentService_IndependentMetadata(t *testing.T) {
 	// Get and verify original metadata
 	originalMetadata, err := svc.GetContentMetadata(ctx, original.ID)
 	assert.NoError(t, err)
-	assert.Equal(t, "video/mp4", originalMetadata.ContentType)
-	assert.Equal(t, "Original Video", originalMetadata.Title)
+	assert.Equal(t, "video/mp4", originalMetadata.Metadata["content_type"])
+	assert.Equal(t, "Original Video", originalMetadata.Metadata["title"])
 	assert.Equal(t, "00:05:30", originalMetadata.Metadata["duration"])
 
 	// Get and verify derived metadata
 	derivedMetadata, err := svc.GetContentMetadata(ctx, derived.ID)
 	assert.NoError(t, err)
-	assert.Equal(t, "image/jpeg", derivedMetadata.ContentType)
-	assert.Equal(t, "Thumbnail", derivedMetadata.Title)
+	assert.Equal(t, "image/jpeg", derivedMetadata.Metadata["content_type"])
+	assert.Equal(t, "Thumbnail", derivedMetadata.Metadata["title"])
 	// Check that the width value exists and is correct, regardless of type
 	width, ok := derivedMetadata.Metadata["width"]
 	assert.True(t, ok, "width field should exist in metadata")
