@@ -74,7 +74,7 @@ func (s *ObjectService) CreateObject(
 		StorageBackendName: storageBackendName,
 		Version:            version,
 		ObjectKey:          objectKey,
-		Status:             domain.ObjectStatusPending,
+		Status:             domain.ObjectStatusCreated,
 		CreatedAt:          now,
 		UpdatedAt:          now,
 	}
@@ -178,7 +178,7 @@ func (s *ObjectService) UploadObject(ctx context.Context, id uuid.UUID, reader i
 	}
 
 	// Update object status
-	object.Status = domain.ObjectStatusPending
+	object.Status = domain.ObjectStatusUploaded
 	object.UpdatedAt = time.Now()
 	return s.objectRepo.Update(ctx, object)
 }

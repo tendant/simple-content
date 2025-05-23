@@ -14,10 +14,6 @@ type ContentRepository interface {
 	Update(ctx context.Context, content *domain.Content) error
 	Delete(ctx context.Context, id uuid.UUID) error
 	List(ctx context.Context, ownerID, tenantID uuid.UUID) ([]*domain.Content, error)
-
-	// New methods for derived content
-	GetByParentID(ctx context.Context, parentID uuid.UUID) ([]*domain.Content, error)
-	GetDerivedContentTree(ctx context.Context, rootID uuid.UUID, maxDepth int) ([]*domain.Content, error)
 }
 
 // ContentMetadataRepository defines the interface for content metadata operations
