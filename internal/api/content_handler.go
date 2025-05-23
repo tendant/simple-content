@@ -60,15 +60,13 @@ type CreateContentRequest struct {
 
 // ContentResponse is the response body for a content
 type ContentResponse struct {
-	ID              string    `json:"id"`
-	ParentID        string    `json:"parent_id,omitempty"`
-	CreatedAt       time.Time `json:"created_at"`
-	UpdatedAt       time.Time `json:"updated_at"`
-	OwnerID         string    `json:"owner_id"`
-	TenantID        string    `json:"tenant_id"`
-	Status          string    `json:"status"`
-	DerivationType  string    `json:"derivation_type"`
-	DerivationLevel int       `json:"derivation_level"`
+	ID             string    `json:"id"`
+	CreatedAt      time.Time `json:"created_at"`
+	UpdatedAt      time.Time `json:"updated_at"`
+	OwnerID        string    `json:"owner_id"`
+	TenantID       string    `json:"tenant_id"`
+	Status         string    `json:"status"`
+	DerivationType string    `json:"derivation_type"`
 }
 
 // CreateContent creates a new content
@@ -98,14 +96,13 @@ func (h *ContentHandler) CreateContent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	resp := ContentResponse{
-		ID:              content.ID.String(),
-		CreatedAt:       content.CreatedAt,
-		UpdatedAt:       content.UpdatedAt,
-		OwnerID:         content.OwnerID.String(),
-		TenantID:        content.TenantID.String(),
-		Status:          content.Status,
-		DerivationType:  content.DerivationType,
-		DerivationLevel: content.DerivationLevel,
+		ID:             content.ID.String(),
+		CreatedAt:      content.CreatedAt,
+		UpdatedAt:      content.UpdatedAt,
+		OwnerID:        content.OwnerID.String(),
+		TenantID:       content.TenantID.String(),
+		Status:         content.Status,
+		DerivationType: content.DerivationType,
 	}
 
 	render.Status(r, http.StatusCreated)
@@ -127,21 +124,14 @@ func (h *ContentHandler) GetContent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	parentIDStr := ""
-	if content.ParentID != nil {
-		parentIDStr = content.ParentID.String()
-	}
-
 	resp := ContentResponse{
-		ID:              content.ID.String(),
-		ParentID:        parentIDStr,
-		CreatedAt:       content.CreatedAt,
-		UpdatedAt:       content.UpdatedAt,
-		OwnerID:         content.OwnerID.String(),
-		TenantID:        content.TenantID.String(),
-		Status:          content.Status,
-		DerivationType:  content.DerivationType,
-		DerivationLevel: content.DerivationLevel,
+		ID:             content.ID.String(),
+		CreatedAt:      content.CreatedAt,
+		UpdatedAt:      content.UpdatedAt,
+		OwnerID:        content.OwnerID.String(),
+		TenantID:       content.TenantID.String(),
+		Status:         content.Status,
+		DerivationType: content.DerivationType,
 	}
 
 	render.JSON(w, r, resp)
@@ -202,21 +192,14 @@ func (h *ContentHandler) ListContents(w http.ResponseWriter, r *http.Request) {
 
 	var resp []ContentResponse
 	for _, content := range contents {
-		parentIDStr := ""
-		if content.ParentID != nil {
-			parentIDStr = content.ParentID.String()
-		}
-
 		resp = append(resp, ContentResponse{
-			ID:              content.ID.String(),
-			ParentID:        parentIDStr,
-			CreatedAt:       content.CreatedAt,
-			UpdatedAt:       content.UpdatedAt,
-			OwnerID:         content.OwnerID.String(),
-			TenantID:        content.TenantID.String(),
-			Status:          content.Status,
-			DerivationType:  content.DerivationType,
-			DerivationLevel: content.DerivationLevel,
+			ID:             content.ID.String(),
+			CreatedAt:      content.CreatedAt,
+			UpdatedAt:      content.UpdatedAt,
+			OwnerID:        content.OwnerID.String(),
+			TenantID:       content.TenantID.String(),
+			Status:         content.Status,
+			DerivationType: content.DerivationType,
 		})
 	}
 
@@ -229,7 +212,7 @@ type CreateDerivedContentRequest struct {
 	TenantID string `json:"tenant_id"`
 }
 
-// CreateDerivedContent creates a new content derived from an existing content
+// CreateDerivedContent creates a new derived content from a parent content
 func (h *ContentHandler) CreateDerivedContent(w http.ResponseWriter, r *http.Request) {
 	parentIDStr := chi.URLParam(r, "id")
 	parentID, err := uuid.Parse(parentIDStr)
@@ -262,21 +245,14 @@ func (h *ContentHandler) CreateDerivedContent(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	parentIDStr = ""
-	if content.ParentID != nil {
-		parentIDStr = content.ParentID.String()
-	}
-
 	resp := ContentResponse{
-		ID:              content.ID.String(),
-		ParentID:        parentIDStr,
-		CreatedAt:       content.CreatedAt,
-		UpdatedAt:       content.UpdatedAt,
-		OwnerID:         content.OwnerID.String(),
-		TenantID:        content.TenantID.String(),
-		Status:          content.Status,
-		DerivationType:  content.DerivationType,
-		DerivationLevel: content.DerivationLevel,
+		ID:             content.ID.String(),
+		CreatedAt:      content.CreatedAt,
+		UpdatedAt:      content.UpdatedAt,
+		OwnerID:        content.OwnerID.String(),
+		TenantID:       content.TenantID.String(),
+		Status:         content.Status,
+		DerivationType: content.DerivationType,
 	}
 
 	render.Status(r, http.StatusCreated)
@@ -300,21 +276,14 @@ func (h *ContentHandler) GetDerivedContent(w http.ResponseWriter, r *http.Reques
 
 	var resp []ContentResponse
 	for _, content := range contents {
-		parentIDStr := ""
-		if content.ParentID != nil {
-			parentIDStr = content.ParentID.String()
-		}
-
 		resp = append(resp, ContentResponse{
-			ID:              content.ID.String(),
-			ParentID:        parentIDStr,
-			CreatedAt:       content.CreatedAt,
-			UpdatedAt:       content.UpdatedAt,
-			OwnerID:         content.OwnerID.String(),
-			TenantID:        content.TenantID.String(),
-			Status:          content.Status,
-			DerivationType:  content.DerivationType,
-			DerivationLevel: content.DerivationLevel,
+			ID:             content.ID.String(),
+			CreatedAt:      content.CreatedAt,
+			UpdatedAt:      content.UpdatedAt,
+			OwnerID:        content.OwnerID.String(),
+			TenantID:       content.TenantID.String(),
+			Status:         content.Status,
+			DerivationType: content.DerivationType,
 		})
 	}
 
@@ -330,29 +299,22 @@ func (h *ContentHandler) GetDerivedContentTree(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	contents, err := h.contentService.GetDerivedContentTree(r.Context(), rootID)
+	tree, err := h.contentService.GetDerivedContentTree(r.Context(), rootID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	var resp []ContentResponse
-	for _, content := range contents {
-		parentIDStr := ""
-		if content.ParentID != nil {
-			parentIDStr = content.ParentID.String()
-		}
-
+	for _, content := range tree {
 		resp = append(resp, ContentResponse{
-			ID:              content.ID.String(),
-			ParentID:        parentIDStr,
-			CreatedAt:       content.CreatedAt,
-			UpdatedAt:       content.UpdatedAt,
-			OwnerID:         content.OwnerID.String(),
-			TenantID:        content.TenantID.String(),
-			Status:          content.Status,
-			DerivationType:  content.DerivationType,
-			DerivationLevel: content.DerivationLevel,
+			ID:             content.ID.String(),
+			CreatedAt:      content.CreatedAt,
+			UpdatedAt:      content.UpdatedAt,
+			OwnerID:        content.OwnerID.String(),
+			TenantID:       content.TenantID.String(),
+			Status:         content.Status,
+			DerivationType: content.DerivationType,
 		})
 	}
 
@@ -372,14 +334,14 @@ type ContentMetadataRequest struct {
 
 // ContentMetadataResponse is the response body for content metadata
 type ContentMetadataResponse struct {
-	ContentID   string                 `json:"content_id"`
-	ContentType string                 `json:"content_type"`
-	Title       string                 `json:"title,omitempty"`
-	Description string                 `json:"description,omitempty"`
-	Tags        []string               `json:"tags,omitempty"`
-	FileSize    int64                  `json:"file_size,omitempty"`
-	CreatedBy   string                 `json:"created_by,omitempty"`
-	Metadata    map[string]interface{} `json:"metadata,omitempty"`
+	ContentID         string                 `json:"content_id"`
+	MimeType          string                 `json:"mime_type"`
+	FileName          string                 `json:"file_name,omitempty"`
+	Tags              []string               `json:"tags,omitempty"`
+	FileSize          int64                  `json:"file_size,omitempty"`
+	Checksum          string                 `json:"checksum,omitempty"`
+	ChecksumAlgorithm string                 `json:"checksum_algorithm,omitempty"`
+	Metadata          map[string]interface{} `json:"metadata,omitempty"`
 }
 
 // UpdateMetadata updates metadata for a content
@@ -431,14 +393,14 @@ func (h *ContentHandler) GetMetadata(w http.ResponseWriter, r *http.Request) {
 	}
 
 	resp := ContentMetadataResponse{
-		ContentID:   metadata.ContentID.String(),
-		ContentType: metadata.ContentType,
-		Title:       metadata.Title,
-		Description: metadata.Description,
-		Tags:        metadata.Tags,
-		FileSize:    metadata.FileSize,
-		CreatedBy:   metadata.CreatedBy,
-		Metadata:    metadata.Metadata,
+		ContentID:         metadata.ContentID.String(),
+		MimeType:          metadata.MimeType,
+		FileName:          metadata.FileName,
+		Tags:              metadata.Tags,
+		FileSize:          metadata.FileSize,
+		Checksum:          metadata.Checksum,
+		ChecksumAlgorithm: metadata.ChecksumAlgorithm,
+		Metadata:          metadata.Metadata,
 	}
 
 	render.JSON(w, r, resp)
