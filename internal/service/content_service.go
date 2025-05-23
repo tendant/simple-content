@@ -42,7 +42,7 @@ func (s *ContentService) CreateContent(
 		UpdatedAt:      now,
 		OwnerID:        ownerID,
 		TenantID:       tenantID,
-		Status:         "active",
+		Status:         "created",
 		DerivationType: "original",
 	}
 
@@ -73,7 +73,7 @@ func (s *ContentService) CreateDerivedContent(
 		UpdatedAt:      now,
 		OwnerID:        ownerID,
 		TenantID:       tenantID,
-		Status:         "active",
+		Status:         "created",
 		DerivationType: "derived",
 	}
 
