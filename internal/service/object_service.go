@@ -88,8 +88,8 @@ func (s *ObjectService) CreateObject(
 		ObjectID: objectID,
 		Metadata: map[string]interface{}{
 			"storage_backend_type": storageBackend.Type,
-			"object_type": object.ObjectType,
-			"file_name": object.FileName,
+			"object_type":          object.ObjectType,
+			"file_name":            object.FileName,
 		},
 	}
 	if err := s.objectMetadataRepo.Set(ctx, objectMetadata); err != nil {
@@ -178,7 +178,7 @@ func (s *ObjectService) UploadObject(ctx context.Context, id uuid.UUID, reader i
 	}
 
 	// Update object status
-	object.Status = "active"
+	object.Status = "pending"
 	object.UpdatedAt = time.Now()
 	return s.objectRepo.Update(ctx, object)
 }
