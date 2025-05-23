@@ -16,13 +16,13 @@ func TestContentMetadataRepository_Set(t *testing.T) {
 
 	contentID := uuid.New()
 	metadata := &domain.ContentMetadata{
-		ContentID:   contentID,
-		ContentType: "video/mp4",
-		Title:       "Test Video",
-		Description: "A test video description",
-		Tags:        []string{"test", "video"},
-		FileSize:    1024,
-		CreatedBy:   "Test User",
+		ContentID:         contentID,
+		MimeType:          "video/mp4",
+		FileName:          "test_video.mp4",
+		Checksum:          "abc123",
+		ChecksumAlgorithm: "SHA-256",
+		Tags:              []string{"test", "video"},
+		FileSize:          1024,
 		Metadata: map[string]interface{}{
 			"duration":   "00:01:30",
 			"resolution": "1920x1080",
@@ -33,7 +33,7 @@ func TestContentMetadataRepository_Set(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Update the metadata
-	metadata.Title = "Updated Title"
+	metadata.FileName = "updated_video.mp4"
 	metadata.Metadata["duration"] = "00:02:00"
 
 	err = repo.Set(ctx, metadata)
@@ -46,13 +46,13 @@ func TestContentMetadataRepository_Get(t *testing.T) {
 
 	contentID := uuid.New()
 	metadata := &domain.ContentMetadata{
-		ContentID:   contentID,
-		ContentType: "video/mp4",
-		Title:       "Test Video",
-		Description: "A test video description",
-		Tags:        []string{"test", "video"},
-		FileSize:    1024,
-		CreatedBy:   "Test User",
+		ContentID:         contentID,
+		MimeType:          "video/mp4",
+		FileName:          "test_video.mp4",
+		Checksum:          "abc123",
+		ChecksumAlgorithm: "SHA-256",
+		Tags:              []string{"test", "video"},
+		FileSize:          1024,
 		Metadata: map[string]interface{}{
 			"duration":   "00:01:30",
 			"resolution": "1920x1080",
@@ -66,12 +66,12 @@ func TestContentMetadataRepository_Get(t *testing.T) {
 	retrieved, err := repo.Get(ctx, contentID)
 	assert.NoError(t, err)
 	assert.Equal(t, contentID, retrieved.ContentID)
-	assert.Equal(t, "video/mp4", retrieved.ContentType)
-	assert.Equal(t, "Test Video", retrieved.Title)
-	assert.Equal(t, "A test video description", retrieved.Description)
+	assert.Equal(t, "video/mp4", retrieved.MimeType)
+	assert.Equal(t, "test_video.mp4", retrieved.FileName)
+	assert.Equal(t, "abc123", retrieved.Checksum)
+	assert.Equal(t, "SHA-256", retrieved.ChecksumAlgorithm)
 	assert.Equal(t, []string{"test", "video"}, retrieved.Tags)
 	assert.Equal(t, int64(1024), retrieved.FileSize)
-	assert.Equal(t, "Test User", retrieved.CreatedBy)
 	assert.Equal(t, "00:01:30", retrieved.Metadata["duration"])
 	assert.Equal(t, "1920x1080", retrieved.Metadata["resolution"])
 
@@ -87,13 +87,13 @@ func TestContentMetadataRepository_MultipleContents(t *testing.T) {
 	// Create metadata for original content
 	originalID := uuid.New()
 	originalMetadata := &domain.ContentMetadata{
-		ContentID:   originalID,
-		ContentType: "video/mp4",
-		Title:       "Original Video",
-		Description: "An original video",
-		Tags:        []string{"original", "video"},
-		FileSize:    2048,
-		CreatedBy:   "User 1",
+		ContentID:         originalID,
+		MimeType:          "video/mp4",
+		FileName:          "original_video.mp4",
+		Checksum:          "def456",
+		ChecksumAlgorithm: "SHA-256",
+		Tags:              []string{"original", "video"},
+		FileSize:          2048,
 		Metadata: map[string]interface{}{
 			"duration":   "00:05:30",
 			"resolution": "1920x1080",
@@ -106,13 +106,11 @@ func TestContentMetadataRepository_MultipleContents(t *testing.T) {
 	// Create metadata for derived content
 	derivedID := uuid.New()
 	derivedMetadata := &domain.ContentMetadata{
-		ContentID:   derivedID,
-		ContentType: "image/jpeg",
-		Title:       "Thumbnail",
-		Description: "A thumbnail from the original video",
-		Tags:        []string{"derived", "image", "thumbnail"},
-		FileSize:    512,
-		CreatedBy:   "System",
+		ContentID: derivedID,
+		MimeType:  "image/jpeg",
+		FileName:  "derived_image.jpg",
+		Tags:      []string{"derived", "image", "thumbnail"},
+		FileSize:  512,
 		Metadata: map[string]interface{}{
 			"width":  1280,
 			"height": 720,
@@ -125,12 +123,12 @@ func TestContentMetadataRepository_MultipleContents(t *testing.T) {
 	// Get and verify original metadata
 	retrievedOriginal, err := repo.Get(ctx, originalID)
 	assert.NoError(t, err)
-	assert.Equal(t, "video/mp4", retrievedOriginal.ContentType)
-	assert.Equal(t, "Original Video", retrievedOriginal.Title)
+	assert.Equal(t, "video/mp4", retrievedOriginal.MimeType)
+	assert.Equal(t, "original_video.mp4", retrievedOriginal.FileName)
 
 	// Get and verify derived metadata
 	retrievedDerived, err := repo.Get(ctx, derivedID)
 	assert.NoError(t, err)
-	assert.Equal(t, "image/jpeg", retrievedDerived.ContentType)
-	assert.Equal(t, "Thumbnail", retrievedDerived.Title)
+	assert.Equal(t, "image/jpeg", retrievedDerived.MimeType)
+	assert.Equal(t, []string{"derived", "image", "thumbnail"}, retrievedDerived.Tags)
 }
