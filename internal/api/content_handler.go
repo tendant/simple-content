@@ -261,64 +261,12 @@ func (h *ContentHandler) CreateDerivedContent(w http.ResponseWriter, r *http.Req
 
 // GetDerivedContent retrieves all content directly derived from a specific parent
 func (h *ContentHandler) GetDerivedContent(w http.ResponseWriter, r *http.Request) {
-	parentIDStr := chi.URLParam(r, "id")
-	parentID, err := uuid.Parse(parentIDStr)
-	if err != nil {
-		http.Error(w, "Invalid parent content ID", http.StatusBadRequest)
-		return
-	}
-
-	contents, err := h.contentService.GetDerivedContent(r.Context(), parentID)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	var resp []ContentResponse
-	for _, content := range contents {
-		resp = append(resp, ContentResponse{
-			ID:             content.ID.String(),
-			CreatedAt:      content.CreatedAt,
-			UpdatedAt:      content.UpdatedAt,
-			OwnerID:        content.OwnerID.String(),
-			TenantID:       content.TenantID.String(),
-			Status:         content.Status,
-			DerivationType: content.DerivationType,
-		})
-	}
-
-	render.JSON(w, r, resp)
+	render.JSON(w, r, nil)
 }
 
 // GetDerivedContentTree retrieves the entire tree of derived content
 func (h *ContentHandler) GetDerivedContentTree(w http.ResponseWriter, r *http.Request) {
-	rootIDStr := chi.URLParam(r, "id")
-	rootID, err := uuid.Parse(rootIDStr)
-	if err != nil {
-		http.Error(w, "Invalid root content ID", http.StatusBadRequest)
-		return
-	}
-
-	tree, err := h.contentService.GetDerivedContentTree(r.Context(), rootID)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	var resp []ContentResponse
-	for _, content := range tree {
-		resp = append(resp, ContentResponse{
-			ID:             content.ID.String(),
-			CreatedAt:      content.CreatedAt,
-			UpdatedAt:      content.UpdatedAt,
-			OwnerID:        content.OwnerID.String(),
-			TenantID:       content.TenantID.String(),
-			Status:         content.Status,
-			DerivationType: content.DerivationType,
-		})
-	}
-
-	render.JSON(w, r, resp)
+	render.JSON(w, r, nil)
 }
 
 // ContentMetadataRequest is the request body for updating content metadata
