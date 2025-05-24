@@ -122,17 +122,6 @@ func (s *ContentService) ListContents(ctx context.Context, ownerID, tenantID uui
 	return s.contentRepo.List(ctx, ownerID, tenantID)
 }
 
-// GetDerivedContent retrieves all content directly derived from a specific parent
-func (s *ContentService) GetDerivedContent(ctx context.Context, parentID uuid.UUID) ([]*domain.Content, error) {
-	return s.contentRepo.GetByParentID(ctx, parentID)
-}
-
-// GetDerivedContentTree retrieves the entire tree of derived content
-func (s *ContentService) GetDerivedContentTree(ctx context.Context, rootID uuid.UUID) ([]*domain.Content, error) {
-	// Use a max depth of 5 for the derivation tree
-	return s.contentRepo.GetDerivedContentTree(ctx, rootID, 5)
-}
-
 // SetContentMetadata sets metadata for a content
 func (s *ContentService) SetContentMetadata(
 	ctx context.Context,
