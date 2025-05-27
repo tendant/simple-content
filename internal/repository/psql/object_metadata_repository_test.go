@@ -138,6 +138,7 @@ func TestPSQLObjectMetadataRepository_Get(t *testing.T) {
 		metadata.SizeBytes = 2048
 		metadata.MimeType = "application/json"
 		metadata.Metadata["version"] = "1.1"
+		metadata.UpdatedAt = time.Now().UTC()
 
 		err = metadataRepo.Set(ctx, metadata)
 		require.NoError(t, err)
