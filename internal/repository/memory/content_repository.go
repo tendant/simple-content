@@ -95,15 +95,6 @@ func (r *ContentRepository) List(ctx context.Context, ownerID, tenantID uuid.UUI
 	return result, nil
 }
 
-// GetByParentID retrieves all content directly derived from a specific parent
-// Note: This method is now a stub as ParentID has been removed from Content struct
-// The relationship between content items is now tracked in ContentDerived table
-func (r *ContentRepository) GetByParentID(ctx context.Context, parentID uuid.UUID) ([]*domain.Content, error) {
-	// This is now a stub method that returns an empty slice
-	// In a real implementation, this would query the ContentDerived table
-	return []*domain.Content{}, nil
-}
-
 // GetDerivedContentTree retrieves the entire tree of derived content up to maxDepth
 // Note: This method is now a stub as ParentID has been removed from Content struct
 // The relationship between content items is now tracked in ContentDerived table
