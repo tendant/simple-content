@@ -7,6 +7,13 @@ import (
 	"github.com/tendant/simple-content/internal/domain"
 )
 
+// ListDerivedContentParams defines parameters for listing derived content
+type ListDerivedContentParams struct {
+	ParentIDs    []uuid.UUID
+	TenantID     uuid.UUID
+	Relationship []string
+}
+
 // ContentRepository defines the interface for content operations
 type ContentRepository interface {
 	Create(ctx context.Context, content *domain.Content) error
@@ -14,6 +21,7 @@ type ContentRepository interface {
 	Update(ctx context.Context, content *domain.Content) error
 	Delete(ctx context.Context, id uuid.UUID) error
 	List(ctx context.Context, ownerID, tenantID uuid.UUID) ([]*domain.Content, error)
+	ListDerivedContent(ctx context.Context, params ListDerivedContentParams) ([]*domain.Content, error)
 }
 
 // ContentMetadataRepository defines the interface for content metadata operations

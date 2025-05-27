@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/tendant/simple-content/internal/domain"
+	repo "github.com/tendant/simple-content/internal/repository"
 )
 
 // PSQLContentRepository implements the ContentRepository interface
@@ -239,6 +240,88 @@ func (r *PSQLContentRepository) List(ctx context.Context, ownerID, tenantID uuid
 		contents = append(contents, content)
 	}
 
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return contents, nil
+}
+
+// ListDerivedContent implements ContentRepository.ListDerivedContent
+func (r *PSQLContentRepository) ListDerivedContent(ctx context.Context, params repo.ListDerivedContentParams) ([]*domain.Content, error) {
+	// Build the base query to join content_derived with content tables
+	baseQuery := `
+		SELECT 
+			c.id, c.tenant_id, c.owner_id, c.owner_type, c.name, c.description, c.document_type,
+			c.status, c.derivation_type, c.created_at, c.updated_at
+		FROM content.content_derived cd
+		JOIN content.content c ON cd.derived_content_id = c.id
+		WHERE c.deleted_at IS NULL AND cd.deleted_at IS NULL
+		AND cd.derivation_type = ANY($1)
+	`
+
+	// Initialize parameters for the query
+	args := []interface{}{params.Relationship}
+	paramCount := 2
+
+	// Initialize where clause
+	whereClause := ""
+
+	// Filter by parent content IDs if provided
+	if len(params.ParentIDs) > 0 {
+		// If there's only one parent ID, use a simple equality check
+		if len(params.ParentIDs) == 1 {
+			whereClause += fmt.Sprintf(" AND cd.parent_content_id = $%d", paramCount)
+			args = append(args, params.ParentIDs[0])
+			paramCount++
+		} else {
+			// For multiple parent IDs, use the ANY operator
+			whereClause += fmt.Sprintf(" AND cd.parent_content_id = ANY($%d)", paramCount)
+			args = append(args, params.ParentIDs)
+			paramCount++
+		}
+	}
+	// Filter by tenant ID if provided
+	if params.TenantID != uuid.Nil {
+		whereClause += fmt.Sprintf(" AND c.tenant_id = $%d", paramCount)
+		args = append(args, params.TenantID)
+		paramCount++
+	}
+
+	// Combine the base query with the where clause
+	query := baseQuery + whereClause + " ORDER BY c.created_at DESC"
+
+	// Execute the query
+	rows, err := r.db.Query(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	// Process the results
+	contents := []*domain.Content{}
+	for rows.Next() {
+		content := &domain.Content{}
+		err := rows.Scan(
+			&content.ID,
+			&content.TenantID,
+			&content.OwnerID,
+			&content.OwnerType,
+			&content.Name,
+			&content.Description,
+			&content.DocumentType,
+			&content.Status,
+			&content.DerivationType,
+			&content.CreatedAt,
+			&content.UpdatedAt,
+		)
+		if err != nil {
+			return nil, err
+		}
+		contents = append(contents, content)
+	}
+
+	// Check for errors from iterating over rows
 	if err = rows.Err(); err != nil {
 		return nil, err
 	}
