@@ -126,7 +126,7 @@ func (r *PSQLContentRepository) Update(ctx context.Context, content *domain.Cont
 	`
 
 	// Update timestamp
-	content.UpdatedAt = time.Now()
+	content.UpdatedAt = time.Now().UTC()
 
 	err := r.db.QueryRow(
 		ctx,

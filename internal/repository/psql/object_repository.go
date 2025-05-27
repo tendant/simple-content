@@ -61,7 +61,7 @@ func (r *PSQLObjectRepository) Create(ctx context.Context, object *domain.Object
 		object.StorageBackendName,
 		object.StorageClass,
 		object.ObjectKey,
-		object.ObjectKey, // Using ObjectKey as file_name by default
+		object.FileName, // Use the provided FileName
 		object.Version,
 		object.ObjectType, // Default object_type
 		object.Status,
@@ -118,6 +118,8 @@ func (r *PSQLObjectRepository) Get(ctx context.Context, id uuid.UUID) (*domain.O
 	if nullableObjectType != nil {
 		object.ObjectType = *nullableObjectType
 	}
+
+	// Note: Version is now used instead of VersionID
 
 	return object, nil
 }
@@ -203,7 +205,7 @@ func (r *PSQLObjectRepository) Update(ctx context.Context, object *domain.Object
 	`
 
 	// Update timestamp
-	object.UpdatedAt = time.Now()
+	object.UpdatedAt = time.Now().UTC()
 
 	err := r.db.QueryRow(
 		ctx,
