@@ -14,6 +14,10 @@ const (
 const (
 	ContentDerivationTypeOriginal = "original"
 	ContentDerivationTypeDerived  = "derived"
+	ContentDerivedTHUMBNAIL720    = "THUMBNAIL_720"
+	ContentDerivedTHUMBNAIL480    = "THUMBNAIL_480"
+	ContentDerivedTHUMBNAIL256    = "THUMBNAIL_256"
+	ContentDerivedTHUMBNAIL128    = "THUMBNAIL_128"
 )
 
 // Content represents a logical content entity
