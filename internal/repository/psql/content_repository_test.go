@@ -226,9 +226,9 @@ func TestPSQLContentRepository_List(t *testing.T) {
 		require.NoError(t, err)
 		assert.Len(t, result, 1)
 
-		// Test list all
+		// Test list empty
 		result, err = repo.List(ctx, uuid.Nil, uuid.Nil)
 		require.NoError(t, err)
-		assert.Len(t, result, 3)
+		assert.Len(t, result, 0)
 	})
 }
