@@ -189,6 +189,11 @@ func (r *PSQLContentRepository) List(ctx context.Context, ownerID, tenantID uuid
 	args := []interface{}{}
 	paramCount := 1
 
+	// Validate that at least one of ownerID or tenantID is provided
+	if ownerID == uuid.Nil && tenantID == uuid.Nil {
+		return nil, nil
+	}
+
 	// Add owner_id filter if provided
 	if ownerID != uuid.Nil {
 		whereClause += fmt.Sprintf(" AND owner_id = $%d", paramCount)
