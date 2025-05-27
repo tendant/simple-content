@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tendant/simple-content/internal/domain"
+	repolib "github.com/tendant/simple-content/internal/repository"
 	"golang.org/x/exp/slog"
 )
 
@@ -230,5 +231,192 @@ func TestPSQLContentRepository_List(t *testing.T) {
 		result, err = repo.List(ctx, uuid.Nil, uuid.Nil)
 		require.NoError(t, err)
 		assert.Len(t, result, 0)
+	})
+}
+
+func TestPSQLContentRepository_ListDerivedContent(t *testing.T) {
+	RunTest(t, func(t *testing.T, db *TestDB) {
+		// Create a new repository
+		repo := NewPSQLContentRepository(db.Pool)
+		ctx := context.Background()
+
+		// Create a tenant
+		tenantID := uuid.New()
+
+		// Create a parent content
+		parentContent := &domain.Content{
+			TenantID:       tenantID,
+			OwnerID:        uuid.New(),
+			OwnerType:      "user",
+			Name:           "Parent Content",
+			Description:    "Parent Description",
+			DocumentType:   "receipt",
+			Status:         domain.ContentStatusCreated,
+			DerivationType: domain.ContentDerivationTypeOriginal,
+		}
+		err := repo.Create(ctx, parentContent)
+		require.NoError(t, err)
+
+		// Create another parent content with different tenant
+		otherTenantID := uuid.New()
+		otherParentContent := &domain.Content{
+			TenantID:       otherTenantID,
+			OwnerID:        uuid.New(),
+			OwnerType:      "user",
+			Name:           "Other Parent Content",
+			Description:    "Other Parent Description",
+			DocumentType:   "receipt",
+			Status:         domain.ContentStatusCreated,
+			DerivationType: domain.ContentDerivationTypeOriginal,
+		}
+		err = repo.Create(ctx, otherParentContent)
+		require.NoError(t, err)
+
+		// Create derived contents
+		derivedContent1 := &domain.Content{
+			TenantID:       tenantID,
+			OwnerID:        uuid.New(),
+			OwnerType:      "user",
+			Name:           "Derived Content 1",
+			Description:    "Derived Description 1",
+			DocumentType:   "thumbnail",
+			Status:         domain.ContentStatusCreated,
+			DerivationType: domain.ContentDerivationTypeDerived,
+		}
+		err = repo.Create(ctx, derivedContent1)
+		require.NoError(t, err)
+
+		derivedContent2 := &domain.Content{
+			TenantID:       tenantID,
+			OwnerID:        uuid.New(),
+			OwnerType:      "user",
+			Name:           "Derived Content 2",
+			Description:    "Derived Description 2",
+			DocumentType:   "thumbnail",
+			Status:         domain.ContentStatusCreated,
+			DerivationType: domain.ContentDerivationTypeDerived,
+		}
+		err = repo.Create(ctx, derivedContent2)
+		require.NoError(t, err)
+
+		derivedContent3 := &domain.Content{
+			TenantID:       otherTenantID,
+			OwnerID:        uuid.New(),
+			OwnerType:      "user",
+			Name:           "Derived Content 3",
+			Description:    "Derived Description 3",
+			DocumentType:   "thumbnail",
+			Status:         domain.ContentStatusCreated,
+			DerivationType: domain.ContentDerivationTypeDerived,
+		}
+		err = repo.Create(ctx, derivedContent3)
+		require.NoError(t, err)
+
+		// Create content_derived relationships
+		// First derived content - translation relationship
+		_, err = db.Pool.Exec(ctx, `
+			INSERT INTO content.content_derived (
+				parent_content_id, derived_content_id, derivation_type
+			) VALUES ($1, $2, $3)
+		`, parentContent.ID, derivedContent1.ID, domain.ContentDerivedTHUMBNAIL720)
+		require.NoError(t, err)
+
+		// Second derived content - summary relationship
+		_, err = db.Pool.Exec(ctx, `
+			INSERT INTO content.content_derived (
+				parent_content_id, derived_content_id, derivation_type
+			) VALUES ($1, $2, $3)
+		`, parentContent.ID, derivedContent2.ID, domain.ContentDerivedTHUMBNAIL480)
+		require.NoError(t, err)
+
+		// Third derived content - translation relationship but different tenant
+		_, err = db.Pool.Exec(ctx, `
+			INSERT INTO content.content_derived (
+				parent_content_id, derived_content_id, derivation_type
+			) VALUES ($1, $2, $3)
+		`, otherParentContent.ID, derivedContent3.ID, domain.ContentDerivedTHUMBNAIL720)
+		require.NoError(t, err)
+
+		// Test case 1: List derived content for parent content with specific relationship type
+		t.Run("Filter by parent ID and relationship type", func(t *testing.T) {
+			params := repolib.ListDerivedContentParams{
+				ParentIDs:    []uuid.UUID{parentContent.ID},
+				Relationship: []string{domain.ContentDerivedTHUMBNAIL720},
+			}
+
+			result, err := repo.ListDerivedContent(ctx, params)
+			require.NoError(t, err)
+			assert.Len(t, result, 1)
+			assert.Equal(t, derivedContent1.ID, result[0].ID)
+		})
+
+		// Test case 2: List all derived content for parent content (multiple relationship types)
+		t.Run("Filter by parent ID with multiple relationship types", func(t *testing.T) {
+			params := repolib.ListDerivedContentParams{
+				ParentIDs:    []uuid.UUID{parentContent.ID},
+				Relationship: []string{domain.ContentDerivedTHUMBNAIL720, domain.ContentDerivedTHUMBNAIL480},
+			}
+
+			result, err := repo.ListDerivedContent(ctx, params)
+			require.NoError(t, err)
+			assert.Len(t, result, 2)
+
+			// Create a map of IDs for easier verification
+			idsMap := make(map[uuid.UUID]bool)
+			for _, content := range result {
+				idsMap[content.ID] = true
+			}
+
+			// Verify both derived contents are in the result
+			assert.True(t, idsMap[derivedContent1.ID])
+			assert.True(t, idsMap[derivedContent2.ID])
+		})
+
+		// Test case 3: Filter by tenant ID
+		t.Run("Filter by tenant ID", func(t *testing.T) {
+			params := repolib.ListDerivedContentParams{
+				TenantID:     tenantID,
+				Relationship: []string{domain.ContentDerivedTHUMBNAIL720},
+			}
+
+			result, err := repo.ListDerivedContent(ctx, params)
+			require.NoError(t, err)
+			assert.Len(t, result, 1)
+			assert.Equal(t, derivedContent1.ID, result[0].ID)
+		})
+
+		// Test case 4: Filter by multiple parent IDs
+		t.Run("Filter by multiple parent IDs", func(t *testing.T) {
+			params := repolib.ListDerivedContentParams{
+				ParentIDs:    []uuid.UUID{parentContent.ID, otherParentContent.ID},
+				Relationship: []string{domain.ContentDerivedTHUMBNAIL720, domain.ContentDerivedTHUMBNAIL480},
+			}
+
+			result, err := repo.ListDerivedContent(ctx, params)
+			require.NoError(t, err)
+			assert.Len(t, result, 3)
+
+			// Create a map of IDs for easier verification
+			idsMap := make(map[uuid.UUID]bool)
+			for _, content := range result {
+				idsMap[content.ID] = true
+			}
+
+			// Verify both derived contents are in the result
+			assert.True(t, idsMap[derivedContent1.ID])
+			assert.True(t, idsMap[derivedContent3.ID])
+		})
+
+		// Test case 5: No results when filtering by non-existent parent ID
+		t.Run("No results for non-existent parent ID", func(t *testing.T) {
+			params := repolib.ListDerivedContentParams{
+				ParentIDs:    []uuid.UUID{uuid.New()}, // Random non-existent ID
+				Relationship: []string{domain.ContentDerivedTHUMBNAIL720},
+			}
+
+			result, err := repo.ListDerivedContent(ctx, params)
+			require.NoError(t, err)
+			assert.Len(t, result, 0)
+		})
 	})
 }
