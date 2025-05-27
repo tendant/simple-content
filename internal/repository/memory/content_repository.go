@@ -80,6 +80,10 @@ func (r *ContentRepository) List(ctx context.Context, ownerID, tenantID uuid.UUI
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
+	// Validate that at least one of ownerID or tenantID is provided
+	if ownerID == uuid.Nil && tenantID == uuid.Nil {
+		return nil, nil
+	}
 	var result []*domain.Content
 	for _, content := range r.contents {
 		if (ownerID == uuid.Nil || content.OwnerID == ownerID) &&
