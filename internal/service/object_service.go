@@ -264,7 +264,8 @@ func (s *ObjectService) GetDownloadURL(ctx context.Context, id uuid.UUID) (strin
 	}
 
 	// Get the download URL
-	return backend.GetDownloadURL(ctx, object.ObjectKey)
+	// FIXME: download filename
+	return backend.GetDownloadURL(ctx, object.ObjectKey, "")
 }
 
 // SetObjectMetadata sets metadata for an object
