@@ -78,7 +78,7 @@ func (b *FSBackend) Upload(ctx context.Context, objectKey string, reader io.Read
 }
 
 // GetDownloadURL returns a URL for downloading content
-func (b *FSBackend) GetDownloadURL(ctx context.Context, objectKey string) (string, error) {
+func (b *FSBackend) GetDownloadURL(ctx context.Context, objectKey string, downloadFilename string) (string, error) {
 	if b.urlPrefix == "" {
 		return "", errors.New("direct download required for file system backend")
 	}

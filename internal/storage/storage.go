@@ -14,7 +14,7 @@ type Backend interface {
 	Upload(ctx context.Context, objectKey string, reader io.Reader) error
 
 	// GetDownloadURL returns a URL for downloading content
-	GetDownloadURL(ctx context.Context, objectKey string) (string, error)
+	GetDownloadURL(ctx context.Context, objectKey string, downloadFilename string) (string, error)
 
 	// Download downloads content directly
 	Download(ctx context.Context, objectKey string) (io.ReadCloser, error)

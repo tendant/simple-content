@@ -45,7 +45,7 @@ func (b *MemoryBackend) Upload(ctx context.Context, objectKey string, reader io.
 
 // GetDownloadURL returns a URL for downloading content
 // In-memory implementation doesn't use URLs
-func (b *MemoryBackend) GetDownloadURL(ctx context.Context, objectKey string) (string, error) {
+func (b *MemoryBackend) GetDownloadURL(ctx context.Context, objectKey string, downloadFilename string) (string, error) {
 	return "", errors.New("direct download required for memory backend")
 }
 

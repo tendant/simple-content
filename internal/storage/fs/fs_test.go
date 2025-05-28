@@ -80,7 +80,7 @@ func TestFSBackendWithURLPrefix(t *testing.T) {
 	assert.Equal(t, "http://localhost:8080/upload/test/object.txt", uploadURL)
 
 	// Test GetDownloadURL
-	downloadURL, err := backend.GetDownloadURL(ctx, objectKey)
+	downloadURL, err := backend.GetDownloadURL(ctx, objectKey, "test/object.txt")
 	assert.NoError(t, err)
 	assert.Equal(t, "http://localhost:8080/download/test/object.txt", downloadURL)
 }
@@ -107,7 +107,7 @@ func TestFSBackendErrors(t *testing.T) {
 	assert.Contains(t, err.Error(), "direct upload required")
 
 	// Test GetDownloadURL with no URL prefix
-	_, err = backend.GetDownloadURL(ctx, objectKey)
+	_, err = backend.GetDownloadURL(ctx, objectKey, "test/object.txt")
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "direct download required")
 

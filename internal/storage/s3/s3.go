@@ -334,16 +334,24 @@ func (b *S3Backend) Upload(ctx context.Context, objectKey string, reader io.Read
 }
 
 // GetDownloadURL returns a pre-signed URL for downloading content
-func (b *S3Backend) GetDownloadURL(ctx context.Context, objectKey string) (string, error) {
+func (b *S3Backend) GetDownloadURL(ctx context.Context, objectKey string, downloadFilename string) (string, error) {
+
+	var dispositionFilename string
+	if downloadFilename != "" {
+		dispositionFilename = fmt.Sprintf(`filename="%s"`, downloadFilename)
+	}
+
+	contentDisposition := fmt.Sprintf("attachment;%s", dispositionFilename)
 	input := &s3.GetObjectInput{
-		Bucket: aws.String(b.bucket),
-		Key:    aws.String(objectKey),
+		Bucket:                     aws.String(b.bucket),
+		Key:                        aws.String(objectKey),
+		ResponseContentDisposition: aws.String(contentDisposition),
 	}
 
 	result, err := b.presignClient.PresignGetObject(ctx, input,
 		s3.WithPresignExpires(b.presignDuration))
 	if err != nil {
-		return "", fmt.Errorf("failed to generate presigned URL: %w", err)
+		return "", fmt.Errorf("failed to generate download URL: %w", err)
 	}
 
 	return result.URL, nil
