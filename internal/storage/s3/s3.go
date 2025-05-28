@@ -357,6 +357,22 @@ func (b *S3Backend) GetDownloadURL(ctx context.Context, objectKey string, downlo
 	return result.URL, nil
 }
 
+// GetPreviewURL returns a URL for previewing content
+func (b *S3Backend) GetPreviewURL(ctx context.Context, objectKey string) (string, error) {
+	input := &s3.GetObjectInput{
+		Bucket: aws.String(b.bucket),
+		Key:    aws.String(objectKey),
+	}
+
+	result, err := b.presignClient.PresignGetObject(ctx, input,
+		s3.WithPresignExpires(b.presignDuration))
+	if err != nil {
+		return "", fmt.Errorf("failed to generate presigned URL: %w", err)
+	}
+
+	return result.URL, nil
+}
+
 // Download downloads content directly from S3
 func (b *S3Backend) Download(ctx context.Context, objectKey string) (io.ReadCloser, error) {
 	input := &s3.GetObjectInput{

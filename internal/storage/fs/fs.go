@@ -85,6 +85,14 @@ func (b *FSBackend) GetDownloadURL(ctx context.Context, objectKey string, downlo
 	return fmt.Sprintf("%s/download/%s", b.urlPrefix, objectKey), nil
 }
 
+// GetReviewURL returns a URL for reviewing content
+func (b *FSBackend) GetPreviewURL(ctx context.Context, objectKey string) (string, error) {
+	if b.urlPrefix == "" {
+		return "", errors.New("direct preview required for file system backend")
+	}
+	return fmt.Sprintf("%s/preview/%s", b.urlPrefix, objectKey), nil
+}
+
 // Download downloads content directly from the file system
 func (b *FSBackend) Download(ctx context.Context, objectKey string) (io.ReadCloser, error) {
 	filePath := filepath.Join(b.baseDir, objectKey)

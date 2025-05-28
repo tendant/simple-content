@@ -16,6 +16,9 @@ type Backend interface {
 	// GetDownloadURL returns a URL for downloading content
 	GetDownloadURL(ctx context.Context, objectKey string, downloadFilename string) (string, error)
 
+	// GetPreviewURL returns a URL for previewing content
+	GetPreviewURL(ctx context.Context, objectKey string) (string, error)
+
 	// Download downloads content directly
 	Download(ctx context.Context, objectKey string) (io.ReadCloser, error)
 

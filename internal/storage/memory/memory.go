@@ -49,6 +49,11 @@ func (b *MemoryBackend) GetDownloadURL(ctx context.Context, objectKey string, do
 	return "", errors.New("direct download required for memory backend")
 }
 
+// GetPreviewURL returns a URL for previewing content
+func (b *MemoryBackend) GetPreviewURL(ctx context.Context, objectKey string) (string, error) {
+	return "", errors.New("direct preview required for memory backend")
+}
+
 // Download downloads content directly
 func (b *MemoryBackend) Download(ctx context.Context, objectKey string) (io.ReadCloser, error) {
 	b.mu.RLock()
