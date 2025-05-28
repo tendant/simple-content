@@ -23,6 +23,25 @@ func NewMemoryBackend() storage.Backend {
 	}
 }
 
+// GetObjectMeta retrieves metadata for an object in memory
+func (b *MemoryBackend) GetObjectMeta(ctx context.Context, objectKey string) (*storage.ObjectMeta, error) {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+
+	data, exists := b.objects[objectKey]
+	if !exists {
+		return nil, errors.New("object not found")
+	}
+
+	meta := &storage.ObjectMeta{
+		Key:      objectKey,
+		Size:     int64(len(data)),
+		Metadata: make(map[string]string),
+	}
+
+	return meta, nil
+}
+
 // GetUploadURL returns a URL for uploading content
 // In-memory implementation doesn't use URLs
 func (b *MemoryBackend) GetUploadURL(ctx context.Context, objectKey string) (string, error) {

@@ -71,6 +71,7 @@ type s3ClientInterface interface {
 	GetObject(ctx context.Context, params *s3.GetObjectInput, optFns ...func(*s3.Options)) (*s3.GetObjectOutput, error)
 	DeleteObject(ctx context.Context, params *s3.DeleteObjectInput, optFns ...func(*s3.Options)) (*s3.DeleteObjectOutput, error)
 	HeadBucket(ctx context.Context, params *s3.HeadBucketInput, optFns ...func(*s3.Options)) (*s3.HeadBucketOutput, error)
+	HeadObject(ctx context.Context, params *s3.HeadObjectInput, optFns ...func(*s3.Options)) (*s3.HeadObjectOutput, error)
 	CreateBucket(ctx context.Context, params *s3.CreateBucketInput, optFns ...func(*s3.Options)) (*s3.CreateBucketOutput, error)
 }
 
@@ -206,6 +207,49 @@ func (b *S3BackendForTesting) Delete(ctx context.Context, objectKey string) erro
 	return nil
 }
 
+// GetObjectMeta retrieves metadata for an object in S3
+func (b *S3BackendForTesting) GetObjectMeta(ctx context.Context, objectKey string) (*storage.ObjectMeta, error) {
+	input := &s3.HeadObjectInput{
+		Bucket: aws.String(b.Bucket),
+		Key:    aws.String(objectKey),
+	}
+
+	result, err := b.Client.HeadObject(ctx, input)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get object metadata: %w", err)
+	}
+
+	// Convert S3-specific metadata to generic ObjectMeta
+	meta := &storage.ObjectMeta{
+		Key:      objectKey,
+		Metadata: make(map[string]string),
+	}
+
+	// Handle nil pointers safely
+	if result.ContentLength != nil {
+		meta.Size = *result.ContentLength
+	}
+
+	if result.LastModified != nil {
+		meta.UpdatedAt = *result.LastModified
+	}
+
+	if result.ContentType != nil {
+		meta.ContentType = *result.ContentType
+	}
+
+	if result.ETag != nil {
+		meta.ETag = *result.ETag
+	}
+
+	// Convert S3 metadata to generic metadata map
+	for k, v := range result.Metadata {
+		meta.Metadata[k] = v
+	}
+
+	return meta, nil
+}
+
 // Reference: https://aws.github.io/aws-sdk-go-v2/docs/configuring-sdk/endpoints/#v2-endpointresolverv2--baseendpoint
 func (r *resolverV2) ResolveEndpoint(ctx context.Context, params s3.EndpointParameters) (smithyendpoints.Endpoint, error) {
 
@@ -321,6 +365,49 @@ func NewS3Backend(config Config) (storage.Backend, error) {
 		sseAlgorithm:    config.SSEAlgorithm,
 		sseKMSKeyID:     config.SSEKMSKeyID,
 	}, nil
+}
+
+// GetObjectMeta retrieves metadata for an object in S3
+func (b *S3Backend) GetObjectMeta(ctx context.Context, objectKey string) (*storage.ObjectMeta, error) {
+	input := &s3.HeadObjectInput{
+		Bucket: aws.String(b.bucket),
+		Key:    aws.String(objectKey),
+	}
+
+	result, err := b.client.HeadObject(ctx, input)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get object metadata: %w", err)
+	}
+
+	// Convert S3-specific metadata to generic ObjectMeta
+	meta := &storage.ObjectMeta{
+		Key:      objectKey,
+		Metadata: make(map[string]string),
+	}
+
+	// Handle nil pointers safely
+	if result.ContentLength != nil {
+		meta.Size = *result.ContentLength
+	}
+
+	if result.LastModified != nil {
+		meta.UpdatedAt = *result.LastModified
+	}
+
+	if result.ContentType != nil {
+		meta.ContentType = *result.ContentType
+	}
+
+	if result.ETag != nil {
+		meta.ETag = *result.ETag
+	}
+
+	// Convert S3 metadata to generic metadata map
+	for k, v := range result.Metadata {
+		meta.Metadata[k] = v
+	}
+
+	return meta, nil
 }
 
 // GetUploadURL returns a pre-signed URL for uploading content
