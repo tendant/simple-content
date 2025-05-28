@@ -502,7 +502,7 @@ func (b *S3Backend) GetPreviewURL(ctx context.Context, objectKey string) (string
 	result, err := b.presignClient.PresignGetObject(ctx, input,
 		s3.WithPresignExpires(b.presignDuration))
 	if err != nil {
-		return "", fmt.Errorf("failed to generate presigned URL: %w", err)
+		return "", fmt.Errorf("failed to generate download URL: %w", err)
 	}
 
 	return result.URL, nil
