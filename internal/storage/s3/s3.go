@@ -139,8 +139,8 @@ func (b *S3BackendForTesting) Upload(ctx context.Context, objectKey string, read
 	return nil
 }
 
-// GetDownloadURL returns a pre-signed URL for downloading content
-func (b *S3BackendForTesting) GetDownloadURL(ctx context.Context, objectKey string) (string, error) {
+// GetPreviewURL returns a pre-signed URL for previewing content
+func (b *S3BackendForTesting) GetPreviewURL(ctx context.Context, objectKey string) (string, error) {
 	input := &s3.GetObjectInput{
 		Bucket: aws.String(b.Bucket),
 		Key:    aws.String(objectKey),
@@ -149,6 +149,28 @@ func (b *S3BackendForTesting) GetDownloadURL(ctx context.Context, objectKey stri
 	result, err := b.PresignClient.PresignGetObject(ctx, input)
 	if err != nil {
 		return "", fmt.Errorf("failed to generate presigned URL: %w", err)
+	}
+
+	return result.URL, nil
+}
+
+// GetDownloadURL returns a pre-signed URL for downloading content
+func (b *S3BackendForTesting) GetDownloadURL(ctx context.Context, objectKey string, downloadFilename string) (string, error) {
+	var dispositionFilename string
+	if downloadFilename != "" {
+		dispositionFilename = fmt.Sprintf(`filename="%s"`, downloadFilename)
+	}
+
+	contentDisposition := fmt.Sprintf("attachment;%s", dispositionFilename)
+	input := &s3.GetObjectInput{
+		Bucket:                     aws.String(b.Bucket),
+		Key:                        aws.String(objectKey),
+		ResponseContentDisposition: aws.String(contentDisposition),
+	}
+
+	result, err := b.PresignClient.PresignGetObject(ctx, input)
+	if err != nil {
+		return "", fmt.Errorf("failed to generate download URL: %w", err)
 	}
 
 	return result.URL, nil
