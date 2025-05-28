@@ -44,6 +44,11 @@ func (m *mockS3Client) CreateBucket(ctx context.Context, params *s3.CreateBucket
 	return args.Get(0).(*s3.CreateBucketOutput), args.Error(1)
 }
 
+func (m *mockS3Client) HeadObject(ctx context.Context, params *s3.HeadObjectInput, optFns ...func(*s3.Options)) (*s3.HeadObjectOutput, error) {
+	args := m.Called(ctx, params)
+	return args.Get(0).(*s3.HeadObjectOutput), args.Error(1)
+}
+
 // Mock presign client
 type mockPresignClient struct {
 	mock.Mock
@@ -140,10 +145,10 @@ func TestS3Backend(t *testing.T) {
 	assert.Contains(t, uploadURL, "https://test-bucket.s3.amazonaws.com/test/object.txt")
 	mockPresign.AssertCalled(t, "PresignPutObject", mock.Anything, mock.Anything)
 
-	// Test GetDownloadURL
-	downloadURL, err := backend.GetDownloadURL(ctx, objectKey)
+	// Test GetPreviewURL
+	previewURL, err := backend.GetPreviewURL(ctx, objectKey)
 	assert.NoError(t, err)
-	assert.Contains(t, downloadURL, "https://test-bucket.s3.amazonaws.com/test/object.txt")
+	assert.Contains(t, previewURL, "https://test-bucket.s3.amazonaws.com/test/object.txt")
 	mockPresign.AssertCalled(t, "PresignGetObject", mock.Anything, mock.Anything)
 }
 
