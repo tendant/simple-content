@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/url"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -13,6 +14,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
+	smithyendpoints "github.com/aws/smithy-go/endpoints"
 	"github.com/tendant/simple-content/internal/storage"
 )
 
@@ -45,6 +47,10 @@ type S3Backend struct {
 	enableSSE       bool
 	sseAlgorithm    string
 	sseKMSKeyID     string
+}
+type resolverV2 struct {
+	s3Endpoint string
+	s3Region   string
 }
 
 // S3BackendForTesting is a version of S3Backend that can be used for testing
@@ -178,6 +184,24 @@ func (b *S3BackendForTesting) Delete(ctx context.Context, objectKey string) erro
 	return nil
 }
 
+// Reference: https://aws.github.io/aws-sdk-go-v2/docs/configuring-sdk/endpoints/#v2-endpointresolverv2--baseendpoint
+func (r *resolverV2) ResolveEndpoint(ctx context.Context, params s3.EndpointParameters) (smithyendpoints.Endpoint, error) {
+
+	if params.Region != nil && *params.Region == r.s3Region {
+		base, err := url.Parse(r.s3Endpoint)
+		u := base.JoinPath(*params.Bucket)
+
+		if err != nil {
+			return smithyendpoints.Endpoint{}, err
+		}
+		return smithyendpoints.Endpoint{
+			URI: *u,
+		}, nil
+	}
+
+	return s3.NewDefaultEndpointResolverV2().ResolveEndpoint(ctx, params)
+}
+
 // NewS3Backend creates a new S3 storage backend
 func NewS3Backend(config Config) (storage.Backend, error) {
 	// Validate config
@@ -209,31 +233,33 @@ func NewS3Backend(config Config) (storage.Backend, error) {
 		))
 	}
 
-	// Add custom endpoint if provided (for S3-compatible services like MinIO)
-	if config.Endpoint != "" {
-		customResolver := aws.EndpointResolverWithOptionsFunc(
-			func(service, region string, options ...interface{}) (aws.Endpoint, error) {
-				return aws.Endpoint{
-					URL:               config.Endpoint,
-					SigningRegion:     config.Region,
-					HostnameImmutable: true,
-				}, nil
-			})
-		opts = append(opts, awsconfig.WithEndpointResolverWithOptions(customResolver))
-	}
-
 	// Create AWS config
 	cfg, err := awsconfig.LoadDefaultConfig(context.Background(), opts...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load AWS config: %w", err)
 	}
 
-	// Create S3 client
-	s3Client := s3.NewFromConfig(cfg, func(o *s3.Options) {
-		if config.UsePathStyle {
-			o.UsePathStyle = true
-		}
-	})
+	// Create S3 client with appropriate options
+	s3ClientOptions := []func(*s3.Options){
+		func(o *s3.Options) {
+			if config.UsePathStyle {
+				o.UsePathStyle = true
+			}
+		},
+	}
+
+	// Add custom endpoint resolver if endpoint is specified
+	if config.Endpoint != "" {
+		s3ClientOptions = append(s3ClientOptions, func(o *s3.Options) {
+			o.EndpointResolverV2 = &resolverV2{
+				s3Endpoint: config.Endpoint,
+				s3Region:   config.Region,
+			}
+		})
+	}
+
+	// Create the S3 client with all options
+	s3Client := s3.NewFromConfig(cfg, s3ClientOptions...)
 
 	// Create presign client
 	presignClient := s3.NewPresignClient(s3Client)
