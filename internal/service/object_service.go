@@ -177,9 +177,28 @@ func (s *ObjectService) UploadObject(ctx context.Context, id uuid.UUID, reader i
 		return err
 	}
 
+	// Get object meta from s3
+	objectMeta, err := backend.GetObjectMeta(ctx, object.ObjectKey)
+	if err != nil {
+		return err
+	}
+
+	// Update object metadata
+	updatedTime := time.Now().UTC()
+	objectMetaData := &domain.ObjectMetadata{
+		ObjectID:  object.ID,
+		ETag:      objectMeta.ETag,
+		SizeBytes: objectMeta.Size,
+		MimeType:  objectMeta.ContentType,
+		UpdatedAt: updatedTime,
+	}
+	if err := s.objectMetadataRepo.Set(ctx, objectMetaData); err != nil {
+		return err
+	}
+
 	// Update object status
 	object.Status = domain.ObjectStatusUploaded
-	object.UpdatedAt = time.Now()
+	object.UpdatedAt = updatedTime
 	return s.objectRepo.Update(ctx, object)
 }
 
