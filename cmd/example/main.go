@@ -159,7 +159,7 @@ func initializeS3Backend() (*s3.S3Backend, error) {
 
 func ensureStorageBackendExists(ctx context.Context, repo repository.StorageBackendRepository) error {
 	// Check if the S3 storage backend already exists
-	_, err := repo.Get(ctx, "s3")
+	_, err := repo.Get(ctx, "s3-default")
 	if err == nil {
 		// Backend already exists
 		log.Println("S3 storage backend already exists in the database")
@@ -167,18 +167,18 @@ func ensureStorageBackendExists(ctx context.Context, repo repository.StorageBack
 	}
 
 	// Create the S3 storage backend
-	now := time.Now()
+	now := time.Now().UTC()
 	s3Config := map[string]interface{}{
 		"region":                     getEnvOrDefault("S3_REGION", "us-east-1"),
-		"bucket":                     getEnvOrDefault("S3_BUCKET", "content-bucket"),
-		"endpoint":                   getEnvOrDefault("S3_ENDPOINT", ""),
-		"use_ssl":                    getEnvOrDefaultBool("S3_USE_SSL", true),
-		"use_path_style":             getEnvOrDefaultBool("S3_USE_PATH_STYLE", false),
-		"create_bucket_if_not_exist": getEnvOrDefaultBool("S3_CREATE_BUCKET", false),
+		"bucket":                     getEnvOrDefault("S3_BUCKET", "mymusic"),
+		"endpoint":                   getEnvOrDefault("S3_ENDPOINT", "http://localhost:9000"),
+		"use_ssl":                    getEnvOrDefaultBool("S3_USE_SSL", false),
+		"use_path_style":             getEnvOrDefaultBool("S3_USE_PATH_STYLE", true),
+		"create_bucket_if_not_exist": getEnvOrDefaultBool("S3_CREATE_BUCKET", true),
 	}
 
 	backend := &domain.StorageBackend{
-		Name:      "s3",
+		Name:      "s3-default",
 		Type:      "s3",
 		Config:    s3Config,
 		IsActive:  true,
@@ -235,8 +235,8 @@ func executeContentFlow(ctx context.Context, contentService *service.ContentServ
 	object, err := objectService.CreateObject(
 		ctx,
 		content.ID,
-		"s3", // Use the S3 storage backend
-		1,    // Version 1
+		"s3-default", // Use the S3 storage backend
+		1,            // Version 1
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create object: %w", err)
@@ -259,37 +259,23 @@ func executeContentFlow(ctx context.Context, contentService *service.ContentServ
 	}
 	log.Println("Object uploaded successfully!")
 
-	// 7. Get file info for metadata
-	fileInfo, err := os.Stat(filePath)
+	// 7. Get object metadata
+	fileInfo, err := objectService.GetObjectMetadata(ctx, object.ID)
 	if err != nil {
-		return fmt.Errorf("failed to get file info: %w", err)
+		return fmt.Errorf("failed to get object metadata: %w", err)
 	}
+	log.Println("Object metadata retrieved successfully!", fileInfo)
 
-	// 8. Set object metadata
-	log.Println("Setting object metadata...")
-	err = objectService.SetObjectMetadata(
-		ctx,
-		object.ID,
-		map[string]interface{}{
-			"size_bytes": fileInfo.Size(),
-			"mime_type":  "image/jpeg",
-			"filename":   fileInfo.Name(),
-		},
-	)
-	if err != nil {
-		return fmt.Errorf("failed to set object metadata: %w", err)
-	}
-
-	// 9. Update content status to uploaded
+	// 8. Update content status to uploaded
 	log.Println("Updating content status to uploaded...")
 	content.Status = domain.ContentStatusUploaded
-	content.UpdatedAt = time.Now()
+	content.UpdatedAt = time.Now().UTC()
 	err = contentService.UpdateContent(ctx, content)
 	if err != nil {
 		return fmt.Errorf("failed to update content status: %w", err)
 	}
 
-	// 10. Get a download URL for the object
+	// 9. Get a download URL for the object
 	log.Println("Generating download URL...")
 	downloadURL, err := objectService.GetDownloadURL(ctx, object.ID)
 	if err != nil {
@@ -297,7 +283,7 @@ func executeContentFlow(ctx context.Context, contentService *service.ContentServ
 	}
 	log.Printf("Download URL: %s", downloadURL)
 
-	// 11. Download the object to verify it was uploaded correctly
+	// 10. Download the object to verify it was uploaded correctly
 	log.Println("Downloading object to verify upload...")
 	reader, err := objectService.DownloadObject(ctx, object.ID)
 	if err != nil {
