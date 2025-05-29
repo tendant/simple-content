@@ -74,11 +74,11 @@ func main() {
 		"s3",
 		map[string]interface{}{
 			"region":                     getEnvOrDefault("S3_REGION", "us-east-1"),
-			"bucket":                     getEnvOrDefault("S3_BUCKET", "content-bucket"),
-			"endpoint":                   getEnvOrDefault("S3_ENDPOINT", ""),
-			"use_ssl":                    getEnvOrDefaultBool("S3_USE_SSL", true),
-			"use_path_style":             getEnvOrDefaultBool("S3_USE_PATH_STYLE", false),
-			"create_bucket_if_not_exist": getEnvOrDefaultBool("S3_CREATE_BUCKET", false),
+			"bucket":                     getEnvOrDefault("S3_BUCKET", "mymusic"),
+			"endpoint":                   getEnvOrDefault("S3_ENDPOINT", "http://localhost:9000"),
+			"use_ssl":                    getEnvOrDefaultBool("S3_USE_SSL", false),
+			"use_path_style":             getEnvOrDefaultBool("S3_USE_PATH_STYLE", true),
+			"create_bucket_if_not_exist": getEnvOrDefaultBool("S3_CREATE_BUCKET", true),
 		},
 	)
 	if err != nil {
@@ -125,7 +125,7 @@ func main() {
 func initializeS3Backend() (*s3.S3Backend, error) {
 	// Get S3 configuration from environment variables or use defaults
 	region := getEnvOrDefault("S3_REGION", "us-east-1")
-	bucket := getEnvOrDefault("S3_BUCKET", "content-bucket")
+	bucket := getEnvOrDefault("S3_BUCKET", "mymusic")
 	accessKey := getEnvOrDefault("S3_ACCESS_KEY", "minioadmin")
 	secretKey := getEnvOrDefault("S3_SECRET_KEY", "minioadmin")
 	endpoint := getEnvOrDefault("S3_ENDPOINT", "http://localhost:9000")
