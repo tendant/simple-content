@@ -22,11 +22,11 @@ import (
 )
 
 type DbConfig struct {
-	Port     uint16 `env:"PC_GENAI_PG_PORT" env-default:"5432"`
-	Host     string `env:"PC_GENAI_PG_HOST" env-default:"localhost"`
-	Name     string `env:"PC_GENAI_PG_NAME" env-default:"powercard_db"`
-	User     string `env:"PC_GENAI_PG_USER" env-default:"content"`
-	Password string `env:"PC_GENAI_PG_PASSWORD" env-default:"pwd"`
+	Port     uint16 `env:"PC_CONTENT_PG_PORT" env-default:"5432"`
+	Host     string `env:"PC_CONTENT_PG_HOST" env-default:"localhost"`
+	Name     string `env:"PC_CONTENT_PG_NAME" env-default:"powercard_db"`
+	User     string `env:"PC_CONTENT_PG_USER" env-default:"content"`
+	Password string `env:"PC_CONTENT_PG_PASSWORD" env-default:"pwd"`
 }
 
 func (c DbConfig) toDatabaseUrl() string {
