@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log"
 	"time"
 
 	"github.com/google/uuid"
@@ -152,14 +153,17 @@ func (s *ObjectService) DeleteObject(ctx context.Context, id uuid.UUID) error {
 func (s *ObjectService) UploadObject(ctx context.Context, id uuid.UUID, reader io.Reader) error {
 	object, err := s.objectRepo.Get(ctx, id)
 	if err != nil {
+		log.Printf("Failed to get object: %v", err)
 		return err
 	}
 
 	// Get the storage backend
 	storageBackend, err := s.storageBackendRepo.Get(ctx, object.StorageBackendName)
 	if err != nil {
+		log.Printf("Failed to get storage backend: %v", err)
 		return err
 	}
+	log.Printf("Storage backend: %v", storageBackend)
 
 	// Get the backend implementation
 	var backend storage.Backend
@@ -168,18 +172,21 @@ func (s *ObjectService) UploadObject(ctx context.Context, id uuid.UUID, reader i
 	} else {
 		backend, err = s.GetBackend(object.StorageBackendName)
 		if err != nil {
+			log.Printf("Failed to get backend: %v", err)
 			return err
 		}
 	}
 
 	// Upload the object
 	if err := backend.Upload(ctx, object.ObjectKey, reader); err != nil {
+		log.Printf("Failed to upload object: %v", err)
 		return err
 	}
 
 	// Get object meta from s3
 	objectMeta, err := backend.GetObjectMeta(ctx, object.ObjectKey)
 	if err != nil {
+		log.Printf("Failed to get object meta: %v", err)
 		return err
 	}
 
@@ -193,6 +200,7 @@ func (s *ObjectService) UploadObject(ctx context.Context, id uuid.UUID, reader i
 		UpdatedAt: updatedTime,
 	}
 	if err := s.objectMetadataRepo.Set(ctx, objectMetaData); err != nil {
+		log.Printf("Failed to update object metadata: %v", err)
 		return err
 	}
 
