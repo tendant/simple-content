@@ -25,7 +25,7 @@ type DbConfig struct {
 	Port     uint16 `env:"PC_GENAI_PG_PORT" env-default:"5432"`
 	Host     string `env:"PC_GENAI_PG_HOST" env-default:"localhost"`
 	Name     string `env:"PC_GENAI_PG_NAME" env-default:"powercard_db"`
-	User     string `env:"PC_GENAI_PG_USER" env-default:"genai"`
+	User     string `env:"PC_GENAI_PG_USER" env-default:"content"`
 	Password string `env:"PC_GENAI_PG_PASSWORD" env-default:"pwd"`
 }
 
@@ -67,24 +67,6 @@ func main() {
 	// since it's not provided by the factory
 	storageBackendRepo := memory.NewStorageBackendRepository()
 
-	storageBackendService := service.NewStorageBackendService(storageBackendRepo)
-	_, err = storageBackendService.CreateStorageBackend(
-		context.Background(),
-		"s3-default",
-		"s3",
-		map[string]interface{}{
-			"region":                     getEnvOrDefault("S3_REGION", "us-east-1"),
-			"bucket":                     getEnvOrDefault("S3_BUCKET", "mymusic"),
-			"endpoint":                   getEnvOrDefault("S3_ENDPOINT", "http://localhost:9000"),
-			"use_ssl":                    getEnvOrDefaultBool("S3_USE_SSL", false),
-			"use_path_style":             getEnvOrDefaultBool("S3_USE_PATH_STYLE", true),
-			"create_bucket_if_not_exist": getEnvOrDefaultBool("S3_CREATE_BUCKET", true),
-		},
-	)
-	if err != nil {
-		log.Printf("Warning: Failed to create default S3 storage backend: %v", err)
-	}
-
 	// 3. Initialize S3 storage backend
 	s3Backend, err := initializeS3Backend()
 	if err != nil {
@@ -106,7 +88,7 @@ func main() {
 	)
 
 	// Register the S3 backend with the object service
-	objectService.RegisterBackend("s3", s3Backend)
+	objectService.RegisterBackend("s3-default", s3Backend)
 
 	// 5. Create storage backend in the database if it doesn't exist
 	err = ensureStorageBackendExists(context.Background(), storageBackendRepo)
@@ -162,7 +144,7 @@ func ensureStorageBackendExists(ctx context.Context, repo repository.StorageBack
 	_, err := repo.Get(ctx, "s3-default")
 	if err == nil {
 		// Backend already exists
-		log.Println("S3 storage backend already exists in the database")
+		log.Println("S3 storage backend already exists")
 		return nil
 	}
 
