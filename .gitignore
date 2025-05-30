@@ -28,3 +28,6 @@ go.work.sum
 dist
 main
 s3test
+
+# service test
+tests/data/
