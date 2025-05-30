@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"time"
 
 	"github.com/google/uuid"
@@ -154,14 +154,14 @@ func (s *ObjectService) UploadObject(ctx context.Context, id uuid.UUID, reader i
 
 	object, err := s.objectRepo.Get(ctx, id)
 	if err != nil {
-		log.Printf("Failed to get object: %v", err)
+		slog.Error("Failed to get object", "err", err)
 		return err
 	}
 
 	// Get the storage backend
 	storageBackend, err := s.storageBackendRepo.Get(ctx, object.StorageBackendName)
 	if err != nil {
-		log.Printf("Failed to get storage backend: %v", err)
+		slog.Error("Failed to get storage backend", "err", err)
 		return err
 	}
 
@@ -172,21 +172,21 @@ func (s *ObjectService) UploadObject(ctx context.Context, id uuid.UUID, reader i
 	} else {
 		backend, err = s.GetBackend(object.StorageBackendName)
 		if err != nil {
-			log.Printf("Failed to get backend: %v", err)
+			slog.Error("Failed to get backend", "err", err)
 			return err
 		}
 	}
 
 	// Upload the object
 	if err := backend.Upload(ctx, object.ObjectKey, reader); err != nil {
-		log.Printf("Failed to upload object: %v", err)
+		slog.Error("Failed to upload object", "err", err)
 		return err
 	}
 
 	// Get object meta from storage backend
 	objectMeta, err := backend.GetObjectMeta(ctx, object.ObjectKey)
 	if err != nil {
-		log.Printf("Failed to get object meta: %v", err)
+		slog.Error("Failed to get object meta", "err", err)
 		return err
 	}
 
@@ -200,7 +200,7 @@ func (s *ObjectService) UploadObject(ctx context.Context, id uuid.UUID, reader i
 		UpdatedAt: updatedTime,
 	}
 	if err := s.objectMetadataRepo.Set(ctx, objectMetaData); err != nil {
-		log.Printf("Failed to update object metadata: %v", err)
+		slog.Error("Failed to update object metadata", "err", err)
 		return err
 	}
 
