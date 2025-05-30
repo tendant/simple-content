@@ -6,8 +6,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/tendant/simple-content/internal/domain"
 	"github.com/tendant/simple-content/internal/repository"
+	"github.com/tendant/simple-content/pkg/model"
 )
 
 // ContentService handles content-related operations
@@ -34,16 +34,16 @@ func NewContentService(
 func (s *ContentService) CreateContent(
 	ctx context.Context,
 	ownerID, tenantID uuid.UUID,
-) (*domain.Content, error) {
+) (*model.Content, error) {
 	now := time.Now()
-	content := &domain.Content{
+	content := &model.Content{
 		ID:             uuid.New(),
 		CreatedAt:      now,
 		UpdatedAt:      now,
 		OwnerID:        ownerID,
 		TenantID:       tenantID,
-		Status:         domain.ContentStatusCreated,
-		DerivationType: domain.ContentDerivationTypeOriginal,
+		Status:         model.ContentStatusCreated,
+		DerivationType: model.ContentDerivationTypeOriginal,
 	}
 
 	if err := s.contentRepo.Create(ctx, content); err != nil {
@@ -58,7 +58,7 @@ func (s *ContentService) CreateDerivedContent(
 	ctx context.Context,
 	parentID uuid.UUID,
 	ownerID, tenantID uuid.UUID,
-) (*domain.Content, error) {
+) (*model.Content, error) {
 	// Verify parent content exists
 	_, err := s.contentRepo.Get(ctx, parentID)
 	if err != nil {
@@ -67,14 +67,14 @@ func (s *ContentService) CreateDerivedContent(
 
 	// Create derived content
 	now := time.Now()
-	content := &domain.Content{
+	content := &model.Content{
 		ID:             uuid.New(),
 		CreatedAt:      now,
 		UpdatedAt:      now,
 		OwnerID:        ownerID,
 		TenantID:       tenantID,
-		Status:         domain.ContentStatusCreated,
-		DerivationType: domain.ContentDerivationTypeDerived,
+		Status:         model.ContentStatusCreated,
+		DerivationType: model.ContentDerivationTypeDerived,
 	}
 
 	if err := s.contentRepo.Create(ctx, content); err != nil {
@@ -88,12 +88,12 @@ func (s *ContentService) CreateDerivedContent(
 }
 
 // GetContent retrieves a content by ID
-func (s *ContentService) GetContent(ctx context.Context, id uuid.UUID) (*domain.Content, error) {
+func (s *ContentService) GetContent(ctx context.Context, id uuid.UUID) (*model.Content, error) {
 	return s.contentRepo.Get(ctx, id)
 }
 
 // UpdateContent updates a content
-func (s *ContentService) UpdateContent(ctx context.Context, content *domain.Content) error {
+func (s *ContentService) UpdateContent(ctx context.Context, content *model.Content) error {
 	content.UpdatedAt = time.Now()
 	return s.contentRepo.Update(ctx, content)
 }
@@ -118,7 +118,7 @@ func (s *ContentService) DeleteContent(ctx context.Context, id uuid.UUID) error 
 }
 
 // ListContents lists contents by owner ID and tenant ID
-func (s *ContentService) ListContents(ctx context.Context, ownerID, tenantID uuid.UUID) ([]*domain.Content, error) {
+func (s *ContentService) ListContents(ctx context.Context, ownerID, tenantID uuid.UUID) ([]*model.Content, error) {
 	return s.contentRepo.List(ctx, ownerID, tenantID)
 }
 
@@ -139,7 +139,7 @@ func (s *ContentService) SetContentMetadata(
 	}
 
 	// Prepare metadata
-	metadata := &domain.ContentMetadata{
+	metadata := &model.ContentMetadata{
 		ContentID: contentID,
 		Tags:      tags,
 		FileSize:  fileSize,
@@ -161,7 +161,7 @@ func (s *ContentService) SetContentMetadata(
 }
 
 // GetContentMetadata retrieves metadata for a content
-func (s *ContentService) GetContentMetadata(ctx context.Context, contentID uuid.UUID) (*domain.ContentMetadata, error) {
+func (s *ContentService) GetContentMetadata(ctx context.Context, contentID uuid.UUID) (*model.ContentMetadata, error) {
 	// Verify content exists
 	if _, err := s.contentRepo.Get(ctx, contentID); err != nil {
 		return nil, err
