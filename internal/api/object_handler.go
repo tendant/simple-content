@@ -10,7 +10,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/google/uuid"
-	"github.com/tendant/simple-content/internal/service"
+	"github.com/tendant/simple-content/pkg/service"
 )
 
 // ObjectHandler handles HTTP requests for objects
