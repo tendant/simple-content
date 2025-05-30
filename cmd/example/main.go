@@ -16,8 +16,8 @@ import (
 	"github.com/tendant/simple-content/internal/repository"
 	"github.com/tendant/simple-content/internal/repository/memory"
 	psqlrepo "github.com/tendant/simple-content/internal/repository/psql"
-	"github.com/tendant/simple-content/internal/service"
 	"github.com/tendant/simple-content/internal/storage/s3"
+	"github.com/tendant/simple-content/pkg/service"
 )
 
 type DbConfig struct {

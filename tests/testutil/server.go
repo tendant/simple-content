@@ -6,8 +6,8 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/tendant/simple-content/internal/api"
 	repoMemory "github.com/tendant/simple-content/internal/repository/memory"
-	"github.com/tendant/simple-content/internal/service"
 	storageMemory "github.com/tendant/simple-content/internal/storage/memory"
+	"github.com/tendant/simple-content/pkg/service"
 )
 
 // SetupTestServer creates a test server with all routes configured

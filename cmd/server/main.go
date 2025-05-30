@@ -14,9 +14,9 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/tendant/simple-content/internal/api"
 	"github.com/tendant/simple-content/internal/repository/memory"
-	"github.com/tendant/simple-content/internal/service"
 	fsStorage "github.com/tendant/simple-content/internal/storage/fs"
 	memoryStorage "github.com/tendant/simple-content/internal/storage/memory"
+	"github.com/tendant/simple-content/pkg/service"
 )
 
 func main() {

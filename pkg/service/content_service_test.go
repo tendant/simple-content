@@ -7,7 +7,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/tendant/simple-content/internal/repository/memory"
-	"github.com/tendant/simple-content/internal/service"
+	"github.com/tendant/simple-content/pkg/service"
 )
 
 func setupContentService() *service.ContentService {
