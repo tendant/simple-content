@@ -7,6 +7,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -14,20 +15,50 @@ import (
 	"github.com/tendant/simple-content/internal/storage/s3"
 )
 
+// Helper functions to get environment variables with fallbacks to command-line flags
+func getEnvOrFlag(envName, defaultValue string) string {
+	if value := os.Getenv(envName); value != "" {
+		return value
+	}
+	result := flag.String(strings.ToLower(strings.TrimPrefix(envName, "S3_")), defaultValue, "")
+	return *result
+}
+
+func getEnvBoolOrFlag(envName string, defaultValue bool) bool {
+	if value := os.Getenv(envName); value != "" {
+		return strings.ToLower(value) == "true" || value == "1"
+	}
+	flagName := strings.ToLower(strings.TrimPrefix(envName, "S3_"))
+	result := flag.Bool(flagName, defaultValue, "")
+	return *result
+}
+
+func getEnvIntOrFlag(envName string, defaultValue int) int {
+	if value := os.Getenv(envName); value != "" {
+		if intValue, err := strconv.Atoi(value); err == nil {
+			return intValue
+		}
+	}
+	flagName := strings.ToLower(strings.TrimPrefix(envName, "S3_"))
+	result := flag.Int(flagName, defaultValue, "")
+	return *result
+}
 func main() {
-	// Define command-line flags
-	region := flag.String("region", "us-east-1", "AWS region")
-	bucket := flag.String("bucket", "", "S3 bucket name")
-	accessKey := flag.String("access-key", "", "AWS access key ID")
-	secretKey := flag.String("secret-key", "", "AWS secret access key")
-	endpoint := flag.String("endpoint", "", "Custom S3 endpoint (for MinIO, etc.)")
-	useSSL := flag.Bool("use-ssl", true, "Use SSL for connections")
-	usePathStyle := flag.Bool("use-path-style", false, "Use path-style addressing")
-	enableSSE := flag.Bool("enable-sse", false, "Enable server-side encryption")
-	sseAlgorithm := flag.String("sse-algorithm", "AES256", "SSE algorithm (AES256 or aws:kms)")
-	sseKMSKeyID := flag.String("sse-kms-key-id", "", "KMS key ID for aws:kms algorithm")
-	presignDuration := flag.Int("presign-duration", 3600, "Duration in seconds for presigned URLs")
-	createBucket := flag.Bool("create-bucket", false, "Create bucket if it doesn't exist")
+
+	var (
+		region          = getEnvOrFlag("S3_REGION", "us-east-1")
+		bucket          = getEnvOrFlag("S3_BUCKET", "mymusic")
+		accessKey       = getEnvOrFlag("S3_ACCESS_KEY", "minioadmin")
+		secretKey       = getEnvOrFlag("S3_SECRET_KEY", "minioadmin")
+		endpoint        = getEnvOrFlag("S3_ENDPOINT", "http://localhost:9000")
+		useSSL          = getEnvBoolOrFlag("S3_USE_SSL", true)
+		usePathStyle    = getEnvBoolOrFlag("S3_USE_PATH_STYLE", false)
+		enableSSE       = getEnvBoolOrFlag("S3_ENABLE_SSE", false)
+		sseAlgorithm    = getEnvOrFlag("S3_SSE_ALGORITHM", "AES256")
+		sseKMSKeyID     = getEnvOrFlag("S3_SSE_KMS_KEY_ID", "")
+		presignDuration = getEnvIntOrFlag("S3_PRESIGN_DURATION", 3600)
+		createBucket    = getEnvBoolOrFlag("S3_CREATE_BUCKET", false)
+	)
 
 	// Define commands
 	command := flag.String("command", "help", "Command to execute: upload, download, delete, url-upload, url-download, help")
@@ -42,46 +73,46 @@ func main() {
 
 	// Apply MinIO defaults if requested
 	if *useMinio {
-		*endpoint = *minioEndpoint
-		*useSSL = false
-		*usePathStyle = true
-		*createBucket = true
-		if *accessKey == "" {
-			*accessKey = "minioadmin"
+		endpoint = *minioEndpoint
+		useSSL = false
+		usePathStyle = true
+		createBucket = true
+		if accessKey == "" {
+			accessKey = "minioadmin"
 		}
-		if *secretKey == "" {
-			*secretKey = "minioadmin"
+		if secretKey == "" {
+			secretKey = "minioadmin"
 		}
 	}
 
 	// Check for required parameters
-	if *bucket == "" && *command != "help" && *command != "" {
+	if bucket == "" && *command != "help" && *command != "" {
 		log.Fatal("Bucket name is required")
 	}
 
 	// Check for environment variables if flags not provided
-	if *accessKey == "" {
-		*accessKey = os.Getenv("AWS_ACCESS_KEY_ID")
+	if accessKey == "" {
+		accessKey = os.Getenv("AWS_ACCESS_KEY_ID")
 	}
 
-	if *secretKey == "" {
-		*secretKey = os.Getenv("AWS_SECRET_ACCESS_KEY")
+	if secretKey == "" {
+		secretKey = os.Getenv("AWS_SECRET_ACCESS_KEY")
 	}
 
 	// Initialize S3 backend
 	config := s3.Config{
-		Region:                 *region,
-		Bucket:                 *bucket,
-		AccessKeyID:            *accessKey,
-		SecretAccessKey:        *secretKey,
-		Endpoint:               *endpoint,
-		UseSSL:                 *useSSL,
-		UsePathStyle:           *usePathStyle,
-		PresignDuration:        *presignDuration,
-		EnableSSE:              *enableSSE,
-		SSEAlgorithm:           *sseAlgorithm,
-		SSEKMSKeyID:            *sseKMSKeyID,
-		CreateBucketIfNotExist: *createBucket,
+		Region:                 region,
+		Bucket:                 bucket,
+		AccessKeyID:            accessKey,
+		SecretAccessKey:        secretKey,
+		Endpoint:               endpoint,
+		UseSSL:                 useSSL,
+		UsePathStyle:           usePathStyle,
+		PresignDuration:        presignDuration,
+		EnableSSE:              enableSSE,
+		SSEAlgorithm:           sseAlgorithm,
+		SSEKMSKeyID:            sseKMSKeyID,
+		CreateBucketIfNotExist: createBucket,
 	}
 
 	// Skip backend initialization for help command
@@ -159,6 +190,35 @@ func main() {
 		}
 		fmt.Printf("Download successful: %d bytes (took %v)\n", bytesWritten, duration)
 
+	case "object-meta":
+		if *objectKey == "" {
+			log.Fatal("Object key is required for object metadata")
+		}
+
+		fmt.Printf("Getting metadata for %s...\n", *objectKey)
+		startTime := time.Now()
+		meta, err := backend.GetObjectMeta(ctx, *objectKey)
+		duration := time.Since(startTime)
+		if err != nil {
+			log.Fatalf("Failed to get object metadata: %v", err)
+		}
+
+		fmt.Println("Object Metadata:")
+		fmt.Printf("  Key: %s\n", meta.Key)
+		fmt.Printf("  Size: %d bytes\n", meta.Size)
+		fmt.Printf("  Content Type: %s\n", meta.ContentType)
+		fmt.Printf("  Last Modified: %v\n", meta.UpdatedAt)
+		fmt.Printf("  ETag: %s\n", meta.ETag)
+
+		if len(meta.Metadata) > 0 {
+			fmt.Println("  Custom Metadata:")
+			for k, v := range meta.Metadata {
+				fmt.Printf("    %s: %s\n", k, v)
+			}
+		}
+
+		fmt.Printf("Retrieved in %v\n", duration)
+
 	case "delete":
 		if *objectKey == "" {
 			log.Fatal("Object key is required for delete")
@@ -186,7 +246,7 @@ func main() {
 			log.Fatalf("Failed to get upload URL: %v", err)
 		}
 		fmt.Printf("Upload URL for %s (valid for %d seconds):\n%s\n",
-			*objectKey, *presignDuration, url)
+			*objectKey, presignDuration, url)
 		fmt.Printf("Generated in %v\n", duration)
 		fmt.Println("\nTo use this URL with curl:")
 		fmt.Printf("curl -X PUT -T your-file.txt \"%s\"\n", url)
@@ -197,13 +257,13 @@ func main() {
 		}
 
 		startTime := time.Now()
-		url, err := backend.GetDownloadURL(ctx, *objectKey)
+		url, err := backend.GetDownloadURL(ctx, *objectKey, "test-download.jpg")
 		duration := time.Since(startTime)
 		if err != nil {
 			log.Fatalf("Failed to get download URL: %v", err)
 		}
 		fmt.Printf("Download URL for %s (valid for %d seconds):\n%s\n",
-			*objectKey, *presignDuration, url)
+			*objectKey, presignDuration, url)
 		fmt.Printf("Generated in %v\n", duration)
 		fmt.Println("\nTo use this URL with curl:")
 		fmt.Printf("curl \"%s\" -o downloaded-file.txt\n", url)

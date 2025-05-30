@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/url"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -13,6 +14,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
+	smithyendpoints "github.com/aws/smithy-go/endpoints"
 	"github.com/tendant/simple-content/internal/storage"
 )
 
@@ -46,6 +48,10 @@ type S3Backend struct {
 	sseAlgorithm    string
 	sseKMSKeyID     string
 }
+type resolverV2 struct {
+	s3Endpoint string
+	s3Region   string
+}
 
 // S3BackendForTesting is a version of S3Backend that can be used for testing
 // It allows injecting mock clients
@@ -65,6 +71,7 @@ type s3ClientInterface interface {
 	GetObject(ctx context.Context, params *s3.GetObjectInput, optFns ...func(*s3.Options)) (*s3.GetObjectOutput, error)
 	DeleteObject(ctx context.Context, params *s3.DeleteObjectInput, optFns ...func(*s3.Options)) (*s3.DeleteObjectOutput, error)
 	HeadBucket(ctx context.Context, params *s3.HeadBucketInput, optFns ...func(*s3.Options)) (*s3.HeadBucketOutput, error)
+	HeadObject(ctx context.Context, params *s3.HeadObjectInput, optFns ...func(*s3.Options)) (*s3.HeadObjectOutput, error)
 	CreateBucket(ctx context.Context, params *s3.CreateBucketInput, optFns ...func(*s3.Options)) (*s3.CreateBucketOutput, error)
 }
 
@@ -133,8 +140,8 @@ func (b *S3BackendForTesting) Upload(ctx context.Context, objectKey string, read
 	return nil
 }
 
-// GetDownloadURL returns a pre-signed URL for downloading content
-func (b *S3BackendForTesting) GetDownloadURL(ctx context.Context, objectKey string) (string, error) {
+// GetPreviewURL returns a pre-signed URL for previewing content
+func (b *S3BackendForTesting) GetPreviewURL(ctx context.Context, objectKey string) (string, error) {
 	input := &s3.GetObjectInput{
 		Bucket: aws.String(b.Bucket),
 		Key:    aws.String(objectKey),
@@ -143,6 +150,28 @@ func (b *S3BackendForTesting) GetDownloadURL(ctx context.Context, objectKey stri
 	result, err := b.PresignClient.PresignGetObject(ctx, input)
 	if err != nil {
 		return "", fmt.Errorf("failed to generate presigned URL: %w", err)
+	}
+
+	return result.URL, nil
+}
+
+// GetDownloadURL returns a pre-signed URL for downloading content
+func (b *S3BackendForTesting) GetDownloadURL(ctx context.Context, objectKey string, downloadFilename string) (string, error) {
+	var dispositionFilename string
+	if downloadFilename != "" {
+		dispositionFilename = fmt.Sprintf(`filename="%s"`, downloadFilename)
+	}
+
+	contentDisposition := fmt.Sprintf("attachment;%s", dispositionFilename)
+	input := &s3.GetObjectInput{
+		Bucket:                     aws.String(b.Bucket),
+		Key:                        aws.String(objectKey),
+		ResponseContentDisposition: aws.String(contentDisposition),
+	}
+
+	result, err := b.PresignClient.PresignGetObject(ctx, input)
+	if err != nil {
+		return "", fmt.Errorf("failed to generate download URL: %w", err)
 	}
 
 	return result.URL, nil
@@ -178,6 +207,67 @@ func (b *S3BackendForTesting) Delete(ctx context.Context, objectKey string) erro
 	return nil
 }
 
+// GetObjectMeta retrieves metadata for an object in S3
+func (b *S3BackendForTesting) GetObjectMeta(ctx context.Context, objectKey string) (*storage.ObjectMeta, error) {
+	input := &s3.HeadObjectInput{
+		Bucket: aws.String(b.Bucket),
+		Key:    aws.String(objectKey),
+	}
+
+	result, err := b.Client.HeadObject(ctx, input)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get object metadata: %w", err)
+	}
+
+	// Convert S3-specific metadata to generic ObjectMeta
+	meta := &storage.ObjectMeta{
+		Key:      objectKey,
+		Metadata: make(map[string]string),
+	}
+
+	// Handle nil pointers safely
+	if result.ContentLength != nil {
+		meta.Size = *result.ContentLength
+	}
+
+	if result.LastModified != nil {
+		meta.UpdatedAt = *result.LastModified
+	}
+
+	if result.ContentType != nil {
+		meta.ContentType = *result.ContentType
+	}
+
+	if result.ETag != nil {
+		meta.ETag = *result.ETag
+	}
+
+	// Convert S3 metadata to generic metadata map
+	for k, v := range result.Metadata {
+		meta.Metadata[k] = v
+	}
+
+	return meta, nil
+}
+
+// Reference: https://aws.github.io/aws-sdk-go-v2/docs/configuring-sdk/endpoints/#v2-endpointresolverv2--baseendpoint
+func (r *resolverV2) ResolveEndpoint(ctx context.Context, params s3.EndpointParameters) (smithyendpoints.Endpoint, error) {
+
+	if params.Region != nil && *params.Region == r.s3Region {
+		base, err := url.Parse(r.s3Endpoint)
+		u := base.JoinPath(*params.Bucket)
+
+		if err != nil {
+			return smithyendpoints.Endpoint{}, err
+		}
+		return smithyendpoints.Endpoint{
+			URI: *u,
+		}, nil
+	}
+
+	return s3.NewDefaultEndpointResolverV2().ResolveEndpoint(ctx, params)
+}
+
 // NewS3Backend creates a new S3 storage backend
 func NewS3Backend(config Config) (storage.Backend, error) {
 	// Validate config
@@ -209,31 +299,33 @@ func NewS3Backend(config Config) (storage.Backend, error) {
 		))
 	}
 
-	// Add custom endpoint if provided (for S3-compatible services like MinIO)
-	if config.Endpoint != "" {
-		customResolver := aws.EndpointResolverWithOptionsFunc(
-			func(service, region string, options ...interface{}) (aws.Endpoint, error) {
-				return aws.Endpoint{
-					URL:               config.Endpoint,
-					SigningRegion:     config.Region,
-					HostnameImmutable: true,
-				}, nil
-			})
-		opts = append(opts, awsconfig.WithEndpointResolverWithOptions(customResolver))
-	}
-
 	// Create AWS config
 	cfg, err := awsconfig.LoadDefaultConfig(context.Background(), opts...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load AWS config: %w", err)
 	}
 
-	// Create S3 client
-	s3Client := s3.NewFromConfig(cfg, func(o *s3.Options) {
-		if config.UsePathStyle {
-			o.UsePathStyle = true
-		}
-	})
+	// Create S3 client with appropriate options
+	s3ClientOptions := []func(*s3.Options){
+		func(o *s3.Options) {
+			if config.UsePathStyle {
+				o.UsePathStyle = true
+			}
+		},
+	}
+
+	// Add custom endpoint resolver if endpoint is specified
+	if config.Endpoint != "" {
+		s3ClientOptions = append(s3ClientOptions, func(o *s3.Options) {
+			o.EndpointResolverV2 = &resolverV2{
+				s3Endpoint: config.Endpoint,
+				s3Region:   config.Region,
+			}
+		})
+	}
+
+	// Create the S3 client with all options
+	s3Client := s3.NewFromConfig(cfg, s3ClientOptions...)
 
 	// Create presign client
 	presignClient := s3.NewPresignClient(s3Client)
@@ -273,6 +365,49 @@ func NewS3Backend(config Config) (storage.Backend, error) {
 		sseAlgorithm:    config.SSEAlgorithm,
 		sseKMSKeyID:     config.SSEKMSKeyID,
 	}, nil
+}
+
+// GetObjectMeta retrieves metadata for an object in S3
+func (b *S3Backend) GetObjectMeta(ctx context.Context, objectKey string) (*storage.ObjectMeta, error) {
+	input := &s3.HeadObjectInput{
+		Bucket: aws.String(b.bucket),
+		Key:    aws.String(objectKey),
+	}
+
+	result, err := b.client.HeadObject(ctx, input)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get object metadata: %w", err)
+	}
+
+	// Convert S3-specific metadata to generic ObjectMeta
+	meta := &storage.ObjectMeta{
+		Key:      objectKey,
+		Metadata: make(map[string]string),
+	}
+
+	// Handle nil pointers safely
+	if result.ContentLength != nil {
+		meta.Size = *result.ContentLength
+	}
+
+	if result.LastModified != nil {
+		meta.UpdatedAt = *result.LastModified
+	}
+
+	if result.ContentType != nil {
+		meta.ContentType = *result.ContentType
+	}
+
+	if result.ETag != nil {
+		meta.ETag = *result.ETag
+	}
+
+	// Convert S3 metadata to generic metadata map
+	for k, v := range result.Metadata {
+		meta.Metadata[k] = v
+	}
+
+	return meta, nil
 }
 
 // GetUploadURL returns a pre-signed URL for uploading content
@@ -334,7 +469,31 @@ func (b *S3Backend) Upload(ctx context.Context, objectKey string, reader io.Read
 }
 
 // GetDownloadURL returns a pre-signed URL for downloading content
-func (b *S3Backend) GetDownloadURL(ctx context.Context, objectKey string) (string, error) {
+func (b *S3Backend) GetDownloadURL(ctx context.Context, objectKey string, downloadFilename string) (string, error) {
+
+	var dispositionFilename string
+	if downloadFilename != "" {
+		dispositionFilename = fmt.Sprintf(`filename="%s"`, downloadFilename)
+	}
+
+	contentDisposition := fmt.Sprintf("attachment;%s", dispositionFilename)
+	input := &s3.GetObjectInput{
+		Bucket:                     aws.String(b.bucket),
+		Key:                        aws.String(objectKey),
+		ResponseContentDisposition: aws.String(contentDisposition),
+	}
+
+	result, err := b.presignClient.PresignGetObject(ctx, input,
+		s3.WithPresignExpires(b.presignDuration))
+	if err != nil {
+		return "", fmt.Errorf("failed to generate download URL: %w", err)
+	}
+
+	return result.URL, nil
+}
+
+// GetPreviewURL returns a URL for previewing content
+func (b *S3Backend) GetPreviewURL(ctx context.Context, objectKey string) (string, error) {
 	input := &s3.GetObjectInput{
 		Bucket: aws.String(b.bucket),
 		Key:    aws.String(objectKey),

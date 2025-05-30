@@ -56,7 +56,7 @@ func TestS3BackendWithMinIO(t *testing.T) {
 	assert.Contains(t, uploadURL, "X-Amz-Algorithm")
 
 	// Test GetDownloadURL
-	downloadURL, err := backend.GetDownloadURL(ctx, objectKey)
+	downloadURL, err := backend.GetDownloadURL(ctx, objectKey, "test/integration-test.txt")
 	assert.NoError(t, err)
 	assert.Contains(t, downloadURL, config.Endpoint)
 	assert.Contains(t, downloadURL, objectKey)

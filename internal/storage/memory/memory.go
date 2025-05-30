@@ -23,6 +23,25 @@ func NewMemoryBackend() storage.Backend {
 	}
 }
 
+// GetObjectMeta retrieves metadata for an object in memory
+func (b *MemoryBackend) GetObjectMeta(ctx context.Context, objectKey string) (*storage.ObjectMeta, error) {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+
+	data, exists := b.objects[objectKey]
+	if !exists {
+		return nil, errors.New("object not found")
+	}
+
+	meta := &storage.ObjectMeta{
+		Key:      objectKey,
+		Size:     int64(len(data)),
+		Metadata: make(map[string]string),
+	}
+
+	return meta, nil
+}
+
 // GetUploadURL returns a URL for uploading content
 // In-memory implementation doesn't use URLs
 func (b *MemoryBackend) GetUploadURL(ctx context.Context, objectKey string) (string, error) {
@@ -45,8 +64,13 @@ func (b *MemoryBackend) Upload(ctx context.Context, objectKey string, reader io.
 
 // GetDownloadURL returns a URL for downloading content
 // In-memory implementation doesn't use URLs
-func (b *MemoryBackend) GetDownloadURL(ctx context.Context, objectKey string) (string, error) {
+func (b *MemoryBackend) GetDownloadURL(ctx context.Context, objectKey string, downloadFilename string) (string, error) {
 	return "", errors.New("direct download required for memory backend")
+}
+
+// GetPreviewURL returns a URL for previewing content
+func (b *MemoryBackend) GetPreviewURL(ctx context.Context, objectKey string) (string, error) {
+	return "", errors.New("direct preview required for memory backend")
 }
 
 // Download downloads content directly

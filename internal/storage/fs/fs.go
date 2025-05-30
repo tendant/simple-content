@@ -42,6 +42,33 @@ func NewFSBackend(config Config) (storage.Backend, error) {
 	}, nil
 }
 
+// GetObjectMeta retrieves metadata for an object in the file system
+func (b *FSBackend) GetObjectMeta(ctx context.Context, objectKey string) (*storage.ObjectMeta, error) {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+
+	filePath := filepath.Join(b.baseDir, objectKey)
+
+	// Check if file exists
+	if _, err := os.Stat(filePath); os.IsNotExist(err) {
+		return nil, errors.New("object not found")
+	}
+
+	// Get file info
+	info, err := os.Stat(filePath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get file info: %w", err)
+	}
+
+	meta := &storage.ObjectMeta{
+		Key:      objectKey,
+		Size:     info.Size(),
+		Metadata: make(map[string]string),
+	}
+
+	return meta, nil
+}
+
 // GetUploadURL returns a URL for uploading content
 // For file system, this could be a local file:// URL or an API endpoint
 func (b *FSBackend) GetUploadURL(ctx context.Context, objectKey string) (string, error) {
@@ -78,11 +105,19 @@ func (b *FSBackend) Upload(ctx context.Context, objectKey string, reader io.Read
 }
 
 // GetDownloadURL returns a URL for downloading content
-func (b *FSBackend) GetDownloadURL(ctx context.Context, objectKey string) (string, error) {
+func (b *FSBackend) GetDownloadURL(ctx context.Context, objectKey string, downloadFilename string) (string, error) {
 	if b.urlPrefix == "" {
 		return "", errors.New("direct download required for file system backend")
 	}
 	return fmt.Sprintf("%s/download/%s", b.urlPrefix, objectKey), nil
+}
+
+// GetReviewURL returns a URL for reviewing content
+func (b *FSBackend) GetPreviewURL(ctx context.Context, objectKey string) (string, error) {
+	if b.urlPrefix == "" {
+		return "", errors.New("direct preview required for file system backend")
+	}
+	return fmt.Sprintf("%s/preview/%s", b.urlPrefix, objectKey), nil
 }
 
 // Download downloads content directly from the file system
