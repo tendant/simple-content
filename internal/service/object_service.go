@@ -151,6 +151,7 @@ func (s *ObjectService) DeleteObject(ctx context.Context, id uuid.UUID) error {
 
 // UploadObject uploads an object
 func (s *ObjectService) UploadObject(ctx context.Context, id uuid.UUID, reader io.Reader) error {
+
 	object, err := s.objectRepo.Get(ctx, id)
 	if err != nil {
 		log.Printf("Failed to get object: %v", err)
@@ -163,7 +164,6 @@ func (s *ObjectService) UploadObject(ctx context.Context, id uuid.UUID, reader i
 		log.Printf("Failed to get storage backend: %v", err)
 		return err
 	}
-	log.Printf("Storage backend: %v", storageBackend)
 
 	// Get the backend implementation
 	var backend storage.Backend
@@ -183,7 +183,7 @@ func (s *ObjectService) UploadObject(ctx context.Context, id uuid.UUID, reader i
 		return err
 	}
 
-	// Get object meta from s3
+	// Get object meta from storage backend
 	objectMeta, err := backend.GetObjectMeta(ctx, object.ObjectKey)
 	if err != nil {
 		log.Printf("Failed to get object meta: %v", err)
