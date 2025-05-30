@@ -8,9 +8,9 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/tendant/simple-content/internal/domain"
 	"github.com/tendant/simple-content/internal/repository"
 	"github.com/tendant/simple-content/internal/storage"
+	"github.com/tendant/simple-content/pkg/model"
 )
 
 // ObjectService handles object-related operations
@@ -58,7 +58,7 @@ func (s *ObjectService) CreateObject(
 	contentID uuid.UUID,
 	storageBackendName string,
 	version int,
-) (*domain.Object, error) {
+) (*model.Object, error) {
 	// Verify storage backend exists
 	storageBackend, err := s.storageBackendRepo.Get(ctx, storageBackendName)
 	if err != nil {
@@ -69,13 +69,13 @@ func (s *ObjectService) CreateObject(
 	objectID := uuid.New()
 	objectKey := fmt.Sprintf("%s/%s", contentID, objectID)
 
-	object := &domain.Object{
+	object := &model.Object{
 		ID:                 objectID,
 		ContentID:          contentID,
 		StorageBackendName: storageBackendName,
 		Version:            version,
 		ObjectKey:          objectKey,
-		Status:             domain.ObjectStatusCreated,
+		Status:             model.ObjectStatusCreated,
 		CreatedAt:          now,
 		UpdatedAt:          now,
 	}
@@ -85,7 +85,7 @@ func (s *ObjectService) CreateObject(
 	}
 
 	// Set initial metadata
-	objectMetadata := &domain.ObjectMetadata{
+	objectMetadata := &model.ObjectMetadata{
 		ObjectID: objectID,
 		Metadata: map[string]interface{}{
 			"storage_backend_type": storageBackend.Type,
@@ -101,17 +101,17 @@ func (s *ObjectService) CreateObject(
 }
 
 // GetObject retrieves an object by ID
-func (s *ObjectService) GetObject(ctx context.Context, id uuid.UUID) (*domain.Object, error) {
+func (s *ObjectService) GetObject(ctx context.Context, id uuid.UUID) (*model.Object, error) {
 	return s.objectRepo.Get(ctx, id)
 }
 
 // GetObjectsByContentID retrieves objects by content ID
-func (s *ObjectService) GetObjectsByContentID(ctx context.Context, contentID uuid.UUID) ([]*domain.Object, error) {
+func (s *ObjectService) GetObjectsByContentID(ctx context.Context, contentID uuid.UUID) ([]*model.Object, error) {
 	return s.objectRepo.GetByContentID(ctx, contentID)
 }
 
 // UpdateObject updates an object
-func (s *ObjectService) UpdateObject(ctx context.Context, object *domain.Object) error {
+func (s *ObjectService) UpdateObject(ctx context.Context, object *model.Object) error {
 	object.UpdatedAt = time.Now()
 	return s.objectRepo.Update(ctx, object)
 }
@@ -192,7 +192,7 @@ func (s *ObjectService) UploadObject(ctx context.Context, id uuid.UUID, reader i
 
 	// Update object metadata
 	updatedTime := time.Now().UTC()
-	objectMetaData := &domain.ObjectMetadata{
+	objectMetaData := &model.ObjectMetadata{
 		ObjectID:  object.ID,
 		ETag:      objectMeta.ETag,
 		SizeBytes: objectMeta.Size,
@@ -205,7 +205,7 @@ func (s *ObjectService) UploadObject(ctx context.Context, id uuid.UUID, reader i
 	}
 
 	// Update object status
-	object.Status = domain.ObjectStatusUploaded
+	object.Status = model.ObjectStatusUploaded
 	object.UpdatedAt = updatedTime
 	return s.objectRepo.Update(ctx, object)
 }
@@ -303,7 +303,7 @@ func (s *ObjectService) SetObjectMetadata(ctx context.Context, objectID uuid.UUI
 	}
 
 	// Create or update the object metadata
-	objectMetadata := &domain.ObjectMetadata{
+	objectMetadata := &model.ObjectMetadata{
 		ObjectID: objectID,
 		Metadata: metadata,
 	}
