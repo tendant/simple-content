@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"log"
 	"log/slog"
 	"net/url"
 	"os"
@@ -70,7 +69,7 @@ func main() {
 	// 3. Initialize S3 storage backend
 	s3Backend, err := initializeS3Backend()
 	if err != nil {
-		log.Fatalf("Failed to initialize S3 backend: %v", err)
+		slog.Error("Failed to initialize S3 backend", "err", err)
 	}
 
 	// 4. Initialize services
@@ -93,16 +92,16 @@ func main() {
 	// 5. Create storage backend in the database if it doesn't exist
 	err = ensureStorageBackendExists(context.Background(), storageBackendRepo)
 	if err != nil {
-		log.Fatalf("Failed to ensure storage backend exists: %v", err)
+		slog.Error("Failed to ensure storage backend exists: %v", err)
 	}
 
 	// 6. Execute the complete content and object flow
 	err = executeContentFlow(context.Background(), contentService, objectService)
 	if err != nil {
-		log.Fatalf("Content flow failed: %v", err)
+		slog.Error("Content flow failed", "err", err)
 	}
 
-	log.Println("Content flow completed successfully!")
+	slog.Info("Content flow completed successfully!")
 }
 func initializeS3Backend() (*s3.S3Backend, error) {
 	// Get S3 configuration from environment variables or use defaults
@@ -129,13 +128,13 @@ func initializeS3Backend() (*s3.S3Backend, error) {
 	}
 
 	// Initialize the S3 backend
-	log.Printf("Initializing S3 backend with bucket '%s'...", bucket)
+	slog.Info("Initializing S3 backend with bucket '%s'...", "bucket", bucket)
 	backend, err := s3.NewS3Backend(config)
 	if err != nil {
 		return nil, err
 	}
 
-	log.Println("S3 backend initialized successfully!")
+	slog.Info("S3 backend initialized successfully!")
 	return backend.(*s3.S3Backend), nil
 }
 
@@ -144,7 +143,7 @@ func ensureStorageBackendExists(ctx context.Context, repo repository.StorageBack
 	_, err := repo.Get(ctx, "s3-default")
 	if err == nil {
 		// Backend already exists
-		log.Println("S3 storage backend already exists")
+		slog.Info("S3 storage backend already exists")
 		return nil
 	}
 
@@ -168,13 +167,13 @@ func ensureStorageBackendExists(ctx context.Context, repo repository.StorageBack
 		UpdatedAt: now,
 	}
 
-	log.Println("Creating S3 storage backend in the database...")
+	slog.Info("Creating S3 storage backend in the database...")
 	err = repo.Create(ctx, backend)
 	if err != nil {
 		return err
 	}
 
-	log.Println("S3 storage backend created successfully!")
+	slog.Info("S3 storage backend created successfully!")
 	return nil
 }
 
@@ -182,19 +181,19 @@ func executeContentFlow(ctx context.Context, contentService *service.ContentServ
 	// 1. Create a tenant and owner ID (in a real app, these would come from your auth system)
 	tenantID := uuid.New()
 	ownerID := uuid.New()
-	log.Printf("Using tenant ID: %s", tenantID)
-	log.Printf("Using owner ID: %s", ownerID)
+	slog.Info("Using tenant ID", "tenantID", tenantID)
+	slog.Info("Using owner ID", "ownerID", ownerID)
 
 	// 2. Create a new content
-	log.Println("Creating new content...")
+	slog.Info("Creating new content...")
 	content, err := contentService.CreateContent(ctx, ownerID, tenantID)
 	if err != nil {
 		return fmt.Errorf("failed to create content: %w", err)
 	}
-	log.Printf("Content created with ID: %s", content.ID)
+	slog.Info("Content created with ID", "contentID", content.ID)
 
 	// 3. Set content metadata
-	log.Println("Setting content metadata...")
+	slog.Info("Setting content metadata...")
 	err = contentService.SetContentMetadata(
 		ctx,
 		content.ID,
@@ -213,7 +212,7 @@ func executeContentFlow(ctx context.Context, contentService *service.ContentServ
 	}
 
 	// 4. Create a new object for the content
-	log.Println("Creating new object...")
+	slog.Info("Creating new object...")
 	object, err := objectService.CreateObject(
 		ctx,
 		content.ID,
@@ -223,7 +222,7 @@ func executeContentFlow(ctx context.Context, contentService *service.ContentServ
 	if err != nil {
 		return fmt.Errorf("failed to create object: %w", err)
 	}
-	log.Printf("Object created with ID: %s", object.ID)
+	slog.Info("Object created with ID", "objectID", object.ID)
 
 	// 5. Get a sample image file to upload
 	filePath := getEnvOrDefault("SAMPLE_IMAGE_PATH", "./receipt.jpg")
@@ -234,22 +233,22 @@ func executeContentFlow(ctx context.Context, contentService *service.ContentServ
 	defer file.Close()
 
 	// 6. Upload the object to S3
-	log.Printf("Uploading file '%s' to object...", filePath)
+	slog.Info("Uploading file to object...", "filePath", filePath)
 	err = objectService.UploadObject(ctx, object.ID, file)
 	if err != nil {
 		return fmt.Errorf("failed to upload object: %w", err)
 	}
-	log.Println("Object uploaded successfully!")
+	slog.Info("Object uploaded successfully!")
 
 	// 7. Get object metadata
 	fileInfo, err := objectService.GetObjectMetadata(ctx, object.ID)
 	if err != nil {
 		return fmt.Errorf("failed to get object metadata: %w", err)
 	}
-	log.Println("Object metadata retrieved successfully!", fileInfo)
+	slog.Info("Object metadata retrieved successfully!", "fileInfo", fileInfo)
 
 	// 8. Update content status to uploaded
-	log.Println("Updating content status to uploaded...")
+	slog.Info("Updating content status to uploaded...")
 	content.Status = domain.ContentStatusUploaded
 	content.UpdatedAt = time.Now().UTC()
 	err = contentService.UpdateContent(ctx, content)
@@ -258,15 +257,15 @@ func executeContentFlow(ctx context.Context, contentService *service.ContentServ
 	}
 
 	// 9. Get a download URL for the object
-	log.Println("Generating download URL...")
+	slog.Info("Generating download URL...")
 	downloadURL, err := objectService.GetDownloadURL(ctx, object.ID)
 	if err != nil {
 		return fmt.Errorf("failed to get download URL: %w", err)
 	}
-	log.Printf("Download URL: %s", downloadURL)
+	slog.Info("Download URL", "downloadURL", downloadURL)
 
 	// 10. Download the object to verify it was uploaded correctly
-	log.Println("Downloading object to verify upload...")
+	slog.Info("Downloading object to verify upload...")
 	reader, err := objectService.DownloadObject(ctx, object.ID)
 	if err != nil {
 		return fmt.Errorf("failed to download object: %w", err)
@@ -279,7 +278,7 @@ func executeContentFlow(ctx context.Context, contentService *service.ContentServ
 	if err != nil && err != io.EOF {
 		return fmt.Errorf("failed to read from downloaded object: %w", err)
 	}
-	log.Printf("Successfully read %d bytes from downloaded object", n)
+	slog.Info("Successfully read bytes from downloaded object", "n", n)
 
 	return nil
 }
