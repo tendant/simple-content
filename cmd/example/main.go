@@ -13,7 +13,6 @@ import (
 	"github.com/ilyakaznacheev/cleanenv"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/tendant/simple-content/pkg/model"
-	"github.com/tendant/simple-content/pkg/repository"
 	"github.com/tendant/simple-content/pkg/repository/memory"
 	psqlrepo "github.com/tendant/simple-content/pkg/repository/psql"
 	"github.com/tendant/simple-content/pkg/service"
@@ -89,13 +88,7 @@ func main() {
 	// Register the S3 backend with the object service
 	objectService.RegisterBackend("s3-default", s3Backend)
 
-	// 5. Create storage backend in the database if it doesn't exist
-	err = ensureStorageBackendExists(context.Background(), storageBackendRepo)
-	if err != nil {
-		slog.Error("Failed to ensure storage backend exists", "err", err)
-	}
-
-	// 6. Execute the complete content and object flow
+	// Execute the complete content and object flow
 	err = executeContentFlow(context.Background(), contentService, objectService)
 	if err != nil {
 		slog.Error("Content flow failed", "err", err)
@@ -103,6 +96,7 @@ func main() {
 
 	slog.Info("Content flow completed successfully!")
 }
+
 func initializeS3Backend() (*s3.S3Backend, error) {
 	// Get S3 configuration from environment variables or use defaults
 	region := getEnvOrDefault("S3_REGION", "us-east-1")
@@ -136,45 +130,6 @@ func initializeS3Backend() (*s3.S3Backend, error) {
 
 	slog.Info("S3 backend initialized successfully!")
 	return backend.(*s3.S3Backend), nil
-}
-
-func ensureStorageBackendExists(ctx context.Context, repo repository.StorageBackendRepository) error {
-	// Check if the S3 storage backend already exists
-	_, err := repo.Get(ctx, "s3-default")
-	if err == nil {
-		// Backend already exists
-		slog.Info("S3 storage backend already exists")
-		return nil
-	}
-
-	// Create the S3 storage backend
-	now := time.Now().UTC()
-	s3Config := map[string]interface{}{
-		"region":                     getEnvOrDefault("S3_REGION", "us-east-1"),
-		"bucket":                     getEnvOrDefault("S3_BUCKET", "mymusic"),
-		"endpoint":                   getEnvOrDefault("S3_ENDPOINT", "http://localhost:9000"),
-		"use_ssl":                    getEnvOrDefaultBool("S3_USE_SSL", false),
-		"use_path_style":             getEnvOrDefaultBool("S3_USE_PATH_STYLE", true),
-		"create_bucket_if_not_exist": getEnvOrDefaultBool("S3_CREATE_BUCKET", true),
-	}
-
-	backend := &model.StorageBackend{
-		Name:      "s3-default",
-		Type:      "s3",
-		Config:    s3Config,
-		IsActive:  true,
-		CreatedAt: now,
-		UpdatedAt: now,
-	}
-
-	slog.Info("Creating S3 storage backend in the database...")
-	err = repo.Create(ctx, backend)
-	if err != nil {
-		return err
-	}
-
-	slog.Info("S3 storage backend created successfully!")
-	return nil
 }
 
 func executeContentFlow(ctx context.Context, contentService *service.ContentService, objectService *service.ObjectService) error {
