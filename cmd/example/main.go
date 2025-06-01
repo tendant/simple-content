@@ -12,12 +12,12 @@ import (
 	"github.com/google/uuid"
 	"github.com/ilyakaznacheev/cleanenv"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/tendant/simple-content/internal/domain"
-	"github.com/tendant/simple-content/internal/storage/s3"
+	"github.com/tendant/simple-content/pkg/model"
 	"github.com/tendant/simple-content/pkg/repository"
 	"github.com/tendant/simple-content/pkg/repository/memory"
 	psqlrepo "github.com/tendant/simple-content/pkg/repository/psql"
 	"github.com/tendant/simple-content/pkg/service"
+	"github.com/tendant/simple-content/pkg/storage/s3"
 )
 
 type DbConfig struct {
@@ -92,7 +92,7 @@ func main() {
 	// 5. Create storage backend in the database if it doesn't exist
 	err = ensureStorageBackendExists(context.Background(), storageBackendRepo)
 	if err != nil {
-		slog.Error("Failed to ensure storage backend exists: %v", err)
+		slog.Error("Failed to ensure storage backend exists", "err", err)
 	}
 
 	// 6. Execute the complete content and object flow
@@ -158,7 +158,7 @@ func ensureStorageBackendExists(ctx context.Context, repo repository.StorageBack
 		"create_bucket_if_not_exist": getEnvOrDefaultBool("S3_CREATE_BUCKET", true),
 	}
 
-	backend := &domain.StorageBackend{
+	backend := &model.StorageBackend{
 		Name:      "s3-default",
 		Type:      "s3",
 		Config:    s3Config,
@@ -249,7 +249,7 @@ func executeContentFlow(ctx context.Context, contentService *service.ContentServ
 
 	// 8. Update content status to uploaded
 	slog.Info("Updating content status to uploaded...")
-	content.Status = domain.ContentStatusUploaded
+	content.Status = model.ContentStatusUploaded
 	content.UpdatedAt = time.Now().UTC()
 	err = contentService.UpdateContent(ctx, content)
 	if err != nil {

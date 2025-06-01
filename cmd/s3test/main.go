@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/tendant/simple-content/internal/storage"
-	"github.com/tendant/simple-content/internal/storage/s3"
+	"github.com/tendant/simple-content/pkg/storage/s3"
 )
 
 // Helper functions to get environment variables with fallbacks to command-line flags

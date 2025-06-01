@@ -13,10 +13,10 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/tendant/simple-content/internal/api"
-	fsStorage "github.com/tendant/simple-content/internal/storage/fs"
-	memoryStorage "github.com/tendant/simple-content/internal/storage/memory"
 	"github.com/tendant/simple-content/pkg/repository/memory"
 	"github.com/tendant/simple-content/pkg/service"
+	fsStorage "github.com/tendant/simple-content/pkg/storage/fs"
+	memoryStorage "github.com/tendant/simple-content/pkg/storage/memory"
 )
 
 func main() {

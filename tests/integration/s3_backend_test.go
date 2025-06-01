@@ -10,7 +10,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/tendant/simple-content/internal/storage/s3"
+	"github.com/tendant/simple-content/pkg/storage/s3"
 )
 
 // TestS3BackendWithMinIO tests the S3 backend with a MinIO server
