@@ -6,8 +6,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/tendant/simple-content/internal/repository"
 	"github.com/tendant/simple-content/pkg/model"
+	"github.com/tendant/simple-content/pkg/repository"
 )
 
 // ContentService handles content-related operations

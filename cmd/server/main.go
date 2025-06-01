@@ -13,9 +13,9 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/tendant/simple-content/internal/api"
-	"github.com/tendant/simple-content/internal/repository/memory"
 	fsStorage "github.com/tendant/simple-content/internal/storage/fs"
 	memoryStorage "github.com/tendant/simple-content/internal/storage/memory"
+	"github.com/tendant/simple-content/pkg/repository/memory"
 	"github.com/tendant/simple-content/pkg/service"
 )
 

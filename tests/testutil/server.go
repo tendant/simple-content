@@ -5,8 +5,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/tendant/simple-content/internal/api"
-	repoMemory "github.com/tendant/simple-content/internal/repository/memory"
 	storageMemory "github.com/tendant/simple-content/internal/storage/memory"
+	repoMemory "github.com/tendant/simple-content/pkg/repository/memory"
 	"github.com/tendant/simple-content/pkg/service"
 )
 

@@ -13,10 +13,10 @@ import (
 	"github.com/ilyakaznacheev/cleanenv"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/tendant/simple-content/internal/domain"
-	"github.com/tendant/simple-content/internal/repository"
-	"github.com/tendant/simple-content/internal/repository/memory"
-	psqlrepo "github.com/tendant/simple-content/internal/repository/psql"
 	"github.com/tendant/simple-content/internal/storage/s3"
+	"github.com/tendant/simple-content/pkg/repository"
+	"github.com/tendant/simple-content/pkg/repository/memory"
+	psqlrepo "github.com/tendant/simple-content/pkg/repository/psql"
 	"github.com/tendant/simple-content/pkg/service"
 )
 

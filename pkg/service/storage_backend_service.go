@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/tendant/simple-content/internal/domain"
-	"github.com/tendant/simple-content/internal/repository"
+	"github.com/tendant/simple-content/pkg/repository"
 )
 
 // StorageBackendService handles storage backend operations
