@@ -1,7 +1,7 @@
 package repository
 
 import (
-	"github.com/tendant/simple-content/internal/repository"
+	"github.com/tendant/simple-content/pkg/repository"
 )
 
 // RepositoryFactory creates and returns all repository implementations

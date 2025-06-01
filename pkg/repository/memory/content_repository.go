@@ -7,7 +7,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/tendant/simple-content/internal/domain"
-	"github.com/tendant/simple-content/internal/repository"
+	"github.com/tendant/simple-content/pkg/repository"
 )
 
 // ContentRepository is an in-memory implementation of the ContentRepository interface

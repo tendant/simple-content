@@ -7,11 +7,11 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/tendant/simple-content/internal/domain"
-	"github.com/tendant/simple-content/internal/repository/memory"
+	repoMemory "github.com/tendant/simple-content/pkg/repository/memory"
 )
 
 func TestContentRepository_Create(t *testing.T) {
-	repo := memory.NewContentRepository()
+	repo := repoMemory.NewContentRepository()
 	ctx := context.Background()
 
 	content := &domain.Content{
@@ -28,7 +28,7 @@ func TestContentRepository_Create(t *testing.T) {
 }
 
 func TestContentRepository_Get(t *testing.T) {
-	repo := memory.NewContentRepository()
+	repo := repoMemory.NewContentRepository()
 	ctx := context.Background()
 
 	contentID := uuid.New()

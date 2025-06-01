@@ -6,7 +6,7 @@ import (
 	"sync"
 
 	"github.com/tendant/simple-content/internal/domain"
-	"github.com/tendant/simple-content/internal/repository"
+	"github.com/tendant/simple-content/pkg/repository"
 )
 
 // StorageBackendRepository is an in-memory implementation of the StorageBackendRepository interface

@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tendant/simple-content/internal/domain"
-	repolib "github.com/tendant/simple-content/internal/repository"
+	repolib "github.com/tendant/simple-content/pkg/repository"
 	"golang.org/x/exp/slog"
 )
 
