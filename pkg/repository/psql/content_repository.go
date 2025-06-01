@@ -9,7 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/tendant/simple-content/internal/domain"
-	repo "github.com/tendant/simple-content/pkg/repository"
+	repo "github.com/tendant/simple-content/internal/repository"
 )
 
 // PSQLContentRepository implements the ContentRepository interface

@@ -8,9 +8,9 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/tendant/simple-content/internal/repository"
 	"github.com/tendant/simple-content/internal/storage"
 	"github.com/tendant/simple-content/pkg/model"
-	"github.com/tendant/simple-content/pkg/repository"
 )
 
 // ObjectService handles object-related operations

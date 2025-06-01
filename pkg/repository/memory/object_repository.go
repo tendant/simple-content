@@ -7,7 +7,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/tendant/simple-content/internal/domain"
-	"github.com/tendant/simple-content/pkg/repository"
+	"github.com/tendant/simple-content/internal/repository"
 )
 
 // ObjectRepository is an in-memory implementation of the ObjectRepository interface
