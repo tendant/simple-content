@@ -60,7 +60,7 @@ func (s *ObjectService) CreateObject(
 	version int,
 ) (*model.Object, error) {
 	// Verify storage backend exists
-	storageBackend, err := s.storageBackendRepo.Get(ctx, storageBackendName)
+	_, err := s.GetBackend(storageBackendName)
 	if err != nil {
 		return nil, err
 	}
@@ -88,9 +88,8 @@ func (s *ObjectService) CreateObject(
 	objectMetadata := &model.ObjectMetadata{
 		ObjectID: objectID,
 		Metadata: map[string]interface{}{
-			"storage_backend_type": storageBackend.Type,
-			"object_type":          object.ObjectType,
-			"file_name":            object.FileName,
+			"object_type": object.ObjectType,
+			"file_name":   object.FileName,
 		},
 	}
 	if err := s.objectMetadataRepo.Set(ctx, objectMetadata); err != nil {
@@ -123,21 +122,10 @@ func (s *ObjectService) DeleteObject(ctx context.Context, id uuid.UUID) error {
 		return err
 	}
 
-	// Get the storage backend
-	storageBackend, err := s.storageBackendRepo.Get(ctx, object.StorageBackendName)
+	// Get the backend implementation
+	backend, err := s.GetBackend(object.StorageBackendName)
 	if err != nil {
 		return err
-	}
-
-	// Get the backend implementation
-	var backend storage.Backend
-	if storageBackend.Type == "memory" {
-		backend = s.defaultBackend
-	} else {
-		backend, err = s.GetBackend(object.StorageBackendName)
-		if err != nil {
-			return err
-		}
 	}
 
 	// Delete the object from storage
@@ -158,23 +146,11 @@ func (s *ObjectService) UploadObject(ctx context.Context, id uuid.UUID, reader i
 		return err
 	}
 
-	// Get the storage backend
-	storageBackend, err := s.storageBackendRepo.Get(ctx, object.StorageBackendName)
-	if err != nil {
-		slog.Error("Failed to get storage backend", "err", err)
-		return err
-	}
-
 	// Get the backend implementation
-	var backend storage.Backend
-	if storageBackend.Type == "memory" {
-		backend = s.defaultBackend
-	} else {
-		backend, err = s.GetBackend(object.StorageBackendName)
-		if err != nil {
-			slog.Error("Failed to get backend", "err", err)
-			return err
-		}
+	backend, err := s.GetBackend(object.StorageBackendName)
+	if err != nil {
+		slog.Error("Failed to get backend", "err", err)
+		return err
 	}
 
 	// Upload the object
@@ -217,21 +193,10 @@ func (s *ObjectService) DownloadObject(ctx context.Context, id uuid.UUID) (io.Re
 		return nil, err
 	}
 
-	// Get the storage backend
-	storageBackend, err := s.storageBackendRepo.Get(ctx, object.StorageBackendName)
+	// Get the backend implementation
+	backend, err := s.GetBackend(object.StorageBackendName)
 	if err != nil {
 		return nil, err
-	}
-
-	// Get the backend implementation
-	var backend storage.Backend
-	if storageBackend.Type == "memory" {
-		backend = s.defaultBackend
-	} else {
-		backend, err = s.GetBackend(object.StorageBackendName)
-		if err != nil {
-			return nil, err
-		}
 	}
 
 	// Download the object
@@ -245,21 +210,10 @@ func (s *ObjectService) GetUploadURL(ctx context.Context, id uuid.UUID) (string,
 		return "", err
 	}
 
-	// Get the storage backend
-	storageBackend, err := s.storageBackendRepo.Get(ctx, object.StorageBackendName)
+	// Get the backend implementation
+	backend, err := s.GetBackend(object.StorageBackendName)
 	if err != nil {
 		return "", err
-	}
-
-	// Get the backend implementation
-	var backend storage.Backend
-	if storageBackend.Type == "memory" {
-		backend = s.defaultBackend
-	} else {
-		backend, err = s.GetBackend(object.StorageBackendName)
-		if err != nil {
-			return "", err
-		}
 	}
 
 	// Get the upload URL
@@ -273,21 +227,10 @@ func (s *ObjectService) GetDownloadURL(ctx context.Context, id uuid.UUID) (strin
 		return "", err
 	}
 
-	// Get the storage backend
-	storageBackend, err := s.storageBackendRepo.Get(ctx, object.StorageBackendName)
+	// Get the backend implementation
+	backend, err := s.GetBackend(object.StorageBackendName)
 	if err != nil {
 		return "", err
-	}
-
-	// Get the backend implementation
-	var backend storage.Backend
-	if storageBackend.Type == "memory" {
-		backend = s.defaultBackend
-	} else {
-		backend, err = s.GetBackend(object.StorageBackendName)
-		if err != nil {
-			return "", err
-		}
 	}
 
 	// Get the download URL
@@ -302,21 +245,10 @@ func (s *ObjectService) GetPreviewURL(ctx context.Context, id uuid.UUID) (string
 		return "", err
 	}
 
-	// Get the storage backend
-	storageBackend, err := s.storageBackendRepo.Get(ctx, object.StorageBackendName)
+	// Get the backend implementation
+	backend, err := s.GetBackend(object.StorageBackendName)
 	if err != nil {
 		return "", err
-	}
-
-	// Get the backend implementation
-	var backend storage.Backend
-	if storageBackend.Type == "memory" {
-		backend = s.defaultBackend
-	} else {
-		backend, err = s.GetBackend(object.StorageBackendName)
-		if err != nil {
-			return "", err
-		}
 	}
 
 	// Get the preview URL
@@ -363,21 +295,10 @@ func (s *ObjectService) GetObjectMetaFromStorage(ctx context.Context, objectID u
 		return nil, fmt.Errorf("failed to get object: %w", err)
 	}
 
-	// Get the storage backend
-	storageBackend, err := s.storageBackendRepo.Get(ctx, object.StorageBackendName)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get storage backend: %w", err)
-	}
-
 	// Get the backend implementation
-	var backend storage.Backend
-	if storageBackend.Type == "memory" {
-		backend = s.defaultBackend
-	} else {
-		backend, err = s.GetBackend(object.StorageBackendName)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get backend: %w", err)
-		}
+	backend, err := s.GetBackend(object.StorageBackendName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get backend: %w", err)
 	}
 
 	// Get object meta from storage backend
