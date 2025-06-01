@@ -292,7 +292,35 @@ func (s *ObjectService) GetDownloadURL(ctx context.Context, id uuid.UUID) (strin
 
 	// Get the download URL
 	// FIXME: download filename
-	return backend.GetDownloadURL(ctx, object.ObjectKey, "")
+	return backend.GetDownloadURL(ctx, object.ObjectKey, object.FileName)
+}
+
+// GetPreviewURL gets a URL for previewing an object
+func (s *ObjectService) GetPreviewURL(ctx context.Context, id uuid.UUID) (string, error) {
+	object, err := s.objectRepo.Get(ctx, id)
+	if err != nil {
+		return "", err
+	}
+
+	// Get the storage backend
+	storageBackend, err := s.storageBackendRepo.Get(ctx, object.StorageBackendName)
+	if err != nil {
+		return "", err
+	}
+
+	// Get the backend implementation
+	var backend storage.Backend
+	if storageBackend.Type == "memory" {
+		backend = s.defaultBackend
+	} else {
+		backend, err = s.GetBackend(object.StorageBackendName)
+		if err != nil {
+			return "", err
+		}
+	}
+
+	// Get the preview URL
+	return backend.GetPreviewURL(ctx, object.ObjectKey)
 }
 
 // SetObjectMetadata sets metadata for an object
