@@ -26,7 +26,7 @@ The file system storage backend supports the following configuration options:
 
 ```go
 import (
-    "github.com/tendant/simple-content/internal/storage/fs"
+    "github.com/tendant/simple-content/pkg/storage/fs"
 )
 
 // Create a new file system backend
