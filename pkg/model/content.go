@@ -2,6 +2,8 @@ package model
 
 import (
 	"github.com/tendant/simple-content/internal/domain"
+	"github.com/tendant/simple-content/internal/repository"
+	"github.com/tendant/simple-content/internal/storage"
 )
 
 // Content represents a logical content entity
@@ -21,6 +23,12 @@ type ObjectPreview = domain.ObjectPreview
 
 // StorageBackend represents a configurable storage backend
 type StorageBackend = domain.StorageBackend
+
+// ObjectMeta represents metadata about an object
+type ObjectMeta = storage.ObjectMeta
+
+// ListDerivedContentParams represents parameters for listing derived content
+type ListDerivedContentParams = repository.ListDerivedContentParams
 
 // Content status constants
 const (
