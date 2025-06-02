@@ -17,8 +17,7 @@ import (
 type ObjectService struct {
 	objectRepo         repository.ObjectRepository
 	objectMetadataRepo repository.ObjectMetadataRepository
-	storageBackendRepo repository.StorageBackendRepository
-	defaultBackend     storage.Backend
+	contentRepo        repository.ContentRepository
 	backends           map[string]storage.Backend
 }
 
@@ -26,14 +25,12 @@ type ObjectService struct {
 func NewObjectService(
 	objectRepo repository.ObjectRepository,
 	objectMetadataRepo repository.ObjectMetadataRepository,
-	storageBackendRepo repository.StorageBackendRepository,
-	defaultBackend storage.Backend,
+	contentRepo repository.ContentRepository,
 ) *ObjectService {
 	return &ObjectService{
 		objectRepo:         objectRepo,
 		objectMetadataRepo: objectMetadataRepo,
-		storageBackendRepo: storageBackendRepo,
-		defaultBackend:     defaultBackend,
+		contentRepo:        contentRepo,
 		backends:           make(map[string]storage.Backend),
 	}
 }
