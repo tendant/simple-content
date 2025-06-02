@@ -39,11 +39,13 @@ func (h *FilesHandler) Routes() chi.Router {
 
 // CreateFileRequest represents the request to create a new file
 type CreateFileRequest struct {
-	OwnerID  string `json:"owner_id"`
-	TenantID string `json:"tenant_id"`
-	FileName string `json:"file_name"`
-	MimeType string `json:"mime_type,omitempty"`
-	FileSize int64  `json:"file_size,omitempty"`
+	OwnerID      string `json:"owner_id"`
+	OwnerType    string `json:"owner_type"`
+	TenantID     string `json:"tenant_id"`
+	FileName     string `json:"file_name"`
+	MimeType     string `json:"mime_type,omitempty"`
+	FileSize     int64  `json:"file_size,omitempty"`
+	DocumentType string `json:"document_type,omitempty"`
 }
 
 // CreateFileResponse represents the response after creating a file
@@ -52,6 +54,7 @@ type CreateFileResponse struct {
 	ObjectID  string    `json:"object_id"`
 	UploadURL string    `json:"upload_url"`
 	CreatedAt time.Time `json:"created_at"`
+	Status    string    `json:"status"`
 }
 
 // CompleteUploadRequest represents the request to mark upload as complete
@@ -94,6 +97,15 @@ func (h *FilesHandler) CreateFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if req.OwnerType == "" {
+		http.Error(w, "Owner type is required", http.StatusBadRequest)
+		return
+	}
+	if req.DocumentType == "" {
+		http.Error(w, "Document type is required", http.StatusBadRequest)
+		return
+	}
+
 	tenantID, err := uuid.Parse(req.TenantID)
 	if err != nil {
 		http.Error(w, "Invalid tenant ID", http.StatusBadRequest)
@@ -108,6 +120,37 @@ func (h *FilesHandler) CreateFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	slog.Info("Content created", "content_id", content.ID.String())
+
+	// Update content for missing params
+	content.OwnerType = req.OwnerType
+	content.Name = req.FileName
+	content.DocumentType = req.DocumentType
+	err = h.contentService.UpdateContent(r.Context(), content)
+	if err != nil {
+		slog.Warn("Failed to update content", "err", err)
+	}
+
+	// Set content metadata
+	slog.Info("Setting content metadata...")
+	err = h.contentService.SetContentMetadata(
+		r.Context(),
+		content.ID,
+		req.MimeType,
+		"title",
+		"description",
+		nil,
+		req.FileSize, // File size will be updated later
+		ownerID.String(),
+		// add not included fields to custom metadata
+		map[string]interface{}{
+			"file_name":     req.FileName,
+			"mime_type":     req.MimeType,
+			"document_type": req.DocumentType,
+		},
+	)
+	if err != nil {
+		slog.Warn("Failed to set content metadata", "err", err)
+	}
 
 	// Create object with default storage backend
 	object, err := h.objectService.CreateObject(r.Context(), content.ID, "s3-default", 1)
@@ -132,16 +175,14 @@ func (h *FilesHandler) CreateFile(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if err := h.objectService.SetObjectMetadata(r.Context(), object.ID, metadata); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
+			slog.Warn("Failed to set object metadata", "err", err)
 		}
 	}
 
 	// Get upload URL
 	uploadURL, err := h.objectService.GetUploadURL(r.Context(), object.ID)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+		slog.Warn("Failed to get upload URL", "err", err)
 	}
 
 	resp := CreateFileResponse{
@@ -149,6 +190,7 @@ func (h *FilesHandler) CreateFile(w http.ResponseWriter, r *http.Request) {
 		ObjectID:  object.ID.String(),
 		UploadURL: uploadURL,
 		CreatedAt: content.CreatedAt,
+		Status:    content.Status,
 	}
 
 	render.JSON(w, r, resp)
