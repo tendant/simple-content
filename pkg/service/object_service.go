@@ -8,9 +8,9 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/tendant/simple-content/internal/domain"
 	"github.com/tendant/simple-content/internal/repository"
 	"github.com/tendant/simple-content/internal/storage"
+	"github.com/tendant/simple-content/pkg/model"
 )
 
 // ObjectService handles object-related operations
@@ -58,9 +58,9 @@ func (s *ObjectService) CreateObject(
 	contentID uuid.UUID,
 	storageBackendName string,
 	version int,
-) (*domain.Object, error) {
+) (*model.Object, error) {
 	// Verify storage backend exists
-	storageBackend, err := s.storageBackendRepo.Get(ctx, storageBackendName)
+	_, err := s.GetBackend(storageBackendName)
 	if err != nil {
 		return nil, err
 	}
@@ -69,13 +69,13 @@ func (s *ObjectService) CreateObject(
 	objectID := uuid.New()
 	objectKey := fmt.Sprintf("%s/%s", contentID, objectID)
 
-	object := &domain.Object{
+	object := &model.Object{
 		ID:                 objectID,
 		ContentID:          contentID,
 		StorageBackendName: storageBackendName,
 		Version:            version,
 		ObjectKey:          objectKey,
-		Status:             domain.ObjectStatusCreated,
+		Status:             model.ObjectStatusCreated,
 		CreatedAt:          now,
 		UpdatedAt:          now,
 	}
@@ -85,12 +85,11 @@ func (s *ObjectService) CreateObject(
 	}
 
 	// Set initial metadata
-	objectMetadata := &domain.ObjectMetadata{
+	objectMetadata := &model.ObjectMetadata{
 		ObjectID: objectID,
 		Metadata: map[string]interface{}{
-			"storage_backend_type": storageBackend.Type,
-			"object_type":          object.ObjectType,
-			"file_name":            object.FileName,
+			"object_type": object.ObjectType,
+			"file_name":   object.FileName,
 		},
 	}
 	if err := s.objectMetadataRepo.Set(ctx, objectMetadata); err != nil {
@@ -101,17 +100,17 @@ func (s *ObjectService) CreateObject(
 }
 
 // GetObject retrieves an object by ID
-func (s *ObjectService) GetObject(ctx context.Context, id uuid.UUID) (*domain.Object, error) {
+func (s *ObjectService) GetObject(ctx context.Context, id uuid.UUID) (*model.Object, error) {
 	return s.objectRepo.Get(ctx, id)
 }
 
 // GetObjectsByContentID retrieves objects by content ID
-func (s *ObjectService) GetObjectsByContentID(ctx context.Context, contentID uuid.UUID) ([]*domain.Object, error) {
+func (s *ObjectService) GetObjectsByContentID(ctx context.Context, contentID uuid.UUID) ([]*model.Object, error) {
 	return s.objectRepo.GetByContentID(ctx, contentID)
 }
 
 // UpdateObject updates an object
-func (s *ObjectService) UpdateObject(ctx context.Context, object *domain.Object) error {
+func (s *ObjectService) UpdateObject(ctx context.Context, object *model.Object) error {
 	object.UpdatedAt = time.Now()
 	return s.objectRepo.Update(ctx, object)
 }
@@ -123,21 +122,10 @@ func (s *ObjectService) DeleteObject(ctx context.Context, id uuid.UUID) error {
 		return err
 	}
 
-	// Get the storage backend
-	storageBackend, err := s.storageBackendRepo.Get(ctx, object.StorageBackendName)
+	// Get the backend implementation
+	backend, err := s.GetBackend(object.StorageBackendName)
 	if err != nil {
 		return err
-	}
-
-	// Get the backend implementation
-	var backend storage.Backend
-	if storageBackend.Type == "memory" {
-		backend = s.defaultBackend
-	} else {
-		backend, err = s.GetBackend(object.StorageBackendName)
-		if err != nil {
-			return err
-		}
 	}
 
 	// Delete the object from storage
@@ -158,23 +146,11 @@ func (s *ObjectService) UploadObject(ctx context.Context, id uuid.UUID, reader i
 		return err
 	}
 
-	// Get the storage backend
-	storageBackend, err := s.storageBackendRepo.Get(ctx, object.StorageBackendName)
-	if err != nil {
-		slog.Error("Failed to get storage backend", "err", err)
-		return err
-	}
-
 	// Get the backend implementation
-	var backend storage.Backend
-	if storageBackend.Type == "memory" {
-		backend = s.defaultBackend
-	} else {
-		backend, err = s.GetBackend(object.StorageBackendName)
-		if err != nil {
-			slog.Error("Failed to get backend", "err", err)
-			return err
-		}
+	backend, err := s.GetBackend(object.StorageBackendName)
+	if err != nil {
+		slog.Error("Failed to get backend", "err", err)
+		return err
 	}
 
 	// Upload the object
@@ -192,7 +168,7 @@ func (s *ObjectService) UploadObject(ctx context.Context, id uuid.UUID, reader i
 
 	// Update object metadata
 	updatedTime := time.Now().UTC()
-	objectMetaData := &domain.ObjectMetadata{
+	objectMetaData := &model.ObjectMetadata{
 		ObjectID:  object.ID,
 		ETag:      objectMeta.ETag,
 		SizeBytes: objectMeta.Size,
@@ -205,7 +181,7 @@ func (s *ObjectService) UploadObject(ctx context.Context, id uuid.UUID, reader i
 	}
 
 	// Update object status
-	object.Status = domain.ObjectStatusUploaded
+	object.Status = model.ObjectStatusUploaded
 	object.UpdatedAt = updatedTime
 	return s.objectRepo.Update(ctx, object)
 }
@@ -217,21 +193,10 @@ func (s *ObjectService) DownloadObject(ctx context.Context, id uuid.UUID) (io.Re
 		return nil, err
 	}
 
-	// Get the storage backend
-	storageBackend, err := s.storageBackendRepo.Get(ctx, object.StorageBackendName)
+	// Get the backend implementation
+	backend, err := s.GetBackend(object.StorageBackendName)
 	if err != nil {
 		return nil, err
-	}
-
-	// Get the backend implementation
-	var backend storage.Backend
-	if storageBackend.Type == "memory" {
-		backend = s.defaultBackend
-	} else {
-		backend, err = s.GetBackend(object.StorageBackendName)
-		if err != nil {
-			return nil, err
-		}
 	}
 
 	// Download the object
@@ -245,21 +210,10 @@ func (s *ObjectService) GetUploadURL(ctx context.Context, id uuid.UUID) (string,
 		return "", err
 	}
 
-	// Get the storage backend
-	storageBackend, err := s.storageBackendRepo.Get(ctx, object.StorageBackendName)
+	// Get the backend implementation
+	backend, err := s.GetBackend(object.StorageBackendName)
 	if err != nil {
 		return "", err
-	}
-
-	// Get the backend implementation
-	var backend storage.Backend
-	if storageBackend.Type == "memory" {
-		backend = s.defaultBackend
-	} else {
-		backend, err = s.GetBackend(object.StorageBackendName)
-		if err != nil {
-			return "", err
-		}
 	}
 
 	// Get the upload URL
@@ -273,26 +227,32 @@ func (s *ObjectService) GetDownloadURL(ctx context.Context, id uuid.UUID) (strin
 		return "", err
 	}
 
-	// Get the storage backend
-	storageBackend, err := s.storageBackendRepo.Get(ctx, object.StorageBackendName)
+	// Get the backend implementation
+	backend, err := s.GetBackend(object.StorageBackendName)
+	if err != nil {
+		return "", err
+	}
+
+	// Get the download URL
+	// FIXME: download filename
+	return backend.GetDownloadURL(ctx, object.ObjectKey, object.FileName)
+}
+
+// GetPreviewURL gets a URL for previewing an object
+func (s *ObjectService) GetPreviewURL(ctx context.Context, id uuid.UUID) (string, error) {
+	object, err := s.objectRepo.Get(ctx, id)
 	if err != nil {
 		return "", err
 	}
 
 	// Get the backend implementation
-	var backend storage.Backend
-	if storageBackend.Type == "memory" {
-		backend = s.defaultBackend
-	} else {
-		backend, err = s.GetBackend(object.StorageBackendName)
-		if err != nil {
-			return "", err
-		}
+	backend, err := s.GetBackend(object.StorageBackendName)
+	if err != nil {
+		return "", err
 	}
 
-	// Get the download URL
-	// FIXME: download filename
-	return backend.GetDownloadURL(ctx, object.ObjectKey, "")
+	// Get the preview URL
+	return backend.GetPreviewURL(ctx, object.ObjectKey)
 }
 
 // SetObjectMetadata sets metadata for an object
@@ -303,7 +263,7 @@ func (s *ObjectService) SetObjectMetadata(ctx context.Context, objectID uuid.UUI
 	}
 
 	// Create or update the object metadata
-	objectMetadata := &domain.ObjectMetadata{
+	objectMetadata := &model.ObjectMetadata{
 		ObjectID: objectID,
 		Metadata: metadata,
 	}
@@ -324,4 +284,62 @@ func (s *ObjectService) GetObjectMetadata(ctx context.Context, objectID uuid.UUI
 	}
 
 	return objectMetadata.Metadata, nil
+}
+
+// GetObjectMetaFromStorage retrieves metadata for an object directly from the storage backend
+// This is useful when the upload happens client-side and we need to update our metadata
+func (s *ObjectService) GetObjectMetaFromStorage(ctx context.Context, objectID uuid.UUID) (*storage.ObjectMeta, error) {
+	// Get the object
+	object, err := s.objectRepo.Get(ctx, objectID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get object: %w", err)
+	}
+
+	// Get the backend implementation
+	backend, err := s.GetBackend(object.StorageBackendName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get backend: %w", err)
+	}
+
+	// Get object meta from storage backend
+	objectMeta, err := backend.GetObjectMeta(ctx, object.ObjectKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get object meta from storage: %w", err)
+	}
+
+	return objectMeta, nil
+}
+
+// UpdateObjectMetaFromStorage updates object metadata using information retrieved from the storage backend
+// This is useful after a client-side upload to update our metadata and object status
+func (s *ObjectService) UpdateObjectMetaFromStorage(ctx context.Context, objectID uuid.UUID) error {
+	// Get the object
+	object, err := s.objectRepo.Get(ctx, objectID)
+	if err != nil {
+		return fmt.Errorf("failed to get object: %w", err)
+	}
+
+	// Get object meta from storage
+	objectMeta, err := s.GetObjectMetaFromStorage(ctx, objectID)
+	if err != nil {
+		return err
+	}
+
+	// Update object metadata
+	updatedTime := time.Now().UTC()
+	objectMetaData := &model.ObjectMetadata{
+		ObjectID:  object.ID,
+		ETag:      objectMeta.ETag,
+		SizeBytes: objectMeta.Size,
+		MimeType:  objectMeta.ContentType,
+		UpdatedAt: updatedTime,
+	}
+	if err := s.objectMetadataRepo.Set(ctx, objectMetaData); err != nil {
+		return fmt.Errorf("failed to update object metadata: %w", err)
+	}
+
+	// Update object status
+	object.Status = model.ObjectStatusUploaded
+	object.UpdatedAt = updatedTime
+	return s.objectRepo.Update(ctx, object)
 }

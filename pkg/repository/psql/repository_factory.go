@@ -1,8 +1,6 @@
 package repository
 
-import (
-	"github.com/tendant/simple-content/internal/repository"
-)
+import "github.com/tendant/simple-content/internal/repository"
 
 // RepositoryFactory creates and returns all repository implementations
 type RepositoryFactory struct {

@@ -11,7 +11,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	s3backend "github.com/tendant/simple-content/internal/storage/s3"
+	s3backend "github.com/tendant/simple-content/pkg/storage/s3"
 )
 
 // Mock S3 client for unit testing

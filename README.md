@@ -39,6 +39,75 @@ go build -o simple-content ./cmd/server
 
 The server will start on port 8080 by default. You can change the port by setting the `PORT` environment variable.
 
+## Docker Deployment
+
+For a complete development environment with PostgreSQL and MinIO, you can use Docker Compose:
+
+### Prerequisites
+
+- Docker and Docker Compose installed
+
+### Quick Start with Docker
+
+1. Clone the repository:
+
+```bash
+git clone https://github.com/tendant/simple-content.git
+cd simple-content
+```
+
+2. Start all services:
+
+```bash
+docker network create simple-content-network
+```
+
+```bash
+docker compose up --build
+```
+
+This will start:
+- **PostgreSQL** database on port 5432
+- **MinIO** object storage on ports 9000 (API) and 9001 (Console)
+- **Files API** server on port 8080
+
+3. Access the services:
+- Files API: http://localhost:8080
+- MinIO Console: http://localhost:9001 (admin/minioadmin)
+- Health check: http://localhost:8080/health
+
+4. Stop all services:
+
+```bash
+docker compose down
+```
+
+### Environment Variables
+
+The Docker Compose setup uses the following environment variables:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `SERVER_HOST` | 0.0.0.0 | Server bind address |
+| `SERVER_PORT` | 8080 | Server port |
+| `DB_HOST` | postgres | Database host |
+| `DB_PORT` | 5432 | Database port |
+| `DB_NAME` | powercard_db | Database name |
+| `DB_USER` | content | Database user |
+| `DB_PASSWORD` | pwd | Database password |
+| `S3_ENDPOINT` | minio:9000 | S3 endpoint |
+| `S3_ACCESS_KEY_ID` | minioadmin | S3 access key |
+| `S3_SECRET_ACCESS_KEY` | minioadmin | S3 secret key |
+| `S3_BUCKET_NAME` | content-bucket | S3 bucket name |
+| `S3_REGION` | us-east-1 | S3 region |
+| `S3_USE_SSL` | false | Use SSL for S3 |
+
+### Docker Services
+
+- **postgres**: PostgreSQL 15 database with persistent storage
+- **minio**: MinIO object storage compatible with S3 API
+- **files-api**: The Simple Content Files API server
+
 ## API Usage
 
 ### Storage Backends

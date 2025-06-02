@@ -10,7 +10,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/tendant/simple-content/internal/storage/fs"
+	"github.com/tendant/simple-content/pkg/storage/fs"
 )
 
 func TestFSBackend(t *testing.T) {

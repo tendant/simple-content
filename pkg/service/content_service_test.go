@@ -6,7 +6,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
-	"github.com/tendant/simple-content/internal/repository/memory"
+	"github.com/tendant/simple-content/pkg/repository/memory"
 	"github.com/tendant/simple-content/pkg/service"
 )
 

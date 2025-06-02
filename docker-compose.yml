@@ -1,0 +1,67 @@
+version: '3.8'
+
+services:
+  # MinIO service for object storage
+  minio:
+    image: minio/minio
+    container_name: simple-content-minio
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    volumes:
+      - minio-data:/data
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    networks:
+      - simple-content-network
+
+  # Simple Content Files API service
+  files-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: simple-content-files-api
+    ports:
+      - "8080:8080"
+    environment:
+      # Server configuration
+      - SERVER_HOST=0.0.0.0
+      - SERVER_PORT=8080
+      
+      # Database configuration
+      - DB_HOST=powercard_db
+      - DB_PORT=5432
+      - DB_NAME=powercard_db
+      - DB_USER=content
+      - DB_PASSWORD=pwd
+      
+      # S3/MinIO configuration
+      - S3_ENDPOINT=http://minio:9000
+      - S3_ACCESS_KEY_ID=minioadmin
+      - S3_SECRET_ACCESS_KEY=minioadmin
+      - S3_BUCKET_NAME=content-bucket
+      - S3_REGION=us-east-1
+      - S3_USE_SSL=false
+    depends_on:
+      minio:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - simple-content-network
+      - powercard-net
+
+volumes:
+  minio-data:
+
+networks:
+  simple-content-network:
+    driver: bridge
+  powercard-net:
+    external: true

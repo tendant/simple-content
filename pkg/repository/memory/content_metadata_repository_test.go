@@ -7,11 +7,11 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/tendant/simple-content/internal/domain"
-	"github.com/tendant/simple-content/internal/repository/memory"
+	repoMemory "github.com/tendant/simple-content/pkg/repository/memory"
 )
 
 func TestContentMetadataRepository_Set(t *testing.T) {
-	repo := memory.NewContentMetadataRepository()
+	repo := repoMemory.NewContentMetadataRepository()
 	ctx := context.Background()
 
 	contentID := uuid.New()
@@ -41,7 +41,7 @@ func TestContentMetadataRepository_Set(t *testing.T) {
 }
 
 func TestContentMetadataRepository_Get(t *testing.T) {
-	repo := memory.NewContentMetadataRepository()
+	repo := repoMemory.NewContentMetadataRepository()
 	ctx := context.Background()
 
 	contentID := uuid.New()
@@ -81,7 +81,7 @@ func TestContentMetadataRepository_Get(t *testing.T) {
 }
 
 func TestContentMetadataRepository_MultipleContents(t *testing.T) {
-	repo := memory.NewContentMetadataRepository()
+	repo := repoMemory.NewContentMetadataRepository()
 	ctx := context.Background()
 
 	// Create metadata for original content
