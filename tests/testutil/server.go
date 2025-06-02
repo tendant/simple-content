@@ -23,7 +23,7 @@ func SetupTestServer() *httptest.Server {
 	storageBackend := storageMemory.NewMemoryBackend()
 
 	// Create services
-	contentService := service.NewContentService(contentRepo, metadataRepo, objectRepo)
+	contentService := service.NewContentService(contentRepo, metadataRepo)
 	objectService := service.NewObjectService(objectRepo, objectMetadataRepo, storageBackendRepo, storageBackend)
 	storageBackendService := service.NewStorageBackendService(storageBackendRepo)
 

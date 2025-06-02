@@ -29,7 +29,6 @@ func TestServerSetup(t *testing.T) {
 	contentService := service.NewContentService(
 		contentRepo,
 		contentMetadataRepo,
-		objectRepo,
 	)
 
 	objectService := service.NewObjectService(
@@ -92,7 +91,6 @@ func TestContentRoutes(t *testing.T) {
 	contentService := service.NewContentService(
 		contentRepo,
 		contentMetadataRepo,
-		objectRepo,
 	)
 
 	objectService := service.NewObjectService(
@@ -114,13 +112,13 @@ func TestContentRoutes(t *testing.T) {
 
 	// Test that routes are properly mounted
 	testCases := []struct {
-		method string
-		path   string
+		method       string
+		path         string
 		expectRouted bool // true if route should be handled (not return generic 404)
-		description string
+		description  string
 	}{
 		{"GET", "/contents/list", true, "list contents endpoint"},
-		{"GET", "/contents/123e4567-e89b-12d3-a456-426614174000", true, "get content by ID endpoint"}, 
+		{"GET", "/contents/123e4567-e89b-12d3-a456-426614174000", true, "get content by ID endpoint"},
 		{"POST", "/contents/", true, "create content endpoint"},
 		{"GET", "/contents/invalid-id", true, "invalid ID should be handled by content handler"},
 	}

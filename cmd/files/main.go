@@ -136,7 +136,6 @@ func main() {
 	contentService := service.NewContentService(
 		contentRepo,
 		contentMetadataRepo,
-		objectRepo,
 	)
 
 	objectService := service.NewObjectService(

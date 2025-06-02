@@ -13,8 +13,7 @@ import (
 func setupContentService() *service.ContentService {
 	contentRepo := memory.NewContentRepository()
 	metadataRepo := memory.NewContentMetadataRepository()
-	objectRepo := memory.NewObjectRepository()
-	return service.NewContentService(contentRepo, metadataRepo, objectRepo)
+	return service.NewContentService(contentRepo, metadataRepo)
 }
 
 func TestContentService_CreateContent(t *testing.T) {
