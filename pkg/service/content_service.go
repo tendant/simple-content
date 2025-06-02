@@ -100,19 +100,6 @@ func (s *ContentService) UpdateContent(ctx context.Context, content *model.Conte
 
 // DeleteContent deletes a content
 func (s *ContentService) DeleteContent(ctx context.Context, id uuid.UUID) error {
-	// Get all objects for this content
-	objects, err := s.objectRepo.GetByContentID(ctx, id)
-	if err != nil {
-		return err
-	}
-
-	// Delete all objects
-	for _, obj := range objects {
-		if err := s.objectRepo.Delete(ctx, obj.ID); err != nil {
-			return err
-		}
-	}
-
 	// Delete the content
 	return s.contentRepo.Delete(ctx, id)
 }
