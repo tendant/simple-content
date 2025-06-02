@@ -42,10 +42,11 @@ func main() {
 
 	// Initialize services
 	contentService := service.NewContentService(contentRepo, contentMetadataRepo)
-	objectService := service.NewObjectService(objectRepo, objectMetadataRepo, storageBackendRepo, memBackend)
+	objectService := service.NewObjectService(objectRepo, objectMetadataRepo, contentRepo)
 	storageBackendService := service.NewStorageBackendService(storageBackendRepo)
 
-	// Register the file system backend with the object service
+	// Register the storage backends with the object service
+	objectService.RegisterBackend("memory", memBackend)
 	objectService.RegisterBackend("fs", fsBackend)
 	objectService.RegisterBackend("fs-test", fsBackend)
 

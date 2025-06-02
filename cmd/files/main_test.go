@@ -20,7 +20,6 @@ func TestServerSetup(t *testing.T) {
 	contentMetadataRepo := memoryrepo.NewContentMetadataRepository()
 	objectRepo := memoryrepo.NewObjectRepository()
 	objectMetadataRepo := memoryrepo.NewObjectMetadataRepository()
-	storageBackendRepo := memoryrepo.NewStorageBackendRepository()
 
 	// Initialize in-memory storage backend
 	memoryBackend := memorystorage.NewMemoryBackend()
@@ -34,8 +33,7 @@ func TestServerSetup(t *testing.T) {
 	objectService := service.NewObjectService(
 		objectRepo,
 		objectMetadataRepo,
-		storageBackendRepo,
-		memoryBackend,
+		contentRepo,
 	)
 
 	// Register the in-memory backend
@@ -82,7 +80,6 @@ func TestContentRoutes(t *testing.T) {
 	contentMetadataRepo := memoryrepo.NewContentMetadataRepository()
 	objectRepo := memoryrepo.NewObjectRepository()
 	objectMetadataRepo := memoryrepo.NewObjectMetadataRepository()
-	storageBackendRepo := memoryrepo.NewStorageBackendRepository()
 
 	// Initialize in-memory storage backend
 	memoryBackend := memorystorage.NewMemoryBackend()
@@ -96,8 +93,7 @@ func TestContentRoutes(t *testing.T) {
 	objectService := service.NewObjectService(
 		objectRepo,
 		objectMetadataRepo,
-		storageBackendRepo,
-		memoryBackend,
+		contentRepo,
 	)
 
 	// Register the in-memory backend

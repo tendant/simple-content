@@ -112,7 +112,7 @@ func setupFilesHandler() *FilesHandler {
 
 	// Setup services
 	contentService := service.NewContentService(contentRepo, contentMetadataRepo)
-	objectService := service.NewObjectService(objectRepo, objectMetadataRepo, storageBackendRepo, mockBackend)
+	objectService := service.NewObjectService(objectRepo, objectMetadataRepo, contentRepo)
 
 	// Register the mock backend
 	objectService.RegisterBackend("s3-default", mockBackend)
