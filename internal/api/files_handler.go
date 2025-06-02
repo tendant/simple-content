@@ -121,7 +121,7 @@ func (h *FilesHandler) CreateFile(w http.ResponseWriter, r *http.Request) {
 	}
 	slog.Info("Content created", "content_id", content.ID.String())
 
-	// Update content for missing params
+	// Update content for missing fields
 	content.OwnerType = req.OwnerType
 	content.Name = req.FileName
 	content.DocumentType = req.DocumentType
@@ -161,22 +161,23 @@ func (h *FilesHandler) CreateFile(w http.ResponseWriter, r *http.Request) {
 	}
 	slog.Info("Object created", "object_id", object.ID.String())
 
-	// Set initial metadata if provided
-	if req.FileName != "" || req.MimeType != "" || req.FileSize > 0 {
-		metadata := make(map[string]interface{})
-		if req.FileName != "" {
-			metadata["file_name"] = req.FileName
-		}
-		if req.MimeType != "" {
-			metadata["mime_type"] = req.MimeType
-		}
-		if req.FileSize > 0 {
-			metadata["file_size"] = req.FileSize
-		}
+	// Update object for missing fields
+	object.FileName = req.FileName
+	object.ObjectType = req.MimeType
+	err = h.objectService.UpdateObject(r.Context(), object)
+	if err != nil {
+		slog.Warn("Failed to update object", "err", err)
+	}
 
-		if err := h.objectService.SetObjectMetadata(r.Context(), object.ID, metadata); err != nil {
-			slog.Warn("Failed to set object metadata", "err", err)
-		}
+	// Update object metadata for missing fields
+	object_metadata := make(map[string]interface{})
+	object_metadata["mime_type"] = req.MimeType
+	object_metadata["size_bytes"] = req.FileSize
+	object_metadata["file_name"] = req.FileName
+	slog.Info("Object metadata", "object_meta", object_metadata)
+	err = h.objectService.SetObjectMetadata(r.Context(), object.ID, object_metadata)
+	if err != nil {
+		slog.Warn("Failed to update object metadata", "err", err)
 	}
 
 	// Get upload URL
