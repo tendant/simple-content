@@ -328,17 +328,17 @@ func (s *ObjectService) GetObjectMetaFromStorage(ctx context.Context, objectID u
 
 // UpdateObjectMetaFromStorage updates object metadata using information retrieved from the storage backend
 // This is useful after a client-side upload to update our metadata and object status
-func (s *ObjectService) UpdateObjectMetaFromStorage(ctx context.Context, objectID uuid.UUID) (*model.ObjectMetadata, error) {
+func (s *ObjectService) UpdateObjectMetaFromStorage(ctx context.Context, objectID uuid.UUID) (model.ObjectMetadata, error) {
 	// Get the object
 	object, err := s.objectRepo.Get(ctx, objectID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get object: %w", err)
+		return model.ObjectMetadata{}, fmt.Errorf("failed to get object: %w", err)
 	}
 
 	// Get object meta from storage
 	objectMeta, err := s.GetObjectMetaFromStorage(ctx, objectID)
 	if err != nil {
-		return nil, err
+		return model.ObjectMetadata{}, err
 	}
 
 	// Update object metadata
@@ -347,7 +347,7 @@ func (s *ObjectService) UpdateObjectMetaFromStorage(ctx context.Context, objectI
 	for k, v := range objectMeta.Metadata {
 		metadata[k] = v
 	}
-	objectMetaData := &model.ObjectMetadata{
+	objectMetaData := model.ObjectMetadata{
 		ObjectID:  object.ID,
 		ETag:      objectMeta.ETag,
 		SizeBytes: objectMeta.Size,
@@ -356,12 +356,15 @@ func (s *ObjectService) UpdateObjectMetaFromStorage(ctx context.Context, objectI
 		CreatedAt: object.CreatedAt,
 		Metadata:  metadata,
 	}
-	if err := s.objectMetadataRepo.Set(ctx, objectMetaData); err != nil {
-		return nil, fmt.Errorf("failed to update object metadata: %w", err)
+	if err := s.objectMetadataRepo.Set(ctx, &objectMetaData); err != nil {
+		return model.ObjectMetadata{}, fmt.Errorf("failed to update object metadata: %w", err)
 	}
 
 	// Update object status
 	object.Status = model.ObjectStatusUploaded
 	object.UpdatedAt = updatedTime
-	return objectMetaData, s.objectRepo.Update(ctx, object)
+	if err := s.objectRepo.Update(ctx, object); err != nil {
+		return model.ObjectMetadata{}, fmt.Errorf("failed to update object: %w", err)
+	}
+	return objectMetaData, nil
 }
