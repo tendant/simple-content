@@ -150,11 +150,16 @@ func (s *ContentService) SetContentMetadata(
 	metadata.Metadata["content_type"] = contentType
 	fileName := customMetadata["file_name"]
 	if fileName != nil {
-		metadata.FileName = fileName.(string)
+		if name, ok := fileName.(string); ok {
+			metadata.FileName = name
+		}
 	}
+
 	mimeType := customMetadata["mime_type"]
 	if mimeType != nil {
-		metadata.MimeType = mimeType.(string)
+		if mime_type, ok := mimeType.(string); ok {
+			metadata.MimeType = mime_type
+		}
 	}
 
 	// Copy custom metadata

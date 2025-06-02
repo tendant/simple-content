@@ -268,13 +268,19 @@ func (s *ObjectService) SetObjectMetadata(ctx context.Context, objectID uuid.UUI
 		UpdatedAt: time.Now().UTC(),
 	}
 	if _, ok := metadata["etag"]; ok {
-		objectMetadata.ETag = metadata["etag"].(string)
+		if etag, ok := metadata["etag"].(string); ok {
+			objectMetadata.ETag = etag
+		}
 	}
 	if _, ok := metadata["size_bytes"]; ok {
-		objectMetadata.SizeBytes = metadata["size_bytes"].(int64)
+		if size_bytes, ok := metadata["size_bytes"].(int64); ok {
+			objectMetadata.SizeBytes = size_bytes
+		}
 	}
 	if _, ok := metadata["mime_type"]; ok {
-		objectMetadata.MimeType = metadata["mime_type"].(string)
+		if mime_type, ok := metadata["mime_type"].(string); ok {
+			objectMetadata.MimeType = mime_type
+		}
 	}
 
 	return s.objectMetadataRepo.Set(ctx, objectMetadata)
