@@ -57,11 +57,6 @@ type CreateFileResponse struct {
 	Status    string    `json:"status"`
 }
 
-// CompleteUploadRequest represents the request to mark upload as complete
-type CompleteUploadRequest struct {
-	ObjectID string `json:"object_id"`
-}
-
 // UpdateMetadataRequest represents the request to update file metadata
 type UpdateMetadataRequest struct {
 	Title       string                 `json:"title,omitempty"`
@@ -206,18 +201,6 @@ func (h *FilesHandler) CompleteUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var req CompleteUploadRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	objectID, err := uuid.Parse(req.ObjectID)
-	if err != nil {
-		http.Error(w, "Invalid object ID", http.StatusBadRequest)
-		return
-	}
-
 	// Verify content exists
 	content, err := h.contentService.GetContent(r.Context(), contentID)
 	if err != nil {
@@ -225,9 +208,18 @@ func (h *FilesHandler) CompleteUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Get object by content id
+	objects, err := h.objectService.GetObjectsByContentID(r.Context(), contentID)
+	if err != nil || len(objects) == 0 {
+		http.Error(w, "Object not found", http.StatusNotFound)
+		return
+	}
+	object := objects[0]
+
 	// Update object metadata from storage to get actual file info
 	// This also updates the object status to uploaded
-	if err := h.objectService.UpdateObjectMetaFromStorage(r.Context(), objectID); err != nil {
+	object_meta, err := h.objectService.UpdateObjectMetaFromStorage(r.Context(), object.ID)
+	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -235,6 +227,20 @@ func (h *FilesHandler) CompleteUpload(w http.ResponseWriter, r *http.Request) {
 	// Update content status to uploaded
 	content.Status = model.ContentStatusUploaded
 	if err := h.contentService.UpdateContent(r.Context(), content); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Get and update content metadata
+	content_meta, err := h.contentService.GetContentMetadata(r.Context(), contentID)
+	if err != nil {
+		slog.Error("GetContentMetadata", "contentID", contentID.String(), "error", err)
+		http.Error(w, "Content metadata not found", http.StatusNotFound)
+		return
+	}
+	content_meta.MimeType = object_meta.MimeType
+	content_meta.FileSize = object_meta.SizeBytes
+	if err := h.contentService.SetContentMetadata(r.Context(), contentID, object_meta.MimeType, "", "", content_meta.Tags, object_meta.SizeBytes, "", content_meta.Metadata); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
