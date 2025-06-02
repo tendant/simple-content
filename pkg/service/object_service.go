@@ -88,8 +88,8 @@ func (s *ObjectService) CreateObject(
 	objectMetadata := &model.ObjectMetadata{
 		ObjectID: objectID,
 		Metadata: map[string]interface{}{
-			"object_type": object.ObjectType,
-			"file_name":   object.FileName,
+			"mime_type": object.ObjectType,
+			"file_name": object.FileName,
 		},
 	}
 	if err := s.objectMetadataRepo.Set(ctx, objectMetadata); err != nil {
@@ -264,9 +264,19 @@ func (s *ObjectService) SetObjectMetadata(ctx context.Context, objectID uuid.UUI
 
 	// Create or update the object metadata
 	objectMetadata := &model.ObjectMetadata{
-		ObjectID: objectID,
-		Metadata: metadata,
+		ObjectID:  objectID,
+		UpdatedAt: time.Now().UTC(),
 	}
+	if _, ok := metadata["etag"]; ok {
+		objectMetadata.ETag = metadata["etag"].(string)
+	}
+	if _, ok := metadata["size_bytes"]; ok {
+		objectMetadata.SizeBytes = metadata["size_bytes"].(int64)
+	}
+	if _, ok := metadata["mime_type"]; ok {
+		objectMetadata.MimeType = metadata["mime_type"].(string)
+	}
+
 	return s.objectMetadataRepo.Set(ctx, objectMetadata)
 }
 
