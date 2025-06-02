@@ -259,24 +259,52 @@ func (s *ObjectService) SetObjectMetadata(ctx context.Context, objectID uuid.UUI
 		return err
 	}
 
-	// Create or update the object metadata
-	objectMetadata := &model.ObjectMetadata{
-		ObjectID:  objectID,
-		UpdatedAt: time.Now().UTC(),
+	// Get existing metadata or create new
+	var objectMetadata *model.ObjectMetadata
+	existing, err := s.objectMetadataRepo.Get(ctx, objectID)
+	if err == nil {
+		// Update existing metadata
+		objectMetadata = existing
+		// If Metadata is nil, initialize it
+		if objectMetadata.Metadata == nil {
+			objectMetadata.Metadata = make(map[string]interface{})
+		}
+	} else {
+		// Create new metadata
+		objectMetadata = &model.ObjectMetadata{
+			ObjectID:  objectID,
+			CreatedAt: time.Now().UTC(),
+			Metadata:  make(map[string]interface{}),
+		}
 	}
+
+	// Update the timestamp
+	objectMetadata.UpdatedAt = time.Now().UTC()
+
+	// Extract specific fields and also store in the Metadata map
 	if _, ok := metadata["etag"]; ok {
 		if etag, ok := metadata["etag"].(string); ok {
 			objectMetadata.ETag = etag
+			objectMetadata.Metadata["etag"] = etag
 		}
 	}
 	if _, ok := metadata["size_bytes"]; ok {
 		if size_bytes, ok := metadata["size_bytes"].(int64); ok {
 			objectMetadata.SizeBytes = size_bytes
+			objectMetadata.Metadata["size_bytes"] = size_bytes
 		}
 	}
 	if _, ok := metadata["mime_type"]; ok {
 		if mime_type, ok := metadata["mime_type"].(string); ok {
 			objectMetadata.MimeType = mime_type
+			objectMetadata.Metadata["mime_type"] = mime_type
+		}
+	}
+
+	// Copy all other metadata fields
+	for k, v := range metadata {
+		if k != "etag" && k != "size_bytes" && k != "mime_type" {
+			objectMetadata.Metadata[k] = v
 		}
 	}
 
