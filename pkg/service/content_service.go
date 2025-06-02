@@ -14,19 +14,16 @@ import (
 type ContentService struct {
 	contentRepo  repository.ContentRepository
 	metadataRepo repository.ContentMetadataRepository
-	objectRepo   repository.ObjectRepository
 }
 
 // NewContentService creates a new content service
 func NewContentService(
 	contentRepo repository.ContentRepository,
 	metadataRepo repository.ContentMetadataRepository,
-	objectRepo repository.ObjectRepository,
 ) *ContentService {
 	return &ContentService{
 		contentRepo:  contentRepo,
 		metadataRepo: metadataRepo,
-		objectRepo:   objectRepo,
 	}
 }
 
