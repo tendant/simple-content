@@ -322,34 +322,40 @@ func (s *ObjectService) GetObjectMetaFromStorage(ctx context.Context, objectID u
 
 // UpdateObjectMetaFromStorage updates object metadata using information retrieved from the storage backend
 // This is useful after a client-side upload to update our metadata and object status
-func (s *ObjectService) UpdateObjectMetaFromStorage(ctx context.Context, objectID uuid.UUID) error {
+func (s *ObjectService) UpdateObjectMetaFromStorage(ctx context.Context, objectID uuid.UUID) (*model.ObjectMetadata, error) {
 	// Get the object
 	object, err := s.objectRepo.Get(ctx, objectID)
 	if err != nil {
-		return fmt.Errorf("failed to get object: %w", err)
+		return nil, fmt.Errorf("failed to get object: %w", err)
 	}
 
 	// Get object meta from storage
 	objectMeta, err := s.GetObjectMetaFromStorage(ctx, objectID)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// Update object metadata
 	updatedTime := time.Now().UTC()
+	metadata := make(map[string]interface{}, len(objectMeta.Metadata))
+	for k, v := range objectMeta.Metadata {
+		metadata[k] = v
+	}
 	objectMetaData := &model.ObjectMetadata{
 		ObjectID:  object.ID,
 		ETag:      objectMeta.ETag,
 		SizeBytes: objectMeta.Size,
 		MimeType:  objectMeta.ContentType,
 		UpdatedAt: updatedTime,
+		CreatedAt: object.CreatedAt,
+		Metadata:  metadata,
 	}
 	if err := s.objectMetadataRepo.Set(ctx, objectMetaData); err != nil {
-		return fmt.Errorf("failed to update object metadata: %w", err)
+		return nil, fmt.Errorf("failed to update object metadata: %w", err)
 	}
 
 	// Update object status
 	object.Status = model.ObjectStatusUploaded
 	object.UpdatedAt = updatedTime
-	return s.objectRepo.Update(ctx, object)
+	return objectMetaData, s.objectRepo.Update(ctx, object)
 }
