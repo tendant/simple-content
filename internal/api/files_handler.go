@@ -39,11 +39,13 @@ func (h *FilesHandler) Routes() chi.Router {
 
 // CreateFileRequest represents the request to create a new file
 type CreateFileRequest struct {
-	OwnerID  string `json:"owner_id"`
-	TenantID string `json:"tenant_id"`
-	FileName string `json:"file_name"`
-	MimeType string `json:"mime_type,omitempty"`
-	FileSize int64  `json:"file_size,omitempty"`
+	OwnerID      string `json:"owner_id"`
+	OwnerType    string `json:"owner_type"`
+	TenantID     string `json:"tenant_id"`
+	FileName     string `json:"file_name"`
+	MimeType     string `json:"mime_type,omitempty"`
+	FileSize     int64  `json:"file_size,omitempty"`
+	DocumentType string `json:"document_type,omitempty"`
 }
 
 // CreateFileResponse represents the response after creating a file
@@ -52,11 +54,7 @@ type CreateFileResponse struct {
 	ObjectID  string    `json:"object_id"`
 	UploadURL string    `json:"upload_url"`
 	CreatedAt time.Time `json:"created_at"`
-}
-
-// CompleteUploadRequest represents the request to mark upload as complete
-type CompleteUploadRequest struct {
-	ObjectID string `json:"object_id"`
+	Status    string    `json:"status"`
 }
 
 // UpdateMetadataRequest represents the request to update file metadata
@@ -94,6 +92,15 @@ func (h *FilesHandler) CreateFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if req.OwnerType == "" {
+		http.Error(w, "Owner type is required", http.StatusBadRequest)
+		return
+	}
+	if req.DocumentType == "" {
+		http.Error(w, "Document type is required", http.StatusBadRequest)
+		return
+	}
+
 	tenantID, err := uuid.Parse(req.TenantID)
 	if err != nil {
 		http.Error(w, "Invalid tenant ID", http.StatusBadRequest)
@@ -109,6 +116,37 @@ func (h *FilesHandler) CreateFile(w http.ResponseWriter, r *http.Request) {
 	}
 	slog.Info("Content created", "content_id", content.ID.String())
 
+	// Update content for missing fields
+	content.OwnerType = req.OwnerType
+	content.Name = req.FileName
+	content.DocumentType = req.DocumentType
+	err = h.contentService.UpdateContent(r.Context(), content)
+	if err != nil {
+		slog.Warn("Failed to update content", "err", err)
+	}
+
+	// Set content metadata
+	slog.Info("Setting content metadata...")
+	err = h.contentService.SetContentMetadata(
+		r.Context(),
+		content.ID,
+		req.MimeType,
+		"title",
+		"description",
+		nil,
+		req.FileSize, // File size will be updated later
+		ownerID.String(),
+		// add not included fields to custom metadata
+		map[string]interface{}{
+			"file_name":     req.FileName,
+			"mime_type":     req.MimeType,
+			"document_type": req.DocumentType,
+		},
+	)
+	if err != nil {
+		slog.Warn("Failed to set content metadata", "err", err)
+	}
+
 	// Create object with default storage backend
 	object, err := h.objectService.CreateObject(r.Context(), content.ID, "s3-default", 1)
 	if err != nil {
@@ -118,28 +156,28 @@ func (h *FilesHandler) CreateFile(w http.ResponseWriter, r *http.Request) {
 	}
 	slog.Info("Object created", "object_id", object.ID.String())
 
-	// Set initial metadata if provided
-	if req.FileName != "" || req.MimeType != "" || req.FileSize > 0 {
-		metadata := make(map[string]interface{})
-		if req.FileName != "" {
-			metadata["file_name"] = req.FileName
-		}
-		if req.MimeType != "" {
-			metadata["mime_type"] = req.MimeType
-		}
-		if req.FileSize > 0 {
-			metadata["file_size"] = req.FileSize
-		}
+	// Update object for missing fields
+	object.FileName = req.FileName
+	object.ObjectType = req.MimeType
+	err = h.objectService.UpdateObject(r.Context(), object)
+	if err != nil {
+		slog.Warn("Failed to update object", "err", err)
+	}
 
-		if err := h.objectService.SetObjectMetadata(r.Context(), object.ID, metadata); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
+	// Update object metadata for missing fields
+	object_metadata := make(map[string]interface{})
+	object_metadata["mime_type"] = req.MimeType
+	object_metadata["size_bytes"] = req.FileSize
+	object_metadata["file_name"] = req.FileName
+	err = h.objectService.SetObjectMetadata(r.Context(), object.ID, object_metadata)
+	if err != nil {
+		slog.Warn("Failed to update object metadata", "err", err)
 	}
 
 	// Get upload URL
 	uploadURL, err := h.objectService.GetUploadURL(r.Context(), object.ID)
 	if err != nil {
+		slog.Error("Failed to get upload URL", "err", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -149,6 +187,7 @@ func (h *FilesHandler) CreateFile(w http.ResponseWriter, r *http.Request) {
 		ObjectID:  object.ID.String(),
 		UploadURL: uploadURL,
 		CreatedAt: content.CreatedAt,
+		Status:    content.Status,
 	}
 
 	render.JSON(w, r, resp)
@@ -163,18 +202,6 @@ func (h *FilesHandler) CompleteUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var req CompleteUploadRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	objectID, err := uuid.Parse(req.ObjectID)
-	if err != nil {
-		http.Error(w, "Invalid object ID", http.StatusBadRequest)
-		return
-	}
-
 	// Verify content exists
 	content, err := h.contentService.GetContent(r.Context(), contentID)
 	if err != nil {
@@ -182,9 +209,18 @@ func (h *FilesHandler) CompleteUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Get object by content id
+	objects, err := h.objectService.GetObjectsByContentID(r.Context(), contentID)
+	if err != nil || len(objects) == 0 {
+		http.Error(w, "Object not found", http.StatusNotFound)
+		return
+	}
+	object := objects[0]
+
 	// Update object metadata from storage to get actual file info
 	// This also updates the object status to uploaded
-	if err := h.objectService.UpdateObjectMetaFromStorage(r.Context(), objectID); err != nil {
+	object_meta, err := h.objectService.UpdateObjectMetaFromStorage(r.Context(), object.ID)
+	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -192,6 +228,20 @@ func (h *FilesHandler) CompleteUpload(w http.ResponseWriter, r *http.Request) {
 	// Update content status to uploaded
 	content.Status = model.ContentStatusUploaded
 	if err := h.contentService.UpdateContent(r.Context(), content); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Get and update content metadata
+	content_meta, err := h.contentService.GetContentMetadata(r.Context(), contentID)
+	if err != nil {
+		slog.Error("GetContentMetadata", "contentID", contentID.String(), "error", err)
+		http.Error(w, "Content metadata not found", http.StatusNotFound)
+		return
+	}
+	content_meta.MimeType = object_meta.MimeType
+	content_meta.FileSize = object_meta.SizeBytes
+	if err := h.contentService.SetContentMetadata(r.Context(), contentID, object_meta.MimeType, "", "", content_meta.Tags, object_meta.SizeBytes, "", content_meta.Metadata); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}

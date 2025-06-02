@@ -132,7 +132,7 @@ func (r *PSQLObjectRepository) GetByContentID(ctx context.Context, contentID uui
 			status, created_at, updated_at
 		FROM content.object
 		WHERE content_id = $1 AND deleted_at IS NULL
-		ORDER BY created_at DESC
+		ORDER BY version, created_at DESC
 	`
 
 	rows, err := r.db.Query(ctx, query, contentID)

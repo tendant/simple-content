@@ -148,9 +148,19 @@ func (s *ContentService) SetContentMetadata(
 
 	// Store content type, title, description, and created by in the metadata map
 	metadata.Metadata["content_type"] = contentType
-	metadata.Metadata["title"] = title
-	metadata.Metadata["description"] = description
-	metadata.Metadata["created_by"] = createdBy
+	fileName := customMetadata["file_name"]
+	if fileName != nil {
+		if name, ok := fileName.(string); ok {
+			metadata.FileName = name
+		}
+	}
+
+	mimeType := customMetadata["mime_type"]
+	if mimeType != nil {
+		if mime_type, ok := mimeType.(string); ok {
+			metadata.MimeType = mime_type
+		}
+	}
 
 	// Copy custom metadata
 	for k, v := range customMetadata {

@@ -191,16 +191,8 @@ func TestFilesHandler_CompleteUpload(t *testing.T) {
 	err = backend.Upload(context.Background(), object.ObjectKey, bytes.NewReader([]byte(testData)))
 	require.NoError(t, err)
 
-	// Create complete upload request
-	req := CompleteUploadRequest{
-		ObjectID: object.ID.String(),
-	}
-
-	reqBody, err := json.Marshal(req)
-	require.NoError(t, err)
-
 	// Make request
-	httpReq := httptest.NewRequest("POST", "/files/"+content.ID.String()+"/complete", bytes.NewReader(reqBody))
+	httpReq := httptest.NewRequest("POST", "/files/"+content.ID.String()+"/complete", nil)
 	httpReq.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 
