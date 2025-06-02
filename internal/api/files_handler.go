@@ -169,7 +169,6 @@ func (h *FilesHandler) CreateFile(w http.ResponseWriter, r *http.Request) {
 	object_metadata["mime_type"] = req.MimeType
 	object_metadata["size_bytes"] = req.FileSize
 	object_metadata["file_name"] = req.FileName
-	slog.Info("Object metadata", "object_meta", object_metadata)
 	err = h.objectService.SetObjectMetadata(r.Context(), object.ID, object_metadata)
 	if err != nil {
 		slog.Warn("Failed to update object metadata", "err", err)
@@ -178,7 +177,9 @@ func (h *FilesHandler) CreateFile(w http.ResponseWriter, r *http.Request) {
 	// Get upload URL
 	uploadURL, err := h.objectService.GetUploadURL(r.Context(), object.ID)
 	if err != nil {
-		slog.Warn("Failed to get upload URL", "err", err)
+		slog.Error("Failed to get upload URL", "err", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 
 	resp := CreateFileResponse{
