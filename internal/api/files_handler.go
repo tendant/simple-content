@@ -386,7 +386,7 @@ func (h *FilesHandler) GetFileInfo(w http.ResponseWriter, r *http.Request) {
 
 	// Extract filename from metadata or object key
 	filename := object.ObjectKey
-	if filenameVal, ok := metadata.Metadata["filename"]; ok {
+	if filenameVal, ok := metadata.Metadata["file_name"]; ok {
 		if filenameStr, ok := filenameVal.(string); ok {
 			filename = filenameStr
 		}
