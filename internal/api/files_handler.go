@@ -109,8 +109,10 @@ func (h *FilesHandler) CreateFile(w http.ResponseWriter, r *http.Request) {
 
 	// Create content
 	createParams := service.CreateContentParams{
-		OwnerID:  ownerID,
-		TenantID: tenantID,
+		OwnerID:      ownerID,
+		TenantID:     tenantID,
+		Title:        req.FileName,
+		DocumentType: req.DocumentType,
 	}
 	content, err := h.contentService.CreateContent(r.Context(), createParams)
 	if err != nil {
@@ -122,8 +124,6 @@ func (h *FilesHandler) CreateFile(w http.ResponseWriter, r *http.Request) {
 
 	// Update content for missing fields
 	content.OwnerType = req.OwnerType
-	content.Name = req.FileName
-	content.DocumentType = req.DocumentType
 	updateParams := service.UpdateContentParams{
 		Content: content,
 	}
@@ -137,17 +137,12 @@ func (h *FilesHandler) CreateFile(w http.ResponseWriter, r *http.Request) {
 	metadataParams := service.SetContentMetadataParams{
 		ContentID:   content.ID,
 		ContentType: req.MimeType,
-		Title:       "title",
+		FileName:    req.FileName,
+		Title:       req.FileName,
 		Description: "description",
 		Tags:        nil,
 		FileSize:    req.FileSize, // File size will be updated later
 		CreatedBy:   ownerID.String(),
-		// add not included fields to custom metadata
-		CustomMetadata: map[string]interface{}{
-			"file_name":     req.FileName,
-			"mime_type":     req.MimeType,
-			"document_type": req.DocumentType,
-		},
 	}
 	err = h.contentService.SetContentMetadata(r.Context(), metadataParams)
 	if err != nil {
@@ -261,12 +256,13 @@ func (h *FilesHandler) CompleteUpload(w http.ResponseWriter, r *http.Request) {
 	metadataParams := service.SetContentMetadataParams{
 		ContentID:      contentID,
 		ContentType:    object_meta.MimeType,
-		Title:          "",
-		Description:    "",
+		Title:          content.Name,
+		Description:    content.Description,
 		Tags:           content_meta.Tags,
 		FileSize:       object_meta.SizeBytes,
 		CreatedBy:      "",
 		CustomMetadata: content_meta.Metadata,
+		FileName:       content_meta.FileName,
 	}
 	if err := h.contentService.SetContentMetadata(r.Context(), metadataParams); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -293,35 +289,75 @@ func (h *FilesHandler) UpdateMetadata(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Verify content exists
-	_, err = h.contentService.GetContent(r.Context(), contentID)
+	content, err := h.contentService.GetContent(r.Context(), contentID)
 	if err != nil {
 		http.Error(w, "Content not found", http.StatusNotFound)
 		return
 	}
 
-	// Prepare metadata for SetContentMetadata
-	title := req.Title
-	description := req.Description
-	tags := req.Tags
-	if tags == nil {
-		tags = []string{}
+	title := content.Name
+	description := content.Description
+	// Update content
+	if req.Title != "" || req.Description != "" {
+		// Update title and description if provided
+		if req.Title != "" {
+			title = req.Title
+		}
+		if req.Description != "" {
+			description = req.Description
+		}
+		err := h.contentService.UpdateContent(r.Context(), service.UpdateContentParams{
+			Content: &model.Content{
+				ID:             contentID,
+				Name:           title,
+				Description:    description,
+				UpdatedAt:      time.Now(),
+				TenantID:       content.TenantID,
+				OwnerID:        content.OwnerID,
+				OwnerType:      content.OwnerType,
+				DocumentType:   content.DocumentType,
+				Status:         content.Status,
+				DerivationType: content.DerivationType,
+				CreatedAt:      content.CreatedAt,
+			},
+		})
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 	}
 
-	// Set content metadata using the available method
-	metadataParams := service.SetContentMetadataParams{
-		ContentID:      contentID,
-		ContentType:    "", // leave empty to preserve existing
-		Title:          title,
-		Description:    description,
-		Tags:           tags,
-		FileSize:       0,  // leave 0 to preserve existing
-		CreatedBy:      "", // leave empty to preserve existing
-		CustomMetadata: req.Metadata,
-	}
-	err = h.contentService.SetContentMetadata(r.Context(), metadataParams)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+	// Get and update content metadata using the available method
+	tags := req.Tags
+	if req.Metadata != nil || tags != nil {
+		// Update tags if provided
+		if tags != nil {
+			req.Metadata["tags"] = tags
+		}
+		// Get content metadata
+		content_meta, err := h.contentService.GetContentMetadata(r.Context(), contentID)
+		if err != nil {
+			slog.Error("GetContentMetadata", "contentID", contentID.String(), "error", err)
+			http.Error(w, "Content metadata not found", http.StatusNotFound)
+			return
+		}
+		// Update content metadata
+		metadataParams := service.SetContentMetadataParams{
+			ContentID:      contentID,
+			FileName:       content_meta.FileName,
+			ContentType:    content_meta.MimeType,
+			Title:          title,
+			Description:    description,
+			Tags:           tags,
+			FileSize:       content_meta.FileSize,
+			CreatedBy:      "",
+			CustomMetadata: req.Metadata,
+		}
+		err = h.contentService.SetContentMetadata(r.Context(), metadataParams)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 	}
 
 	w.WriteHeader(http.StatusOK)
@@ -386,7 +422,7 @@ func (h *FilesHandler) GetFileInfo(w http.ResponseWriter, r *http.Request) {
 
 	// Extract filename from metadata or object key
 	filename := object.ObjectKey
-	if filenameVal, ok := metadata.Metadata["filename"]; ok {
+	if filenameVal, ok := metadata.Metadata["file_name"]; ok {
 		if filenameStr, ok := filenameVal.(string); ok {
 			filename = filenameStr
 		}
