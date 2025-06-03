@@ -89,7 +89,11 @@ func (h *ContentHandler) CreateContent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	content, err := h.contentService.CreateContent(r.Context(), ownerID, tenantID)
+	createParams := service.CreateContentParams{
+		OwnerID:  ownerID,
+		TenantID: tenantID,
+	}
+	content, err := h.contentService.CreateContent(r.Context(), createParams)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -146,7 +150,10 @@ func (h *ContentHandler) DeleteContent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.contentService.DeleteContent(r.Context(), id); err != nil {
+	deleteParams := service.DeleteContentParams{
+		ID: id,
+	}
+	if err := h.contentService.DeleteContent(r.Context(), deleteParams); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -184,7 +191,11 @@ func (h *ContentHandler) ListContents(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	contents, err := h.contentService.ListContents(r.Context(), ownerID, tenantID)
+	listParams := service.ListContentParams{
+		OwnerID:  ownerID,
+		TenantID: tenantID,
+	}
+	contents, err := h.contentService.ListContent(r.Context(), listParams)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -239,7 +250,12 @@ func (h *ContentHandler) CreateDerivedContent(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	content, err := h.contentService.CreateDerivedContent(r.Context(), parentID, ownerID, tenantID)
+	deriveParams := service.CreateDerivedContentParams{
+		ParentID: parentID,
+		OwnerID:  ownerID,
+		TenantID: tenantID,
+	}
+	content, err := h.contentService.CreateDerivedContent(r.Context(), deriveParams)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -307,17 +323,17 @@ func (h *ContentHandler) UpdateMetadata(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	if err := h.contentService.SetContentMetadata(
-		r.Context(),
-		id,
-		req.ContentType,
-		req.Title,
-		req.Description,
-		req.Tags,
-		req.FileSize,
-		req.CreatedBy,
-		req.Metadata,
-	); err != nil {
+	metadataParams := service.SetContentMetadataParams{
+		ContentID:      id,
+		ContentType:    req.ContentType,
+		Title:          req.Title,
+		Description:    req.Description,
+		Tags:           req.Tags,
+		FileSize:       req.FileSize,
+		CreatedBy:      req.CreatedBy,
+		CustomMetadata: req.Metadata,
+	}
+	if err := h.contentService.SetContentMetadata(r.Context(), metadataParams); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}

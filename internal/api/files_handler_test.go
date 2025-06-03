@@ -176,7 +176,11 @@ func TestFilesHandler_CompleteUpload(t *testing.T) {
 	// First create a file
 	ownerID := uuid.New()
 	tenantID := uuid.New()
-	content, err := handler.contentService.CreateContent(context.Background(), ownerID, tenantID)
+	createParams := service.CreateContentParams{
+		OwnerID:  ownerID,
+		TenantID: tenantID,
+	}
+	content, err := handler.contentService.CreateContent(context.Background(), createParams)
 	require.NoError(t, err)
 
 	object, err := handler.objectService.CreateObject(context.Background(), content.ID, "s3-default", 1)
@@ -229,7 +233,11 @@ func TestFilesHandler_UpdateMetadata(t *testing.T) {
 	// First create a file
 	ownerID := uuid.New()
 	tenantID := uuid.New()
-	content, err := handler.contentService.CreateContent(context.Background(), ownerID, tenantID)
+	createParams := service.CreateContentParams{
+		OwnerID:  ownerID,
+		TenantID: tenantID,
+	}
+	content, err := handler.contentService.CreateContent(context.Background(), createParams)
 	require.NoError(t, err)
 
 	// Create update metadata request
@@ -273,7 +281,11 @@ func TestFilesHandler_GetFileInfo(t *testing.T) {
 	// First create a file with metadata
 	ownerID := uuid.New()
 	tenantID := uuid.New()
-	content, err := handler.contentService.CreateContent(context.Background(), ownerID, tenantID)
+	createParams := service.CreateContentParams{
+		OwnerID:  ownerID,
+		TenantID: tenantID,
+	}
+	content, err := handler.contentService.CreateContent(context.Background(), createParams)
 	require.NoError(t, err)
 
 	object, err := handler.objectService.CreateObject(context.Background(), content.ID, "s3-default", 1)

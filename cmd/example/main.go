@@ -136,7 +136,11 @@ func executeContentFlow(ctx context.Context, contentService *service.ContentServ
 
 	// 2. Create a new content
 	slog.Info("Creating new content...")
-	content, err := contentService.CreateContent(ctx, ownerID, tenantID)
+	createParams := service.CreateContentParams{
+		OwnerID:  ownerID,
+		TenantID: tenantID,
+	}
+	content, err := contentService.CreateContent(ctx, createParams)
 	if err != nil {
 		return fmt.Errorf("failed to create content: %w", err)
 	}
@@ -144,19 +148,19 @@ func executeContentFlow(ctx context.Context, contentService *service.ContentServ
 
 	// 3. Set content metadata
 	slog.Info("Setting content metadata...")
-	err = contentService.SetContentMetadata(
-		ctx,
-		content.ID,
-		"image/jpeg",
-		"Example Image",
-		"This is an example image uploaded through the content flow",
-		[]string{"example", "image", "test"},
-		0, // File size will be updated later
-		"example-user",
-		map[string]interface{}{
+	metadataParams := service.SetContentMetadataParams{
+		ContentID:   content.ID,
+		ContentType: "image/jpeg",
+		Title:       "Example Image",
+		Description: "This is an example image uploaded through the content flow",
+		Tags:        []string{"example", "image", "test"},
+		FileSize:    0, // File size will be updated later
+		CreatedBy:   "example-user",
+		CustomMetadata: map[string]interface{}{
 			"source": "example-app",
 		},
-	)
+	}
+	err = contentService.SetContentMetadata(ctx, metadataParams)
 	if err != nil {
 		return fmt.Errorf("failed to set content metadata: %w", err)
 	}
@@ -201,7 +205,10 @@ func executeContentFlow(ctx context.Context, contentService *service.ContentServ
 	slog.Info("Updating content status to uploaded...")
 	content.Status = model.ContentStatusUploaded
 	content.UpdatedAt = time.Now().UTC()
-	err = contentService.UpdateContent(ctx, content)
+	updateParams := service.UpdateContentParams{
+		Content: content,
+	}
+	err = contentService.UpdateContent(ctx, updateParams)
 	if err != nil {
 		return fmt.Errorf("failed to update content status: %w", err)
 	}

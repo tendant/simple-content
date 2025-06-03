@@ -23,7 +23,12 @@ func TestContentService_CreateContent(t *testing.T) {
 	ownerID := uuid.New()
 	tenantID := uuid.New()
 
-	content, err := svc.CreateContent(ctx, ownerID, tenantID)
+	params := service.CreateContentParams{
+		OwnerID:  ownerID,
+		TenantID: tenantID,
+	}
+
+	content, err := svc.CreateContent(ctx, params)
 	assert.NoError(t, err)
 	assert.NotNil(t, content)
 	assert.Equal(t, ownerID, content.OwnerID)
@@ -39,18 +44,32 @@ func TestContentService_CreateDerivedContent(t *testing.T) {
 	// Create parent content
 	ownerID := uuid.New()
 	tenantID := uuid.New()
-	parent, err := svc.CreateContent(ctx, ownerID, tenantID)
+	createParams := service.CreateContentParams{
+		OwnerID:  ownerID,
+		TenantID: tenantID,
+	}
+	parent, err := svc.CreateContent(ctx, createParams)
 	assert.NoError(t, err)
 
 	// Create derived content
-	derived, err := svc.CreateDerivedContent(ctx, parent.ID, ownerID, tenantID)
+	derivedParams := service.CreateDerivedContentParams{
+		ParentID: parent.ID,
+		OwnerID:  ownerID,
+		TenantID: tenantID,
+	}
+	derived, err := svc.CreateDerivedContent(ctx, derivedParams)
 	assert.NoError(t, err)
 	assert.NotNil(t, derived)
 	// Parent relationship is now tracked in ContentDerived table
 	assert.Equal(t, "derived", derived.DerivationType)
 
 	// Create second-level derived content
-	secondLevel, err := svc.CreateDerivedContent(ctx, derived.ID, ownerID, tenantID)
+	secondLevelParams := service.CreateDerivedContentParams{
+		ParentID: derived.ID,
+		OwnerID:  ownerID,
+		TenantID: tenantID,
+	}
+	secondLevel, err := svc.CreateDerivedContent(ctx, secondLevelParams)
 	assert.NoError(t, err)
 	assert.NotNil(t, secondLevel)
 	// Parent relationship is now tracked in ContentDerived table
@@ -70,14 +89,23 @@ func TestContentService_CreateDerivedContent_MaxDepthLimit(t *testing.T) {
 	tenantID := uuid.New()
 
 	// Level 0 (original)
-	content, err := svc.CreateContent(ctx, ownerID, tenantID)
+	createParams := service.CreateContentParams{
+		OwnerID:  ownerID,
+		TenantID: tenantID,
+	}
+	content, err := svc.CreateContent(ctx, createParams)
 	assert.NoError(t, err)
 	// DerivationLevel is now tracked in the ContentDerived table
 
 	// Levels 1-5
 	currentID := content.ID
 	for i := 1; i <= 5; i++ {
-		derived, err := svc.CreateDerivedContent(ctx, currentID, ownerID, tenantID)
+		derivedParams := service.CreateDerivedContentParams{
+			ParentID: currentID,
+			OwnerID:  ownerID,
+			TenantID: tenantID,
+		}
+		derived, err := svc.CreateDerivedContent(ctx, derivedParams)
 		assert.NoError(t, err)
 		// Note: DerivationLevel has been removed from the Content struct
 		currentID = derived.ID
@@ -85,7 +113,12 @@ func TestContentService_CreateDerivedContent_MaxDepthLimit(t *testing.T) {
 
 	// Note: The max depth check is not implemented in the service
 	// The test originally expected this to fail, but the implementation doesn't enforce it
-	derived, err := svc.CreateDerivedContent(ctx, currentID, ownerID, tenantID)
+	finalDerivedParams := service.CreateDerivedContentParams{
+		ParentID: currentID,
+		OwnerID:  ownerID,
+		TenantID: tenantID,
+	}
+	derived, err := svc.CreateDerivedContent(ctx, finalDerivedParams)
 	assert.NoError(t, err)
 	assert.NotNil(t, derived)
 }
@@ -97,7 +130,11 @@ func TestContentService_SetContentMetadata(t *testing.T) {
 	// Create content
 	ownerID := uuid.New()
 	tenantID := uuid.New()
-	content, err := svc.CreateContent(ctx, ownerID, tenantID)
+	createParams := service.CreateContentParams{
+		OwnerID:  ownerID,
+		TenantID: tenantID,
+	}
+	content, err := svc.CreateContent(ctx, createParams)
 	assert.NoError(t, err)
 
 	// Set metadata
@@ -111,17 +148,17 @@ func TestContentService_SetContentMetadata(t *testing.T) {
 		"duration": "00:01:30",
 	}
 
-	err = svc.SetContentMetadata(
-		ctx,
-		content.ID,
-		contentType,
-		title,
-		description,
-		tags,
-		fileSize,
-		createdBy,
-		customMetadata,
-	)
+	metadataParams := service.SetContentMetadataParams{
+		ContentID:      content.ID,
+		ContentType:    contentType,
+		Title:          title,
+		Description:    description,
+		Tags:           tags,
+		FileSize:       fileSize,
+		CreatedBy:      createdBy,
+		CustomMetadata: customMetadata,
+	}
+	err = svc.SetContentMetadata(ctx, metadataParams)
 	assert.NoError(t, err)
 
 	// Get metadata
@@ -144,45 +181,54 @@ func TestContentService_IndependentMetadata(t *testing.T) {
 	// Create original content
 	ownerID := uuid.New()
 	tenantID := uuid.New()
-	original, err := svc.CreateContent(ctx, ownerID, tenantID)
+	createParams := service.CreateContentParams{
+		OwnerID:  ownerID,
+		TenantID: tenantID,
+	}
+	original, err := svc.CreateContent(ctx, createParams)
 	assert.NoError(t, err)
 
 	// Set metadata for original content
-	err = svc.SetContentMetadata(
-		ctx,
-		original.ID,
-		"video/mp4",
-		"Original Video",
-		"An original video",
-		[]string{"original", "video"},
-		int64(2048),
-		"User 1",
-		map[string]interface{}{
+	originalMetadataParams := service.SetContentMetadataParams{
+		ContentID:   original.ID,
+		ContentType: "video/mp4",
+		Title:       "Original Video",
+		Description: "An original video",
+		Tags:        []string{"original", "video"},
+		FileSize:    int64(2048),
+		CreatedBy:   "User 1",
+		CustomMetadata: map[string]interface{}{
 			"duration":   "00:05:30",
 			"resolution": "1920x1080",
 		},
-	)
+	}
+	err = svc.SetContentMetadata(ctx, originalMetadataParams)
 	assert.NoError(t, err)
 
 	// Create derived content
-	derived, err := svc.CreateDerivedContent(ctx, original.ID, ownerID, tenantID)
+	derivedParams := service.CreateDerivedContentParams{
+		ParentID: original.ID,
+		OwnerID:  ownerID,
+		TenantID: tenantID,
+	}
+	derived, err := svc.CreateDerivedContent(ctx, derivedParams)
 	assert.NoError(t, err)
 
 	// Set different metadata for derived content
-	err = svc.SetContentMetadata(
-		ctx,
-		derived.ID,
-		"image/jpeg",
-		"Thumbnail",
-		"A thumbnail from the original video",
-		[]string{"derived", "image", "thumbnail"},
-		int64(512),
-		"System",
-		map[string]interface{}{
+	derivedMetadataParams := service.SetContentMetadataParams{
+		ContentID:   derived.ID,
+		ContentType: "image/jpeg",
+		Title:       "Thumbnail",
+		Description: "A thumbnail from the original video",
+		Tags:        []string{"derived", "image", "thumbnail"},
+		FileSize:    int64(512),
+		CreatedBy:   "System",
+		CustomMetadata: map[string]interface{}{
 			"width":  1280,
 			"height": 720,
 		},
-	)
+	}
+	err = svc.SetContentMetadata(ctx, derivedMetadataParams)
 	assert.NoError(t, err)
 
 	// Get and verify original metadata
