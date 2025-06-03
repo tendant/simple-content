@@ -71,10 +71,13 @@ func (s *ObjectService) CreateObject(
 		return nil, err
 	}
 
-	// Get content metadata
-	contentMetadata, err := s.contentMetadataRepo.Get(ctx, params.ContentID)
+	// Get content metadata (optional)
+	var contentMetadata *model.ContentMetadata
+	contentMetadata, err = s.contentMetadataRepo.Get(ctx, params.ContentID)
 	if err != nil {
-		return nil, err
+		// Log the error but continue without metadata
+		slog.Warn("Warning: %v", "err", err)
+		// Don't return error, just proceed with nil metadata
 	}
 
 	now := time.Now().UTC()
@@ -92,11 +95,15 @@ func (s *ObjectService) CreateObject(
 		StorageBackendName: params.StorageBackendName,
 		Version:            params.Version,
 		ObjectKey:          objectKey,
-		ObjectType:         contentMetadata.MimeType,
-		FileName:           contentMetadata.FileName,
 		Status:             model.ObjectStatusCreated,
 		CreatedAt:          now,
 		UpdatedAt:          now,
+	}
+
+	// Add metadata-derived fields if available
+	if contentMetadata != nil {
+		object.ObjectType = contentMetadata.MimeType
+		object.FileName = contentMetadata.FileName
 	}
 
 	if err := s.objectRepo.Create(ctx, object); err != nil {
