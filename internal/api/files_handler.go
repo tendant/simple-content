@@ -227,7 +227,9 @@ func (h *FilesHandler) CompleteUpload(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Object not found", http.StatusNotFound)
 		return
 	}
-	object := objects[0]
+
+	// Get the latest version of the object
+	object := service.GetLatestVersionObject(objects)
 
 	// Update object metadata from storage to get actual file info
 	// This also updates the object status to uploaded
@@ -364,8 +366,8 @@ func (h *FilesHandler) GetFileInfo(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Use the first object (assuming one object per content for now)
-	object := objects[0]
+	// Get the latest version of the object
+	object := service.GetLatestVersionObject(objects)
 
 	// Get preview URL
 	previewURL, err := h.objectService.GetPreviewURL(r.Context(), object.ID)
