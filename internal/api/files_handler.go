@@ -338,8 +338,13 @@ func (h *FilesHandler) UpdateMetadata(w http.ResponseWriter, r *http.Request) {
 		content_meta, err := h.contentService.GetContentMetadata(r.Context(), contentID)
 		if err != nil {
 			slog.Error("GetContentMetadata", "contentID", contentID.String(), "error", err)
-			http.Error(w, "Content metadata not found", http.StatusNotFound)
-			return
+			// Create default metadata if it doesn't exist
+			content_meta = &model.ContentMetadata{
+				ContentID: contentID,
+				FileName:  "",
+				MimeType:  "",
+				FileSize:  0,
+			}
 		}
 		// Update content metadata
 		metadataParams := service.SetContentMetadataParams{
