@@ -388,6 +388,23 @@ func GenerateObjectKey(contentID, objectID uuid.UUID, contentMetadata *model.Con
 	return fmt.Sprintf("C/%s/%s", contentID, objectID)
 }
 
+// GetLatestVersionObject returns the object with the highest version number from a slice of objects.
+// If there are multiple objects with the same highest version, it returns the first one found.
+func GetLatestVersionObject(objects []*model.Object) *model.Object {
+	if len(objects) == 0 {
+		return nil
+	}
+
+	latestObject := objects[0]
+	for _, obj := range objects[1:] {
+		if obj.Version > latestObject.Version {
+			latestObject = obj
+		}
+	}
+
+	return latestObject
+}
+
 // UpdateObjectMetaFromStorage updates object metadata using information retrieved from the storage backend
 // This is useful after a client-side upload to update our metadata and object status
 func (s *ObjectService) UpdateObjectMetaFromStorage(ctx context.Context, objectID uuid.UUID) (model.ObjectMetadata, error) {
