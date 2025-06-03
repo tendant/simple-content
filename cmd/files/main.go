@@ -14,7 +14,6 @@ import (
 	"github.com/ilyakaznacheev/cleanenv"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/tendant/simple-content/internal/api"
-	"github.com/tendant/simple-content/pkg/repository/memory"
 	psqlrepo "github.com/tendant/simple-content/pkg/repository/psql"
 	"github.com/tendant/simple-content/pkg/service"
 	"github.com/tendant/simple-content/pkg/storage/s3"
@@ -122,8 +121,7 @@ func main() {
 	objectRepo := repoFactory.NewObjectRepository()
 	objectMetadataRepo := repoFactory.NewObjectMetadataRepository()
 
-	// Use memory storage backend repository for now
-	storageBackendRepo := memory.NewStorageBackendRepository()
+	// Storage backend repository no longer needed
 
 	// Initialize S3 storage backend
 	s3Backend, err := initializeS3Backend(config.S3)
@@ -136,14 +134,13 @@ func main() {
 	contentService := service.NewContentService(
 		contentRepo,
 		contentMetadataRepo,
-		objectRepo,
 	)
 
 	objectService := service.NewObjectService(
 		objectRepo,
 		objectMetadataRepo,
-		storageBackendRepo,
-		s3Backend,
+		contentRepo,
+		contentMetadataRepo,
 	)
 
 	// Register the S3 backend with the object service

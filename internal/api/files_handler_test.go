@@ -111,8 +111,8 @@ func setupFilesHandler() *FilesHandler {
 	mockBackend := NewMockStorageBackend()
 
 	// Setup services
-	contentService := service.NewContentService(contentRepo, contentMetadataRepo, objectRepo)
-	objectService := service.NewObjectService(objectRepo, objectMetadataRepo, storageBackendRepo, mockBackend)
+	contentService := service.NewContentService(contentRepo, contentMetadataRepo)
+	objectService := service.NewObjectService(objectRepo, objectMetadataRepo, contentRepo, contentMetadataRepo)
 
 	// Register the mock backend
 	objectService.RegisterBackend("s3-default", mockBackend)
@@ -135,11 +135,13 @@ func TestFilesHandler_CreateFile(t *testing.T) {
 
 	// Create request
 	req := CreateFileRequest{
-		OwnerID:  uuid.New().String(),
-		TenantID: uuid.New().String(),
-		FileName: "test.txt",
-		MimeType: "text/plain",
-		FileSize: 1024,
+		OwnerID:      uuid.New().String(),
+		OwnerType:    "user",
+		TenantID:     uuid.New().String(),
+		FileName:     "test.txt",
+		MimeType:     "text/plain",
+		FileSize:     1024,
+		DocumentType: "document", // Add the required DocumentType field
 	}
 
 	reqBody, err := json.Marshal(req)
@@ -176,10 +178,33 @@ func TestFilesHandler_CompleteUpload(t *testing.T) {
 	// First create a file
 	ownerID := uuid.New()
 	tenantID := uuid.New()
-	content, err := handler.contentService.CreateContent(context.Background(), ownerID, tenantID)
+	createParams := service.CreateContentParams{
+		OwnerID:  ownerID,
+		TenantID: tenantID,
+	}
+	content, err := handler.contentService.CreateContent(context.Background(), createParams)
 	require.NoError(t, err)
 
-	object, err := handler.objectService.CreateObject(context.Background(), content.ID, "s3-default", 1)
+	createObjectParams := service.CreateObjectParams{
+		ContentID:          content.ID,
+		StorageBackendName: "s3-default",
+		Version:            1,
+	}
+	object, err := handler.objectService.CreateObject(context.Background(), createObjectParams)
+	require.NoError(t, err)
+
+	// Set content metadata which is required for CompleteUpload
+	metadataParams := service.SetContentMetadataParams{
+		ContentID:   content.ID,
+		ContentType: "text/plain",
+		Title:       "Test File",
+		Description: "Test file for upload",
+		FileName:    "test.txt",
+		Tags:        []string{"test", "upload"},
+		FileSize:    int64(len("test file content")),
+		CreatedBy:   "test-user",
+	}
+	err = handler.contentService.SetContentMetadata(context.Background(), metadataParams)
 	require.NoError(t, err)
 
 	// Simulate uploading the file to storage (this is what would happen client-side)
@@ -229,7 +254,11 @@ func TestFilesHandler_UpdateMetadata(t *testing.T) {
 	// First create a file
 	ownerID := uuid.New()
 	tenantID := uuid.New()
-	content, err := handler.contentService.CreateContent(context.Background(), ownerID, tenantID)
+	createParams := service.CreateContentParams{
+		OwnerID:  ownerID,
+		TenantID: tenantID,
+	}
+	content, err := handler.contentService.CreateContent(context.Background(), createParams)
 	require.NoError(t, err)
 
 	// Create update metadata request
@@ -273,13 +302,36 @@ func TestFilesHandler_GetFileInfo(t *testing.T) {
 	// First create a file with metadata
 	ownerID := uuid.New()
 	tenantID := uuid.New()
-	content, err := handler.contentService.CreateContent(context.Background(), ownerID, tenantID)
+	createParams := service.CreateContentParams{
+		OwnerID:  ownerID,
+		TenantID: tenantID,
+	}
+	content, err := handler.contentService.CreateContent(context.Background(), createParams)
 	require.NoError(t, err)
 
-	object, err := handler.objectService.CreateObject(context.Background(), content.ID, "s3-default", 1)
+	createObjectParams := service.CreateObjectParams{
+		ContentID:          content.ID,
+		StorageBackendName: "s3-default",
+		Version:            1,
+	}
+	object, err := handler.objectService.CreateObject(context.Background(), createObjectParams)
 	require.NoError(t, err)
 
-	// Set some metadata
+	// Set content metadata
+	metadataParams := service.SetContentMetadataParams{
+		ContentID:   content.ID,
+		ContentType: "text/plain",
+		Title:       "Test File",
+		Description: "Test file for info",
+		FileName:    "test.txt",
+		Tags:        []string{"test", "info"},
+		FileSize:    int64(len("test file content")),
+		CreatedBy:   "test-user",
+	}
+	err = handler.contentService.SetContentMetadata(context.Background(), metadataParams)
+	require.NoError(t, err)
+
+	// Set some object metadata
 	err = handler.objectService.SetObjectMetadata(context.Background(), object.ID, map[string]interface{}{
 		"filename": "test.txt",
 	})

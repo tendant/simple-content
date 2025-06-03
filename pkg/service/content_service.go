@@ -14,34 +14,43 @@ import (
 type ContentService struct {
 	contentRepo  repository.ContentRepository
 	metadataRepo repository.ContentMetadataRepository
-	objectRepo   repository.ObjectRepository
 }
 
 // NewContentService creates a new content service
 func NewContentService(
 	contentRepo repository.ContentRepository,
 	metadataRepo repository.ContentMetadataRepository,
-	objectRepo repository.ObjectRepository,
 ) *ContentService {
 	return &ContentService{
 		contentRepo:  contentRepo,
 		metadataRepo: metadataRepo,
-		objectRepo:   objectRepo,
 	}
 }
 
-// CreateContent creates a new original content
+// CreateContentParams contains parameters for creating new content
+type CreateContentParams struct {
+	OwnerID      uuid.UUID
+	TenantID     uuid.UUID
+	Title        string
+	Description  string
+	DocumentType string
+}
+
+// CreateContent creates a new content
 func (s *ContentService) CreateContent(
 	ctx context.Context,
-	ownerID, tenantID uuid.UUID,
+	params CreateContentParams,
 ) (*model.Content, error) {
 	now := time.Now()
 	content := &model.Content{
 		ID:             uuid.New(),
 		CreatedAt:      now,
 		UpdatedAt:      now,
-		OwnerID:        ownerID,
-		TenantID:       tenantID,
+		OwnerID:        params.OwnerID,
+		TenantID:       params.TenantID,
+		Name:           params.Title,
+		Description:    params.Description,
+		DocumentType:   params.DocumentType,
 		Status:         model.ContentStatusCreated,
 		DerivationType: model.ContentDerivationTypeOriginal,
 	}
@@ -53,14 +62,20 @@ func (s *ContentService) CreateContent(
 	return content, nil
 }
 
+// CreateDerivedContentParams contains parameters for creating derived content
+type CreateDerivedContentParams struct {
+	ParentID uuid.UUID
+	OwnerID  uuid.UUID
+	TenantID uuid.UUID
+}
+
 // CreateDerivedContent creates a new content derived from an existing content
 func (s *ContentService) CreateDerivedContent(
 	ctx context.Context,
-	parentID uuid.UUID,
-	ownerID, tenantID uuid.UUID,
+	params CreateDerivedContentParams,
 ) (*model.Content, error) {
 	// Verify parent content exists
-	_, err := s.contentRepo.Get(ctx, parentID)
+	_, err := s.contentRepo.Get(ctx, params.ParentID)
 	if err != nil {
 		return nil, fmt.Errorf("parent content not found: %w", err)
 	}
@@ -71,8 +86,8 @@ func (s *ContentService) CreateDerivedContent(
 		ID:             uuid.New(),
 		CreatedAt:      now,
 		UpdatedAt:      now,
-		OwnerID:        ownerID,
-		TenantID:       tenantID,
+		OwnerID:        params.OwnerID,
+		TenantID:       params.TenantID,
 		Status:         model.ContentStatusCreated,
 		DerivationType: model.ContentDerivationTypeDerived,
 	}
@@ -92,90 +107,131 @@ func (s *ContentService) GetContent(ctx context.Context, id uuid.UUID) (*model.C
 	return s.contentRepo.Get(ctx, id)
 }
 
+// UpdateContentParams contains parameters for updating content
+type UpdateContentParams struct {
+	Content *model.Content
+}
+
 // UpdateContent updates a content
-func (s *ContentService) UpdateContent(ctx context.Context, content *model.Content) error {
-	content.UpdatedAt = time.Now()
-	return s.contentRepo.Update(ctx, content)
+func (s *ContentService) UpdateContent(
+	ctx context.Context,
+	params UpdateContentParams,
+) error {
+	params.Content.UpdatedAt = time.Now()
+	return s.contentRepo.Update(ctx, params.Content)
+}
+
+// DeleteContentParams contains parameters for deleting content
+type DeleteContentParams struct {
+	ID uuid.UUID
 }
 
 // DeleteContent deletes a content
-func (s *ContentService) DeleteContent(ctx context.Context, id uuid.UUID) error {
-	// Get all objects for this content
-	objects, err := s.objectRepo.GetByContentID(ctx, id)
-	if err != nil {
-		return err
-	}
-
-	// Delete all objects
-	for _, obj := range objects {
-		if err := s.objectRepo.Delete(ctx, obj.ID); err != nil {
-			return err
-		}
-	}
-
+func (s *ContentService) DeleteContent(
+	ctx context.Context,
+	params DeleteContentParams,
+) error {
 	// Delete the content
-	return s.contentRepo.Delete(ctx, id)
+	return s.contentRepo.Delete(ctx, params.ID)
 }
 
-// ListContents lists contents by owner ID and tenant ID
-func (s *ContentService) ListContents(ctx context.Context, ownerID, tenantID uuid.UUID) ([]*model.Content, error) {
-	return s.contentRepo.List(ctx, ownerID, tenantID)
+// ListContentParams contains parameters for listing content
+type ListContentParams struct {
+	OwnerID  uuid.UUID
+	TenantID uuid.UUID
+}
+
+// ListContent lists all content for an owner and tenant
+func (s *ContentService) ListContent(
+	ctx context.Context,
+	params ListContentParams,
+) ([]*model.Content, error) {
+	return s.contentRepo.List(ctx, params.OwnerID, params.TenantID)
+}
+
+// SetContentMetadataParams contains parameters for setting content metadata
+type SetContentMetadataParams struct {
+	ContentID      uuid.UUID
+	ContentType    string
+	Title          string
+	Description    string
+	Tags           []string
+	FileName       string
+	FileSize       int64
+	CreatedBy      string
+	CustomMetadata map[string]interface{}
 }
 
 // SetContentMetadata sets metadata for a content
 func (s *ContentService) SetContentMetadata(
 	ctx context.Context,
-	contentID uuid.UUID,
-	contentType, title, description string,
-	tags []string,
-	fileSize int64,
-	createdBy string,
-	customMetadata map[string]interface{},
+	params SetContentMetadataParams,
 ) error {
 	// Verify content exists
-	_, err := s.contentRepo.Get(ctx, contentID)
+	_, err := s.contentRepo.Get(ctx, params.ContentID)
 	if err != nil {
 		return fmt.Errorf("content not found: %w", err)
 	}
 
-	// Prepare metadata
-	metadata := &model.ContentMetadata{
-		ContentID: contentID,
-		Tags:      tags,
-		FileSize:  fileSize,
+	// Create content metadata
+	contentMetadata := &model.ContentMetadata{
+		ContentID: params.ContentID,
+		Tags:      params.Tags,
+		UpdatedAt: time.Now().UTC(),
 		Metadata:  make(map[string]interface{}),
 	}
 
-	// Store content type, title, description, and created by in the metadata map
-	metadata.Metadata["content_type"] = contentType
-	fileName := customMetadata["file_name"]
-	if fileName != nil {
-		if name, ok := fileName.(string); ok {
-			metadata.FileName = name
+	// Set mime type if provided in content type
+	if params.ContentType != "" {
+		contentMetadata.MimeType = params.ContentType
+		contentMetadata.Metadata["content_type"] = params.ContentType
+	}
+
+	// Set file name if provided
+	if params.FileName != "" {
+		contentMetadata.FileName = params.FileName
+		contentMetadata.Metadata["file_name"] = params.FileName
+	}
+
+	// Set file size if provided
+	if params.FileSize > 0 {
+		contentMetadata.FileSize = params.FileSize
+		contentMetadata.Metadata["file_size"] = params.FileSize
+	}
+
+	// Copy custom metadata if provided
+	if params.CustomMetadata != nil {
+		for k, v := range params.CustomMetadata {
+			contentMetadata.Metadata[k] = v
+		}
+
+		// Extract file name and mime type if present in custom metadata
+		if fileName, ok := params.CustomMetadata["file_name"].(string); ok {
+			contentMetadata.FileName = fileName
 		}
 	}
 
-	mimeType := customMetadata["mime_type"]
-	if mimeType != nil {
-		if mime_type, ok := mimeType.(string); ok {
-			metadata.MimeType = mime_type
-		}
+	// Add title and description to metadata if provided
+	if params.Title != "" {
+		contentMetadata.Metadata["title"] = params.Title
+	}
+	if params.Description != "" {
+		contentMetadata.Metadata["description"] = params.Description
 	}
 
-	// Copy custom metadata
-	for k, v := range customMetadata {
-		metadata.Metadata[k] = v
+	if params.CreatedBy != "" {
+		contentMetadata.Metadata["created_by"] = params.CreatedBy
 	}
 
-	return s.metadataRepo.Set(ctx, metadata)
+	// Set creation time if not already set
+	if contentMetadata.CreatedAt.IsZero() {
+		contentMetadata.CreatedAt = time.Now().UTC()
+	}
+
+	return s.metadataRepo.Set(ctx, contentMetadata)
 }
 
 // GetContentMetadata retrieves metadata for a content
 func (s *ContentService) GetContentMetadata(ctx context.Context, contentID uuid.UUID) (*model.ContentMetadata, error) {
-	// Verify content exists
-	if _, err := s.contentRepo.Get(ctx, contentID); err != nil {
-		return nil, err
-	}
-
 	return s.metadataRepo.Get(ctx, contentID)
 }

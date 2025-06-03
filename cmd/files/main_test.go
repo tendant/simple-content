@@ -20,7 +20,6 @@ func TestServerSetup(t *testing.T) {
 	contentMetadataRepo := memoryrepo.NewContentMetadataRepository()
 	objectRepo := memoryrepo.NewObjectRepository()
 	objectMetadataRepo := memoryrepo.NewObjectMetadataRepository()
-	storageBackendRepo := memoryrepo.NewStorageBackendRepository()
 
 	// Initialize in-memory storage backend
 	memoryBackend := memorystorage.NewMemoryBackend()
@@ -29,14 +28,13 @@ func TestServerSetup(t *testing.T) {
 	contentService := service.NewContentService(
 		contentRepo,
 		contentMetadataRepo,
-		objectRepo,
 	)
 
 	objectService := service.NewObjectService(
 		objectRepo,
 		objectMetadataRepo,
-		storageBackendRepo,
-		memoryBackend,
+		contentRepo,
+		contentMetadataRepo,
 	)
 
 	// Register the in-memory backend
@@ -83,7 +81,6 @@ func TestContentRoutes(t *testing.T) {
 	contentMetadataRepo := memoryrepo.NewContentMetadataRepository()
 	objectRepo := memoryrepo.NewObjectRepository()
 	objectMetadataRepo := memoryrepo.NewObjectMetadataRepository()
-	storageBackendRepo := memoryrepo.NewStorageBackendRepository()
 
 	// Initialize in-memory storage backend
 	memoryBackend := memorystorage.NewMemoryBackend()
@@ -92,14 +89,13 @@ func TestContentRoutes(t *testing.T) {
 	contentService := service.NewContentService(
 		contentRepo,
 		contentMetadataRepo,
-		objectRepo,
 	)
 
 	objectService := service.NewObjectService(
 		objectRepo,
 		objectMetadataRepo,
-		storageBackendRepo,
-		memoryBackend,
+		contentRepo,
+		contentMetadataRepo,
 	)
 
 	// Register the in-memory backend
@@ -114,13 +110,13 @@ func TestContentRoutes(t *testing.T) {
 
 	// Test that routes are properly mounted
 	testCases := []struct {
-		method string
-		path   string
+		method       string
+		path         string
 		expectRouted bool // true if route should be handled (not return generic 404)
-		description string
+		description  string
 	}{
 		{"GET", "/contents/list", true, "list contents endpoint"},
-		{"GET", "/contents/123e4567-e89b-12d3-a456-426614174000", true, "get content by ID endpoint"}, 
+		{"GET", "/contents/123e4567-e89b-12d3-a456-426614174000", true, "get content by ID endpoint"},
 		{"POST", "/contents/", true, "create content endpoint"},
 		{"GET", "/contents/invalid-id", true, "invalid ID should be handled by content handler"},
 	}

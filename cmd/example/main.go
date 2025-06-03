@@ -13,7 +13,6 @@ import (
 	"github.com/ilyakaznacheev/cleanenv"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/tendant/simple-content/pkg/model"
-	"github.com/tendant/simple-content/pkg/repository/memory"
 	psqlrepo "github.com/tendant/simple-content/pkg/repository/psql"
 	"github.com/tendant/simple-content/pkg/service"
 	"github.com/tendant/simple-content/pkg/storage/s3"
@@ -61,9 +60,7 @@ func main() {
 	objectRepo := repoFactory.NewObjectRepository()
 	objectMetadataRepo := repoFactory.NewObjectMetadataRepository()
 
-	// Create a custom implementation for storage backend repository
-	// since it's not provided by the factory
-	storageBackendRepo := memory.NewStorageBackendRepository()
+	// Storage backend repository no longer needed
 
 	// 3. Initialize S3 storage backend
 	s3Backend, err := initializeS3Backend()
@@ -75,14 +72,13 @@ func main() {
 	contentService := service.NewContentService(
 		contentRepo,
 		contentMetadataRepo,
-		objectRepo,
 	)
 
 	objectService := service.NewObjectService(
 		objectRepo,
 		objectMetadataRepo,
-		storageBackendRepo,
-		s3Backend,
+		contentRepo,
+		contentMetadataRepo,
 	)
 
 	// Register the S3 backend with the object service
@@ -141,7 +137,11 @@ func executeContentFlow(ctx context.Context, contentService *service.ContentServ
 
 	// 2. Create a new content
 	slog.Info("Creating new content...")
-	content, err := contentService.CreateContent(ctx, ownerID, tenantID)
+	createParams := service.CreateContentParams{
+		OwnerID:  ownerID,
+		TenantID: tenantID,
+	}
+	content, err := contentService.CreateContent(ctx, createParams)
 	if err != nil {
 		return fmt.Errorf("failed to create content: %w", err)
 	}
@@ -149,30 +149,33 @@ func executeContentFlow(ctx context.Context, contentService *service.ContentServ
 
 	// 3. Set content metadata
 	slog.Info("Setting content metadata...")
-	err = contentService.SetContentMetadata(
-		ctx,
-		content.ID,
-		"image/jpeg",
-		"Example Image",
-		"This is an example image uploaded through the content flow",
-		[]string{"example", "image", "test"},
-		0, // File size will be updated later
-		"example-user",
-		map[string]interface{}{
+	metadataParams := service.SetContentMetadataParams{
+		ContentID:   content.ID,
+		ContentType: "image/jpeg",
+		Title:       "Example Image",
+		Description: "This is an example image uploaded through the content flow",
+		Tags:        []string{"example", "image", "test"},
+		FileSize:    0, // File size will be updated later
+		CreatedBy:   "example-user",
+		CustomMetadata: map[string]interface{}{
 			"source": "example-app",
 		},
-	)
+	}
+	err = contentService.SetContentMetadata(ctx, metadataParams)
 	if err != nil {
 		return fmt.Errorf("failed to set content metadata: %w", err)
 	}
 
 	// 4. Create a new object for the content
 	slog.Info("Creating new object...")
+	createObjectParams := service.CreateObjectParams{
+		ContentID:          content.ID,
+		StorageBackendName: "s3-default", // Use the S3 storage backend
+		Version:            1,            // Version 1
+	}
 	object, err := objectService.CreateObject(
 		ctx,
-		content.ID,
-		"s3-default", // Use the S3 storage backend
-		1,            // Version 1
+		createObjectParams,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create object: %w", err)
@@ -206,7 +209,10 @@ func executeContentFlow(ctx context.Context, contentService *service.ContentServ
 	slog.Info("Updating content status to uploaded...")
 	content.Status = model.ContentStatusUploaded
 	content.UpdatedAt = time.Now().UTC()
-	err = contentService.UpdateContent(ctx, content)
+	updateParams := service.UpdateContentParams{
+		Content: content,
+	}
+	err = contentService.UpdateContent(ctx, updateParams)
 	if err != nil {
 		return fmt.Errorf("failed to update content status: %w", err)
 	}

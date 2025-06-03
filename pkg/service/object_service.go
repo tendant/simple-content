@@ -15,26 +15,26 @@ import (
 
 // ObjectService handles object-related operations
 type ObjectService struct {
-	objectRepo         repository.ObjectRepository
-	objectMetadataRepo repository.ObjectMetadataRepository
-	storageBackendRepo repository.StorageBackendRepository
-	defaultBackend     storage.Backend
-	backends           map[string]storage.Backend
+	objectRepo          repository.ObjectRepository
+	objectMetadataRepo  repository.ObjectMetadataRepository
+	contentRepo         repository.ContentRepository
+	contentMetadataRepo repository.ContentMetadataRepository
+	backends            map[string]storage.Backend
 }
 
 // NewObjectService creates a new object service
 func NewObjectService(
 	objectRepo repository.ObjectRepository,
 	objectMetadataRepo repository.ObjectMetadataRepository,
-	storageBackendRepo repository.StorageBackendRepository,
-	defaultBackend storage.Backend,
+	contentRepo repository.ContentRepository,
+	contentMetadataRepo repository.ContentMetadataRepository,
 ) *ObjectService {
 	return &ObjectService{
-		objectRepo:         objectRepo,
-		objectMetadataRepo: objectMetadataRepo,
-		storageBackendRepo: storageBackendRepo,
-		defaultBackend:     defaultBackend,
-		backends:           make(map[string]storage.Backend),
+		objectRepo:          objectRepo,
+		objectMetadataRepo:  objectMetadataRepo,
+		contentRepo:         contentRepo,
+		contentMetadataRepo: contentMetadataRepo,
+		backends:            make(map[string]storage.Backend),
 	}
 }
 
@@ -52,32 +52,58 @@ func (s *ObjectService) GetBackend(name string) (storage.Backend, error) {
 	return backend, nil
 }
 
-// CreateObject creates a new object
+// CreateObjectParams contains parameters for creating an object
+type CreateObjectParams struct {
+	ContentID          uuid.UUID
+	StorageBackendName string
+	Version            int
+	ObjectKey          string
+}
+
+// CreateObject creates a new object for a content
 func (s *ObjectService) CreateObject(
 	ctx context.Context,
-	contentID uuid.UUID,
-	storageBackendName string,
-	version int,
+	params CreateObjectParams,
 ) (*model.Object, error) {
 	// Verify storage backend exists
-	_, err := s.GetBackend(storageBackendName)
+	_, err := s.GetBackend(params.StorageBackendName)
 	if err != nil {
 		return nil, err
 	}
 
-	now := time.Now()
+	// Get content metadata (optional)
+	var contentMetadata *model.ContentMetadata
+	contentMetadata, err = s.contentMetadataRepo.Get(ctx, params.ContentID)
+	if err != nil {
+		// Log the error but continue without metadata
+		slog.Warn("Warning: %v", "err", err)
+		// Don't return error, just proceed with nil metadata
+	}
+
+	now := time.Now().UTC()
 	objectID := uuid.New()
-	objectKey := fmt.Sprintf("%s/%s", contentID, objectID)
+
+	// Use provided ObjectKey if available, otherwise generate one
+	objectKey := params.ObjectKey
+	if objectKey == "" {
+		objectKey = GenerateObjectKey(params.ContentID, objectID, contentMetadata)
+	}
 
 	object := &model.Object{
 		ID:                 objectID,
-		ContentID:          contentID,
-		StorageBackendName: storageBackendName,
-		Version:            version,
+		ContentID:          params.ContentID,
+		StorageBackendName: params.StorageBackendName,
+		Version:            params.Version,
 		ObjectKey:          objectKey,
 		Status:             model.ObjectStatusCreated,
 		CreatedAt:          now,
 		UpdatedAt:          now,
+	}
+
+	// Add metadata-derived fields if available
+	if contentMetadata != nil {
+		object.ObjectType = contentMetadata.MimeType
+		object.FileName = contentMetadata.FileName
 	}
 
 	if err := s.objectRepo.Create(ctx, object); err != nil {
@@ -262,24 +288,52 @@ func (s *ObjectService) SetObjectMetadata(ctx context.Context, objectID uuid.UUI
 		return err
 	}
 
-	// Create or update the object metadata
-	objectMetadata := &model.ObjectMetadata{
-		ObjectID:  objectID,
-		UpdatedAt: time.Now().UTC(),
+	// Get existing metadata or create new
+	var objectMetadata *model.ObjectMetadata
+	existing, err := s.objectMetadataRepo.Get(ctx, objectID)
+	if err == nil {
+		// Update existing metadata
+		objectMetadata = existing
+		// If Metadata is nil, initialize it
+		if objectMetadata.Metadata == nil {
+			objectMetadata.Metadata = make(map[string]interface{})
+		}
+	} else {
+		// Create new metadata
+		objectMetadata = &model.ObjectMetadata{
+			ObjectID:  objectID,
+			CreatedAt: time.Now().UTC(),
+			Metadata:  make(map[string]interface{}),
+		}
 	}
+
+	// Update the timestamp
+	objectMetadata.UpdatedAt = time.Now().UTC()
+
+	// Extract specific fields and also store in the Metadata map
 	if _, ok := metadata["etag"]; ok {
 		if etag, ok := metadata["etag"].(string); ok {
 			objectMetadata.ETag = etag
+			objectMetadata.Metadata["etag"] = etag
 		}
 	}
 	if _, ok := metadata["size_bytes"]; ok {
 		if size_bytes, ok := metadata["size_bytes"].(int64); ok {
 			objectMetadata.SizeBytes = size_bytes
+			objectMetadata.Metadata["size_bytes"] = size_bytes
 		}
 	}
 	if _, ok := metadata["mime_type"]; ok {
 		if mime_type, ok := metadata["mime_type"].(string); ok {
 			objectMetadata.MimeType = mime_type
+			objectMetadata.Metadata["mime_type"] = mime_type
+		}
+	}
+
+	// Copy all other metadata fields
+	for k, v := range metadata {
+		if k != "etag" && k != "size_bytes" && k != "mime_type" {
+			objectMetadata.Metadata[k] = v
 		}
 	}
 
@@ -324,6 +378,31 @@ func (s *ObjectService) GetObjectMetaFromStorage(ctx context.Context, objectID u
 	}
 
 	return objectMeta, nil
+}
+
+// GenerateObjectKey creates an object key based on content ID, object ID and content metadata
+func GenerateObjectKey(contentID, objectID uuid.UUID, contentMetadata *model.ContentMetadata) string {
+	if contentMetadata != nil && contentMetadata.FileName != "" {
+		return fmt.Sprintf("C/%s/%s/%s", contentID, objectID, contentMetadata.FileName)
+	}
+	return fmt.Sprintf("C/%s/%s", contentID, objectID)
+}
+
+// GetLatestVersionObject returns the object with the highest version number from a slice of objects.
+// If there are multiple objects with the same highest version, it returns the first one found.
+func GetLatestVersionObject(objects []*model.Object) *model.Object {
+	if len(objects) == 0 {
+		return nil
+	}
+
+	latestObject := objects[0]
+	for _, obj := range objects[1:] {
+		if obj.Version > latestObject.Version {
+			latestObject = obj
+		}
+	}
+
+	return latestObject
 }
 
 // UpdateObjectMetaFromStorage updates object metadata using information retrieved from the storage backend
