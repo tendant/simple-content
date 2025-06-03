@@ -109,8 +109,10 @@ func (h *FilesHandler) CreateFile(w http.ResponseWriter, r *http.Request) {
 
 	// Create content
 	createParams := service.CreateContentParams{
-		OwnerID:  ownerID,
-		TenantID: tenantID,
+		OwnerID:      ownerID,
+		TenantID:     tenantID,
+		Title:        req.FileName,
+		DocumentType: req.DocumentType,
 	}
 	content, err := h.contentService.CreateContent(r.Context(), createParams)
 	if err != nil {
@@ -122,8 +124,6 @@ func (h *FilesHandler) CreateFile(w http.ResponseWriter, r *http.Request) {
 
 	// Update content for missing fields
 	content.OwnerType = req.OwnerType
-	content.Name = req.FileName
-	content.DocumentType = req.DocumentType
 	updateParams := service.UpdateContentParams{
 		Content: content,
 	}
