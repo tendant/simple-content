@@ -17,9 +17,10 @@ func setupObjectService() (*service.ObjectService, *memorystorage.MemoryBackend)
 	objectRepo := memory.NewObjectRepository()
 	objectMetadataRepo := memory.NewObjectMetadataRepository()
 	contentRepo := memory.NewContentRepository()
+	contentMetadataRepo := memory.NewContentMetadataRepository()
 	backend := memorystorage.NewMemoryBackend().(*memorystorage.MemoryBackend)
 
-	service := service.NewObjectService(objectRepo, objectMetadataRepo, contentRepo)
+	service := service.NewObjectService(objectRepo, objectMetadataRepo, contentRepo, contentMetadataRepo)
 	service.RegisterBackend("memory", backend)
 	return service, backend
 }

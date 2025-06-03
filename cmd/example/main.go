@@ -78,6 +78,7 @@ func main() {
 		objectRepo,
 		objectMetadataRepo,
 		contentRepo,
+		contentMetadataRepo,
 	)
 
 	// Register the S3 backend with the object service

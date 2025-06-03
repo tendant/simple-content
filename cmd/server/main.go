@@ -42,7 +42,7 @@ func main() {
 
 	// Initialize services
 	contentService := service.NewContentService(contentRepo, contentMetadataRepo)
-	objectService := service.NewObjectService(objectRepo, objectMetadataRepo, contentRepo)
+	objectService := service.NewObjectService(objectRepo, objectMetadataRepo, contentRepo, contentMetadataRepo)
 	storageBackendService := service.NewStorageBackendService(storageBackendRepo)
 
 	// Register the storage backends with the object service
