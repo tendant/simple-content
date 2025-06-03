@@ -71,13 +71,19 @@ func (s *ObjectService) CreateObject(
 		return nil, err
 	}
 
+	// Get content metadata
+	contentMetadata, err := s.contentMetadataRepo.Get(ctx, params.ContentID)
+	if err != nil {
+		return nil, err
+	}
+
 	now := time.Now().UTC()
 	objectID := uuid.New()
 
 	// Use provided ObjectKey if available, otherwise generate one
 	objectKey := params.ObjectKey
 	if objectKey == "" {
-		objectKey = fmt.Sprintf("%s/%s", params.ContentID, objectID)
+		objectKey = GenerateObjectKey(params.ContentID, objectID, contentMetadata)
 	}
 
 	object := &model.Object{
@@ -86,6 +92,8 @@ func (s *ObjectService) CreateObject(
 		StorageBackendName: params.StorageBackendName,
 		Version:            params.Version,
 		ObjectKey:          objectKey,
+		ObjectType:         contentMetadata.MimeType,
+		FileName:           contentMetadata.FileName,
 		Status:             model.ObjectStatusCreated,
 		CreatedAt:          now,
 		UpdatedAt:          now,
