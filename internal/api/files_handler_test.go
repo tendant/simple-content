@@ -135,11 +135,13 @@ func TestFilesHandler_CreateFile(t *testing.T) {
 
 	// Create request
 	req := CreateFileRequest{
-		OwnerID:  uuid.New().String(),
-		TenantID: uuid.New().String(),
-		FileName: "test.txt",
-		MimeType: "text/plain",
-		FileSize: 1024,
+		OwnerID:      uuid.New().String(),
+		OwnerType:    "user",
+		TenantID:     uuid.New().String(),
+		FileName:     "test.txt",
+		MimeType:     "text/plain",
+		FileSize:     1024,
+		DocumentType: "document", // Add the required DocumentType field
 	}
 
 	reqBody, err := json.Marshal(req)
@@ -183,7 +185,25 @@ func TestFilesHandler_CompleteUpload(t *testing.T) {
 	content, err := handler.contentService.CreateContent(context.Background(), createParams)
 	require.NoError(t, err)
 
-	object, err := handler.objectService.CreateObject(context.Background(), content.ID, "s3-default", 1)
+	createObjectParams := service.CreateObjectParams{
+		ContentID:          content.ID,
+		StorageBackendName: "s3-default",
+		Version:            1,
+	}
+	object, err := handler.objectService.CreateObject(context.Background(), createObjectParams)
+	require.NoError(t, err)
+
+	// Set content metadata which is required for CompleteUpload
+	metadataParams := service.SetContentMetadataParams{
+		ContentID:   content.ID,
+		ContentType: "text/plain",
+		Title:       "Test File",
+		Description: "Test file for upload",
+		Tags:        []string{"test", "upload"},
+		FileSize:    int64(len("test file content")),
+		CreatedBy:   "test-user",
+	}
+	err = handler.contentService.SetContentMetadata(context.Background(), metadataParams)
 	require.NoError(t, err)
 
 	// Simulate uploading the file to storage (this is what would happen client-side)
@@ -288,7 +308,12 @@ func TestFilesHandler_GetFileInfo(t *testing.T) {
 	content, err := handler.contentService.CreateContent(context.Background(), createParams)
 	require.NoError(t, err)
 
-	object, err := handler.objectService.CreateObject(context.Background(), content.ID, "s3-default", 1)
+	createObjectParams := service.CreateObjectParams{
+		ContentID:          content.ID,
+		StorageBackendName: "s3-default",
+		Version:            1,
+	}
+	object, err := handler.objectService.CreateObject(context.Background(), createObjectParams)
 	require.NoError(t, err)
 
 	// Set some metadata

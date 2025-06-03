@@ -73,7 +73,12 @@ func (h *ObjectHandler) CreateObject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	object, err := h.objectService.CreateObject(r.Context(), contentID, req.StorageBackendName, req.Version)
+	createObjectParams := service.CreateObjectParams{
+		ContentID:          contentID,
+		StorageBackendName: req.StorageBackendName,
+		Version:            req.Version,
+	}
+	object, err := h.objectService.CreateObject(r.Context(), createObjectParams)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

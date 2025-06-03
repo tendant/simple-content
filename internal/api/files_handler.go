@@ -155,7 +155,12 @@ func (h *FilesHandler) CreateFile(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Create object with default storage backend
-	object, err := h.objectService.CreateObject(r.Context(), content.ID, "s3-default", 1)
+	createObjectParams := service.CreateObjectParams{
+		ContentID:          content.ID,
+		StorageBackendName: "s3-default",
+		Version:            1,
+	}
+	object, err := h.objectService.CreateObject(r.Context(), createObjectParams)
 	if err != nil {
 		slog.Error("Failed to create object", "err", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)

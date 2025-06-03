@@ -167,11 +167,14 @@ func executeContentFlow(ctx context.Context, contentService *service.ContentServ
 
 	// 4. Create a new object for the content
 	slog.Info("Creating new object...")
+	createObjectParams := service.CreateObjectParams{
+		ContentID:          content.ID,
+		StorageBackendName: "s3-default", // Use the S3 storage backend
+		Version:            1,            // Version 1
+	}
 	object, err := objectService.CreateObject(
 		ctx,
-		content.ID,
-		"s3-default", // Use the S3 storage backend
-		1,            // Version 1
+		createObjectParams,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create object: %w", err)

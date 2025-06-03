@@ -30,7 +30,12 @@ func TestObjectService_CreateAndGetObject(t *testing.T) {
 	contentID := uuid.New()
 	version := 1
 
-	object, err := svc.CreateObject(ctx, contentID, "memory", version)
+	createObjectParams := service.CreateObjectParams{
+		ContentID:          contentID,
+		StorageBackendName: "memory",
+		Version:            version,
+	}
+	object, err := svc.CreateObject(ctx, createObjectParams)
 	assert.NoError(t, err)
 	assert.NotNil(t, object)
 	assert.Equal(t, contentID, object.ContentID)
@@ -46,7 +51,12 @@ func TestObjectService_UpdateObject(t *testing.T) {
 	svc, _ := setupObjectService()
 	ctx := context.Background()
 	contentID := uuid.New()
-	object, err := svc.CreateObject(ctx, contentID, "memory", 1)
+	createObjectParams := service.CreateObjectParams{
+		ContentID:          contentID,
+		StorageBackendName: "memory",
+		Version:            1,
+	}
+	object, err := svc.CreateObject(ctx, createObjectParams)
 	assert.NoError(t, err)
 
 	object.Version = 2
@@ -62,7 +72,12 @@ func TestObjectService_DeleteObject(t *testing.T) {
 	svc, backend := setupObjectService()
 	ctx := context.Background()
 	contentID := uuid.New()
-	object, err := svc.CreateObject(ctx, contentID, "memory", 1)
+	createObjectParams := service.CreateObjectParams{
+		ContentID:          contentID,
+		StorageBackendName: "memory",
+		Version:            1,
+	}
+	object, err := svc.CreateObject(ctx, createObjectParams)
 	assert.NoError(t, err)
 
 	// Upload some data to storage
@@ -79,7 +94,12 @@ func TestObjectService_UploadAndDownloadObject(t *testing.T) {
 	svc, _ := setupObjectService()
 	ctx := context.Background()
 	contentID := uuid.New()
-	object, err := svc.CreateObject(ctx, contentID, "memory", 1)
+	createObjectParams := service.CreateObjectParams{
+		ContentID:          contentID,
+		StorageBackendName: "memory",
+		Version:            1,
+	}
+	object, err := svc.CreateObject(ctx, createObjectParams)
 	assert.NoError(t, err)
 
 	data := []byte("hello world")
@@ -97,7 +117,12 @@ func TestObjectService_SetAndGetObjectMetadata(t *testing.T) {
 	svc, _ := setupObjectService()
 	ctx := context.Background()
 	contentID := uuid.New()
-	object, err := svc.CreateObject(ctx, contentID, "memory", 1)
+	createObjectParams := service.CreateObjectParams{
+		ContentID:          contentID,
+		StorageBackendName: "memory",
+		Version:            1,
+	}
+	object, err := svc.CreateObject(ctx, createObjectParams)
 	assert.NoError(t, err)
 
 	// Test with custom metadata fields
@@ -141,9 +166,19 @@ func TestObjectService_GetObjectsByContentID(t *testing.T) {
 	svc, _ := setupObjectService()
 	ctx := context.Background()
 	contentID := uuid.New()
-	object1, err := svc.CreateObject(ctx, contentID, "memory", 1)
+	createObjectParams1 := service.CreateObjectParams{
+		ContentID:          contentID,
+		StorageBackendName: "memory",
+		Version:            1,
+	}
+	object1, err := svc.CreateObject(ctx, createObjectParams1)
 	assert.NoError(t, err)
-	object2, err := svc.CreateObject(ctx, contentID, "memory", 2)
+	createObjectParams2 := service.CreateObjectParams{
+		ContentID:          contentID,
+		StorageBackendName: "memory",
+		Version:            2,
+	}
+	object2, err := svc.CreateObject(ctx, createObjectParams2)
 	assert.NoError(t, err)
 
 	objects, err := svc.GetObjectsByContentID(ctx, contentID)
