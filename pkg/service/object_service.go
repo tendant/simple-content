@@ -365,6 +365,14 @@ func (s *ObjectService) GetObjectMetaFromStorage(ctx context.Context, objectID u
 	return objectMeta, nil
 }
 
+// GenerateObjectKey creates an object key based on content ID, object ID and content metadata
+func GenerateObjectKey(contentID, objectID uuid.UUID, contentMetadata *model.ContentMetadata) string {
+	if contentMetadata != nil && contentMetadata.FileName != "" {
+		return fmt.Sprintf("C/%s/%s/%s", contentID, objectID, contentMetadata.FileName)
+	}
+	return fmt.Sprintf("C/%s/%s", contentID, objectID)
+}
+
 // UpdateObjectMetaFromStorage updates object metadata using information retrieved from the storage backend
 // This is useful after a client-side upload to update our metadata and object status
 func (s *ObjectService) UpdateObjectMetaFromStorage(ctx context.Context, objectID uuid.UUID) (model.ObjectMetadata, error) {
