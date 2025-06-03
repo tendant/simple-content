@@ -29,8 +29,11 @@ func NewContentService(
 
 // CreateContentParams contains parameters for creating new content
 type CreateContentParams struct {
-	OwnerID  uuid.UUID
-	TenantID uuid.UUID
+	OwnerID      uuid.UUID
+	TenantID     uuid.UUID
+	Title        string
+	Description  string
+	DocumentType string
 }
 
 // CreateContent creates a new content
@@ -45,6 +48,9 @@ func (s *ContentService) CreateContent(
 		UpdatedAt:      now,
 		OwnerID:        params.OwnerID,
 		TenantID:       params.TenantID,
+		Name:           params.Title,
+		Description:    params.Description,
+		DocumentType:   params.DocumentType,
 		Status:         model.ContentStatusCreated,
 		DerivationType: model.ContentDerivationTypeOriginal,
 	}
@@ -150,6 +156,7 @@ type SetContentMetadataParams struct {
 	Title          string
 	Description    string
 	Tags           []string
+	FileName       string
 	FileSize       int64
 	CreatedBy      string
 	CustomMetadata map[string]interface{}
@@ -168,11 +175,10 @@ func (s *ContentService) SetContentMetadata(
 
 	// Create content metadata
 	contentMetadata := &model.ContentMetadata{
-		ContentID:   params.ContentID,
-		Tags:        params.Tags,
-		FileSize:    params.FileSize,
-		UpdatedAt:   time.Now().UTC(),
-		Metadata:    make(map[string]interface{}),
+		ContentID: params.ContentID,
+		Tags:      params.Tags,
+		UpdatedAt: time.Now().UTC(),
+		Metadata:  make(map[string]interface{}),
 	}
 
 	// Set mime type if provided in content type
@@ -181,12 +187,24 @@ func (s *ContentService) SetContentMetadata(
 		contentMetadata.Metadata["content_type"] = params.ContentType
 	}
 
+	// Set file name if provided
+	if params.FileName != "" {
+		contentMetadata.FileName = params.FileName
+		contentMetadata.Metadata["file_name"] = params.FileName
+	}
+
+	// Set file size if provided
+	if params.FileSize > 0 {
+		contentMetadata.FileSize = params.FileSize
+		contentMetadata.Metadata["file_size"] = params.FileSize
+	}
+
 	// Copy custom metadata if provided
 	if params.CustomMetadata != nil {
 		for k, v := range params.CustomMetadata {
 			contentMetadata.Metadata[k] = v
 		}
-		
+
 		// Extract file name and mime type if present in custom metadata
 		if fileName, ok := params.CustomMetadata["file_name"].(string); ok {
 			contentMetadata.FileName = fileName
