@@ -199,6 +199,7 @@ func TestFilesHandler_CompleteUpload(t *testing.T) {
 		ContentType: "text/plain",
 		Title:       "Test File",
 		Description: "Test file for upload",
+		FileName:    "test.txt",
 		Tags:        []string{"test", "upload"},
 		FileSize:    int64(len("test file content")),
 		CreatedBy:   "test-user",
@@ -316,7 +317,21 @@ func TestFilesHandler_GetFileInfo(t *testing.T) {
 	object, err := handler.objectService.CreateObject(context.Background(), createObjectParams)
 	require.NoError(t, err)
 
-	// Set some metadata
+	// Set content metadata
+	metadataParams := service.SetContentMetadataParams{
+		ContentID:   content.ID,
+		ContentType: "text/plain",
+		Title:       "Test File",
+		Description: "Test file for info",
+		FileName:    "test.txt",
+		Tags:        []string{"test", "info"},
+		FileSize:    int64(len("test file content")),
+		CreatedBy:   "test-user",
+	}
+	err = handler.contentService.SetContentMetadata(context.Background(), metadataParams)
+	require.NoError(t, err)
+
+	// Set some object metadata
 	err = handler.objectService.SetObjectMetadata(context.Background(), object.ID, map[string]interface{}{
 		"filename": "test.txt",
 	})

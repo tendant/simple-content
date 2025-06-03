@@ -22,10 +22,16 @@ func TestContentService_CreateContent(t *testing.T) {
 
 	ownerID := uuid.New()
 	tenantID := uuid.New()
+	title := "Test Document"
+	description := "This is a test document"
+	documentType := "pdf"
 
 	params := service.CreateContentParams{
-		OwnerID:  ownerID,
-		TenantID: tenantID,
+		OwnerID:      ownerID,
+		TenantID:     tenantID,
+		Title:        title,
+		Description:  description,
+		DocumentType: documentType,
 	}
 
 	content, err := svc.CreateContent(ctx, params)
@@ -33,6 +39,9 @@ func TestContentService_CreateContent(t *testing.T) {
 	assert.NotNil(t, content)
 	assert.Equal(t, ownerID, content.OwnerID)
 	assert.Equal(t, tenantID, content.TenantID)
+	assert.Equal(t, title, content.Name)
+	assert.Equal(t, description, content.Description)
+	assert.Equal(t, documentType, content.DocumentType)
 	assert.Equal(t, "original", content.DerivationType)
 	// Note: DerivationLevel and ParentID have been removed from the Content struct
 }
@@ -142,6 +151,7 @@ func TestContentService_SetContentMetadata(t *testing.T) {
 	title := "Test Video"
 	description := "A test video"
 	tags := []string{"test", "video"}
+	fileName := "test_video.mp4"
 	fileSize := int64(1024)
 	createdBy := "Test User"
 	customMetadata := map[string]interface{}{
@@ -154,6 +164,7 @@ func TestContentService_SetContentMetadata(t *testing.T) {
 		Title:          title,
 		Description:    description,
 		Tags:           tags,
+		FileName:       fileName,
 		FileSize:       fileSize,
 		CreatedBy:      createdBy,
 		CustomMetadata: customMetadata,
@@ -164,13 +175,18 @@ func TestContentService_SetContentMetadata(t *testing.T) {
 	// Get metadata
 	metadata, err := svc.GetContentMetadata(ctx, content.ID)
 	assert.NoError(t, err)
-	// ContentType, Title, Description, and CreatedBy are now stored in the Metadata map
+
+	// Verify metadata fields are correctly stored
+	assert.Equal(t, contentType, metadata.MimeType)
 	assert.Equal(t, contentType, metadata.Metadata["content_type"])
-	// assert.Equal(t, title, metadata.Metadata["title"])
-	// assert.Equal(t, description, metadata.Metadata["description"])
+	assert.Equal(t, title, metadata.Metadata["title"])
+	assert.Equal(t, description, metadata.Metadata["description"])
 	assert.Equal(t, tags, metadata.Tags)
+	assert.Equal(t, fileName, metadata.FileName)
+	assert.Equal(t, fileName, metadata.Metadata["file_name"])
 	assert.Equal(t, fileSize, metadata.FileSize)
-	// assert.Equal(t, createdBy, metadata.Metadata["created_by"])
+	assert.Equal(t, fileSize, metadata.Metadata["file_size"].(int64))
+	assert.Equal(t, createdBy, metadata.Metadata["created_by"])
 	assert.Equal(t, "00:01:30", metadata.Metadata["duration"])
 }
 
