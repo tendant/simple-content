@@ -15,10 +15,11 @@ import (
 
 // ObjectService handles object-related operations
 type ObjectService struct {
-	objectRepo         repository.ObjectRepository
-	objectMetadataRepo repository.ObjectMetadataRepository
-	contentRepo        repository.ContentRepository
-	backends           map[string]storage.Backend
+	objectRepo          repository.ObjectRepository
+	objectMetadataRepo  repository.ObjectMetadataRepository
+	contentRepo         repository.ContentRepository
+	contentMetadataRepo repository.ContentMetadataRepository
+	backends            map[string]storage.Backend
 }
 
 // NewObjectService creates a new object service
@@ -26,12 +27,14 @@ func NewObjectService(
 	objectRepo repository.ObjectRepository,
 	objectMetadataRepo repository.ObjectMetadataRepository,
 	contentRepo repository.ContentRepository,
+	contentMetadataRepo repository.ContentMetadataRepository,
 ) *ObjectService {
 	return &ObjectService{
-		objectRepo:         objectRepo,
-		objectMetadataRepo: objectMetadataRepo,
-		contentRepo:        contentRepo,
-		backends:           make(map[string]storage.Backend),
+		objectRepo:          objectRepo,
+		objectMetadataRepo:  objectMetadataRepo,
+		contentRepo:         contentRepo,
+		contentMetadataRepo: contentMetadataRepo,
+		backends:            make(map[string]storage.Backend),
 	}
 }
 
