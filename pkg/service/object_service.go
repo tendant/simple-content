@@ -49,28 +49,39 @@ func (s *ObjectService) GetBackend(name string) (storage.Backend, error) {
 	return backend, nil
 }
 
-// CreateObject creates a new object
+// CreateObjectParams contains parameters for creating an object
+type CreateObjectParams struct {
+	ContentID          uuid.UUID
+	StorageBackendName string
+	Version            int
+	ObjectKey          string
+}
+
+// CreateObject creates a new object for a content
 func (s *ObjectService) CreateObject(
 	ctx context.Context,
-	contentID uuid.UUID,
-	storageBackendName string,
-	version int,
+	params CreateObjectParams,
 ) (*model.Object, error) {
 	// Verify storage backend exists
-	_, err := s.GetBackend(storageBackendName)
+	_, err := s.GetBackend(params.StorageBackendName)
 	if err != nil {
 		return nil, err
 	}
 
-	now := time.Now()
+	now := time.Now().UTC()
 	objectID := uuid.New()
-	objectKey := fmt.Sprintf("%s/%s", contentID, objectID)
+
+	// Use provided ObjectKey if available, otherwise generate one
+	objectKey := params.ObjectKey
+	if objectKey == "" {
+		objectKey = fmt.Sprintf("%s/%s", params.ContentID, objectID)
+	}
 
 	object := &model.Object{
 		ID:                 objectID,
-		ContentID:          contentID,
-		StorageBackendName: storageBackendName,
-		Version:            version,
+		ContentID:          params.ContentID,
+		StorageBackendName: params.StorageBackendName,
+		Version:            params.Version,
 		ObjectKey:          objectKey,
 		Status:             model.ObjectStatusCreated,
 		CreatedAt:          now,
