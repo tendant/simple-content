@@ -34,6 +34,7 @@ func TestServerSetup(t *testing.T) {
 		objectRepo,
 		objectMetadataRepo,
 		contentRepo,
+		contentMetadataRepo,
 	)
 
 	// Register the in-memory backend
@@ -94,6 +95,7 @@ func TestContentRoutes(t *testing.T) {
 		objectRepo,
 		objectMetadataRepo,
 		contentRepo,
+		contentMetadataRepo,
 	)
 
 	// Register the in-memory backend
