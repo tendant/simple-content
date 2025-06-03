@@ -137,17 +137,12 @@ func (h *FilesHandler) CreateFile(w http.ResponseWriter, r *http.Request) {
 	metadataParams := service.SetContentMetadataParams{
 		ContentID:   content.ID,
 		ContentType: req.MimeType,
-		Title:       "title",
+		FileName:    req.FileName,
+		Title:       req.FileName,
 		Description: "description",
 		Tags:        nil,
 		FileSize:    req.FileSize, // File size will be updated later
 		CreatedBy:   ownerID.String(),
-		// add not included fields to custom metadata
-		CustomMetadata: map[string]interface{}{
-			"file_name":     req.FileName,
-			"mime_type":     req.MimeType,
-			"document_type": req.DocumentType,
-		},
 	}
 	err = h.contentService.SetContentMetadata(r.Context(), metadataParams)
 	if err != nil {
@@ -393,7 +388,6 @@ func (h *FilesHandler) GetFileInfo(w http.ResponseWriter, r *http.Request) {
 			Metadata:  make(map[string]interface{}),
 		}
 	}
-	slog.Info("Content metadata found", "metadata", metadata)
 
 	// Get objects for this content
 	objects, err := h.objectService.GetObjectsByContentID(r.Context(), contentID)
