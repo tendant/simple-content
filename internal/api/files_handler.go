@@ -256,12 +256,13 @@ func (h *FilesHandler) CompleteUpload(w http.ResponseWriter, r *http.Request) {
 	metadataParams := service.SetContentMetadataParams{
 		ContentID:      contentID,
 		ContentType:    object_meta.MimeType,
-		Title:          "",
-		Description:    "",
+		Title:          content.Name,
+		Description:    content.Description,
 		Tags:           content_meta.Tags,
 		FileSize:       object_meta.SizeBytes,
 		CreatedBy:      "",
 		CustomMetadata: content_meta.Metadata,
+		FileName:       content_meta.FileName,
 	}
 	if err := h.contentService.SetContentMetadata(r.Context(), metadataParams); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -340,10 +341,10 @@ func (h *FilesHandler) UpdateMetadata(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Content metadata not found", http.StatusNotFound)
 			return
 		}
-		slog.Info("Content metadata found", "metadata", req.Metadata)
 		// Update content metadata
 		metadataParams := service.SetContentMetadataParams{
 			ContentID:      contentID,
+			FileName:       content_meta.FileName,
 			ContentType:    content_meta.MimeType,
 			Title:          title,
 			Description:    description,
