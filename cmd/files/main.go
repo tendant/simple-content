@@ -7,24 +7,34 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/go-chi/jwtauth"
 	"github.com/go-chi/render"
 	"github.com/ilyakaznacheev/cleanenv"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/tendant/ce-client/ce"
 	"github.com/tendant/chi-demo/app"
 	"github.com/tendant/simple-content/internal/api"
 	psqlrepo "github.com/tendant/simple-content/pkg/repository/psql"
 	"github.com/tendant/simple-content/pkg/service"
 	"github.com/tendant/simple-content/pkg/storage/s3"
+	"github.com/torpago/app-server/auth"
 )
 
 type Config struct {
-	Server ServerConfig `env-prefix:"SERVER_"`
-	DB     DbConfig     `env-prefix:"DB_"`
-	S3     S3Config     `env-prefix:"S3_"`
+	Server       ServerConfig `env-prefix:"SERVER_"`
+	DB           DbConfig     `env-prefix:"DB_"`
+	S3           S3Config     `env-prefix:"S3_"`
+	JwtSecret    string       `env:"JWT_SECRET" env-default:"very-secure-jwt-secret"`
+	NoticeConfig NoticeConfig
+}
+
+type NoticeConfig struct {
+	EventAuditUrl string `env:"EVENT_AUDIT_URL" env-default:"http://localhost:14000/events"`
 }
 
 type ServerConfig struct {
@@ -164,9 +174,27 @@ func main() {
 	contentHandler := api.NewContentHandler(contentService, objectService)
 	filesHandler := api.NewFilesHandler(contentService, objectService)
 
-	// Routes
-	server.R.Mount("/contents", contentHandler.Routes())
-	server.R.Mount("/files", filesHandler.Routes())
+	var wg sync.WaitGroup
+	audit, err := ce.NewEventClient(context.Background(), &wg, config.NoticeConfig.EventAuditUrl)
+	if err != nil {
+		slog.Error("Failed to create event audit client", "err", err)
+	}
+	auditMiddleware := auth.Middleware{
+		NoticeVersion: "notice/v4",
+		EventClient:   audit,
+	}
+
+	tokenAuth := jwtauth.New("HS256", []byte(config.JwtSecret), nil)
+	server.R.Route("/", func(r chi.Router) {
+		r.Group(func(r chi.Router) {
+			r.Use(auth.Verifier(tokenAuth))
+			r.Use(jwtauth.Authenticator)
+			r.Use(auth.IdmMiddleware)
+			r.Use(auditMiddleware.AuditIdmMiddleware)
+			r.Mount("/files", filesHandler.Routes())
+			r.Mount("/contents", contentHandler.Routes())
+		})
+	})
 
 	// Start server
 	server.Run()
