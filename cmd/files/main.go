@@ -11,8 +11,10 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/go-chi/render"
 	"github.com/ilyakaznacheev/cleanenv"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/tendant/chi-demo/app"
 	"github.com/tendant/simple-content/internal/api"
 	psqlrepo "github.com/tendant/simple-content/pkg/repository/psql"
 	"github.com/tendant/simple-content/pkg/service"
@@ -39,7 +41,7 @@ type DbConfig struct {
 }
 
 type S3Config struct {
-	Endpoint        string `env:"ENDPOINT" env-default:"localhost:9000"`
+	Endpoint        string `env:"ENDPOINT" env-default:"http://localhost:9000"`
 	AccessKeyID     string `env:"ACCESS_KEY_ID" env-default:"minioadmin"`
 	SecretAccessKey string `env:"SECRET_ACCESS_KEY" env-default:"minioadmin"`
 	BucketName      string `env:"BUCKET_NAME" env-default:"content-bucket"`
@@ -121,8 +123,6 @@ func main() {
 	objectRepo := repoFactory.NewObjectRepository()
 	objectMetadataRepo := repoFactory.NewObjectMetadataRepository()
 
-	// Storage backend repository no longer needed
-
 	// Initialize S3 storage backend
 	s3Backend, err := initializeS3Backend(config.S3)
 	if err != nil {
@@ -155,26 +155,31 @@ func main() {
 	r.Use(middleware.RequestID)
 	r.Use(middleware.Timeout(60 * time.Second))
 
-	// Health check
-	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("OK"))
-	})
+	server := app.DefaultApp()
+
+	app.RoutesHealthz(server.R)
+	app.RoutesHealthzReady(server.R)
 
 	// Initialize API handlers
 	contentHandler := api.NewContentHandler(contentService, objectService)
 	filesHandler := api.NewFilesHandler(contentService, objectService)
 
 	// Routes
-	r.Mount("/contents", contentHandler.Routes())
-	r.Mount("/files", filesHandler.Routes())
+	server.R.Mount("/contents", contentHandler.Routes())
+	server.R.Mount("/files", filesHandler.Routes())
 
 	// Start server
-	serverAddr := fmt.Sprintf("%s:%s", config.Server.Host, config.Server.Port)
-	slog.Info("Starting server", "addr", serverAddr)
+	server.Run()
+}
 
-	if err := http.ListenAndServe(serverAddr, r); err != nil {
-		slog.Error("Server failed", "err", err)
-		os.Exit(1)
-	}
+func RoutesHealthz(r *chi.Mux) {
+	r.Get("/healthz", func(w http.ResponseWriter, r *http.Request) {
+		render.PlainText(w, r, http.StatusText(http.StatusOK))
+	})
+}
+
+func RoutesHealthzReady(r *chi.Mux) {
+	r.Get("/healthz/ready", func(w http.ResponseWriter, r *http.Request) {
+		render.PlainText(w, r, http.StatusText(http.StatusOK))
+	})
 }
