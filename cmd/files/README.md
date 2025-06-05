@@ -67,12 +67,15 @@ The server is configured via environment variables:
 
 ```bash
 # Create a new file content and get upload URL
-curl -X POST http://localhost:8080/files/ \
+curl -X POST http://localhost:4000/api/v5/files \
   -H "Content-Type: application/json" \
+  -H "Authorization: abc" \
   -d '{
     "file_name": "example.txt",
+    "document_type": "file",
     "content_type": "text/plain",
     "file_size": 1024,
+    "owner_type": "tenant",
     "owner_id": "00000000-0000-0000-0000-000000000001",
     "tenant_id": "00000000-0000-0000-0000-000000000001"
   }'
