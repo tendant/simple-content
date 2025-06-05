@@ -1,35 +1,32 @@
-# Build stage
-FROM golang:1.24-alpine AS builder
+ARG GIT_COMMIT=noversion
+ARG GIT_COMMIT_SHORT=noversion
 
-# Set working directory
+FROM public.ecr.aws/docker/library/golang:1.24-alpine AS build
+
+RUN apk update && \
+  apk add --update openntpd && \
+  ntpd && \
+  apk upgrade && \
+  apk add --no-cache alpine-sdk git make openssh
+
 WORKDIR /app
 
-# Copy go mod files
-COPY go.mod go.sum ./
+# Cache go mod dependencies
+COPY go.mod ./
 
-# Download dependencies
 RUN go mod download
 
-# Copy source code
 COPY . .
 
-# Build the application
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o bin/files ./cmd/files
+# Build the files binary directly with explicit architecture settings
+RUN make all
 
-# Final stage
-FROM alpine:latest
+FROM public.ecr.aws/docker/library/golang:1.24-alpine
 
-# Install ca-certificates for HTTPS requests
-RUN apk --no-cache add ca-certificates
+WORKDIR /app
 
-# Set working directory
-WORKDIR /root/
+# Copy only the binary with executable permissions
+COPY --from=build --chmod=0755 /app/dist/ /app/
 
-# Copy the binary from builder stage
-COPY --from=builder /app/bin/files .
-
-# Expose port
-EXPOSE 8080
-
-# Run the binary
-CMD ["./files"]
+# Set the default command
+CMD ["/app/cmd/files"]
