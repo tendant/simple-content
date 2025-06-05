@@ -21,10 +21,9 @@ import (
 )
 
 type Config struct {
-	Server       ServerConfig `env-prefix:"SERVER_"`
-	DB           DbConfig     `env-prefix:"DB_"`
-	S3           S3Config     `env-prefix:"S3_"`
-	ApiKeySHA256 string       `env:"API_KEY_SHA256" env-default:"1"`
+	DB           DbConfig `env-prefix:"DB_"`
+	S3           S3Config `env-prefix:"S3_"`
+	ApiKeySHA256 string   `env:"API_KEY_SHA256" env-default:"1"`
 	NoticeConfig NoticeConfig
 }
 
@@ -32,26 +31,21 @@ type NoticeConfig struct {
 	EventAuditUrl string `env:"EVENT_AUDIT_URL" env-default:"http://localhost:14000/events"`
 }
 
-type ServerConfig struct {
-	Port string `env:"PORT" env-default:"8080"`
-	Host string `env:"HOST" env-default:"localhost"`
-}
-
 type DbConfig struct {
-	Port     uint16 `env:"PORT" env-default:"5432"`
-	Host     string `env:"HOST" env-default:"localhost"`
-	Name     string `env:"NAME" env-default:"powercard_db"`
-	User     string `env:"USER" env-default:"content"`
-	Password string `env:"PASSWORD" env-default:"pwd"`
+	Port     uint16 `env:"CONTENT_PG_PORT" env-default:"5432"`
+	Host     string `env:"CONTENT_PG_HOST" env-default:"localhost"`
+	Name     string `env:"CONTENT_PG_NAME" env-default:"powercard_db"`
+	User     string `env:"CONTENT_PG_USER" env-default:"content"`
+	Password string `env:"CONTENT_PG_PASSWORD" env-default:"pwd"`
 }
 
 type S3Config struct {
-	Endpoint        string `env:"ENDPOINT" env-default:"http://localhost:9000"`
-	AccessKeyID     string `env:"ACCESS_KEY_ID" env-default:"minioadmin"`
-	SecretAccessKey string `env:"SECRET_ACCESS_KEY" env-default:"minioadmin"`
-	BucketName      string `env:"BUCKET_NAME" env-default:"content-bucket"`
-	Region          string `env:"REGION" env-default:"us-east-1"`
-	UseSSL          bool   `env:"USE_SSL" env-default:"false"`
+	Endpoint        string `env:"AWS_S3_ENDPOINT" env-default:"http://localhost:9000"`
+	AccessKeyID     string `env:"AWS_ACCESS_KEY_ID" env-default:"minioadmin"`
+	SecretAccessKey string `env:"AWS_SECRET_ACCESS_KEY" env-default:"minioadmin"`
+	BucketName      string `env:"AWS_S3_BUCKET" env-default:"content-bucket"`
+	Region          string `env:"AWS_S3_REGION" env-default:"us-east-1"`
+	UseSSL          bool   `env:"AWS_S3_USE_SSL" env-default:"false"`
 }
 
 func (c DbConfig) toDatabaseUrl() string {
