@@ -23,7 +23,7 @@ import (
 type Config struct {
 	DB           DbConfig
 	S3           S3Config
-	ApiKeySHA256 string `env:"API_KEY_SHA256" env-default:"1"`
+	ApiKeySHA256 string `env:"API_KEY_SHA256" env-default:"ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"`
 	NoticeConfig NoticeConfig
 }
 
