@@ -21,9 +21,9 @@ import (
 )
 
 type Config struct {
-	DB           DbConfig `env-prefix:"DB_"`
-	S3           S3Config `env-prefix:"S3_"`
-	ApiKeySHA256 string   `env:"API_KEY_SHA256" env-default:"1"`
+	DB           DbConfig
+	S3           S3Config
+	ApiKeySHA256 string `env:"API_KEY_SHA256" env-default:"1"`
 	NoticeConfig NoticeConfig
 }
 
