@@ -169,7 +169,7 @@ func main() {
 		slog.Error("Failed initialize API Key middleware", "err", err)
 		return
 	}
-	server.R.Route("/", func(r chi.Router) {
+	server.R.Route("/api/v5", func(r chi.Router) {
 		r.Group(func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
 			r.Mount("/files", filesHandler.Routes())
