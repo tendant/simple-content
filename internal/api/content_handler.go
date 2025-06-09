@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -67,6 +68,9 @@ type ContentResponse struct {
 	TenantID       string    `json:"tenant_id"`
 	Status         string    `json:"status"`
 	DerivationType string    `json:"derivation_type"`
+	MimeType       string    `json:"mime_type"`
+	FileSize       int64     `json:"file_size"`
+	FileName       string    `json:"file_name"`
 }
 
 // CreateContent creates a new content
@@ -122,6 +126,7 @@ func (h *ContentHandler) GetContent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Get Content
 	content, err := h.contentService.GetContent(r.Context(), id)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusNotFound)
@@ -136,6 +141,17 @@ func (h *ContentHandler) GetContent(w http.ResponseWriter, r *http.Request) {
 		TenantID:       content.TenantID.String(),
 		Status:         content.Status,
 		DerivationType: content.DerivationType,
+	}
+
+	// Get Content Metadata
+	contentMeta, err := h.contentService.GetContentMetadata(r.Context(), id)
+	if err != nil {
+		slog.Warn("Fail to get content metadata", "id", idStr)
+
+	} else {
+		resp.MimeType = contentMeta.MimeType
+		resp.FileSize = contentMeta.FileSize
+		resp.FileName = contentMeta.FileName
 	}
 
 	render.JSON(w, r, resp)
