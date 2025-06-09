@@ -37,6 +37,7 @@ func (h *ContentHandler) Routes() chi.Router {
 	r.Get("/{id}", h.GetContent)
 	r.Delete("/{id}", h.DeleteContent)
 	r.Get("/list", h.ListContents)
+	r.Get("/bulk", h.GetContentsByIDs)
 
 	r.Put("/{id}/metadata", h.UpdateMetadata)
 	r.Get("/{id}/metadata", h.GetMetadata)
@@ -132,7 +133,6 @@ func (h *ContentHandler) GetContent(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
-
 	resp := ContentResponse{
 		ID:             content.ID.String(),
 		CreatedAt:      content.CreatedAt,
@@ -155,6 +155,62 @@ func (h *ContentHandler) GetContent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	render.JSON(w, r, resp)
+}
+
+// GetContentsByIDs retrieves multiple contents by their IDs
+func (h *ContentHandler) GetContentsByIDs(w http.ResponseWriter, r *http.Request) {
+	// Get the id parameters from the query string
+	idStrings := r.URL.Query()["id"]
+	if len(idStrings) == 0 {
+		http.Error(w, "Missing required 'id' parameter", http.StatusBadRequest)
+		return
+	}
+
+	// Create a slice to hold the response
+	var contents []ContentResponse
+
+	// Process each ID
+	for _, idStr := range idStrings {
+		// Parse the UUID
+		id, err := uuid.Parse(idStr)
+		if err != nil {
+			slog.Warn("Invalid content ID", "id", idStr)
+			continue
+		}
+
+		// Get the content
+		content, err := h.contentService.GetContent(r.Context(), id)
+		if err != nil {
+			slog.Warn("Fail to get content", "id", idStr)
+			continue
+		}
+
+		// Create response for this content
+		resp := ContentResponse{
+			ID:             content.ID.String(),
+			CreatedAt:      content.CreatedAt,
+			UpdatedAt:      content.UpdatedAt,
+			OwnerID:        content.OwnerID.String(),
+			TenantID:       content.TenantID.String(),
+			Status:         content.Status,
+			DerivationType: content.DerivationType,
+		}
+
+		// Get Content Metadata
+		contentMeta, err := h.contentService.GetContentMetadata(r.Context(), id)
+		if err != nil {
+			slog.Warn("Fail to get content metadata", "id", idStr)
+		} else {
+			resp.MimeType = contentMeta.MimeType
+			resp.FileSize = contentMeta.FileSize
+			resp.FileName = contentMeta.FileName
+		}
+
+		contents = append(contents, resp)
+	}
+
+	// Return all found contents
+	render.JSON(w, r, contents)
 }
 
 // DeleteContent deletes a content by ID
