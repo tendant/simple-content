@@ -60,6 +60,8 @@ type CreateContentRequest struct {
 	TenantID string `json:"tenant_id"`
 }
 
+const MAX_CONTENTS_PER_REQUEST = 50
+
 // ContentResponse is the response body for a content
 type ContentResponse struct {
 	ID             string    `json:"id"`
@@ -163,6 +165,10 @@ func (h *ContentHandler) GetContentsByIDs(w http.ResponseWriter, r *http.Request
 	idStrings := r.URL.Query()["id"]
 	if len(idStrings) == 0 {
 		http.Error(w, "Missing required 'id' parameter", http.StatusBadRequest)
+		return
+	}
+	if len(idStrings) > MAX_CONTENTS_PER_REQUEST {
+		http.Error(w, "Too many IDs requested", http.StatusBadRequest)
 		return
 	}
 
