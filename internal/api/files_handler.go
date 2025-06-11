@@ -34,6 +34,7 @@ func (h *FilesHandler) Routes() chi.Router {
 	r.Post("/{content_id}/complete", h.CompleteUpload)
 	r.Patch("/{content_id}", h.UpdateMetadata)
 	r.Get("/{content_id}", h.GetFileInfo)
+	r.Get("/bulk", h.GetFilesByContentIDs)
 	return r
 }
 
@@ -67,14 +68,19 @@ type UpdateMetadataRequest struct {
 
 // FileInfoResponse represents file information including URLs
 type FileInfoResponse struct {
-	ContentID   string                 `json:"content_id"`
-	FileName    string                 `json:"file_name"`
-	PreviewURL  string                 `json:"preview_url"`
-	DownloadURL string                 `json:"download_url"`
-	Metadata    map[string]interface{} `json:"metadata"`
-	CreatedAt   time.Time              `json:"created_at"`
-	UpdatedAt   time.Time              `json:"updated_at"`
-	Status      string                 `json:"status"`
+	ContentID      string                 `json:"content_id"`
+	FileName       string                 `json:"file_name"`
+	PreviewURL     string                 `json:"preview_url"`
+	DownloadURL    string                 `json:"download_url"`
+	Metadata       map[string]interface{} `json:"metadata"`
+	CreatedAt      time.Time              `json:"created_at"`
+	UpdatedAt      time.Time              `json:"updated_at"`
+	Status         string                 `json:"status"`
+	MimeType       string                 `json:"mime_type"`
+	FileSize       int64                  `json:"file_size"`
+	DerivationType string                 `json:"derivation_type"`
+	OwnerID        string                 `json:"owner_id"`
+	TenantID       string                 `json:"tenant_id"`
 }
 
 // CreateFile creates a new content and returns upload URL
@@ -445,4 +451,95 @@ func (h *FilesHandler) GetFileInfo(w http.ResponseWriter, r *http.Request) {
 	}
 
 	render.JSON(w, r, resp)
+}
+
+// GetBulkFiles retrieves multiple files by their IDs
+func (h *FilesHandler) GetFilesByContentIDs(w http.ResponseWriter, r *http.Request) {
+	// Get the id parameters from the query string
+	idStrings := r.URL.Query()["id"]
+	if len(idStrings) == 0 {
+		http.Error(w, "Missing required 'id' parameter", http.StatusBadRequest)
+		return
+	}
+	if len(idStrings) > MAX_CONTENTS_PER_REQUEST {
+		http.Error(w, "Too many IDs requested", http.StatusBadRequest)
+		return
+	}
+
+	// Create a slice to hold the response
+	var files []FileInfoResponse
+
+	// Process each ID
+	for _, idStr := range idStrings {
+		// Parse the UUID
+		id, err := uuid.Parse(idStr)
+		if err != nil {
+			slog.Warn("Invalid content ID", "id", idStr)
+			continue
+		}
+
+		// Get the content
+		content, err := h.contentService.GetContent(r.Context(), id)
+		if err != nil {
+			slog.Warn("Fail to get content", "id", idStr)
+			continue
+		}
+
+		// Create response for this content
+		resp := FileInfoResponse{
+			ContentID:      content.ID.String(),
+			CreatedAt:      content.CreatedAt,
+			UpdatedAt:      content.UpdatedAt,
+			Status:         string(content.Status),
+			DerivationType: content.DerivationType,
+			OwnerID:        content.OwnerID.String(),
+			TenantID:       content.TenantID.String(),
+		}
+
+		// Get Content Metadata
+		contentMeta, err := h.contentService.GetContentMetadata(r.Context(), id)
+		if err != nil {
+			slog.Warn("Fail to get content metadata", "id", idStr)
+		} else {
+			resp.MimeType = contentMeta.MimeType
+			resp.FileSize = contentMeta.FileSize
+			resp.FileName = contentMeta.FileName
+		}
+
+		// Get objects for this content
+		objects, err := h.objectService.GetObjectsByContentID(r.Context(), id)
+		if err != nil {
+			slog.Warn("Fail to get objects", "id", idStr)
+		}
+
+		if len(objects) == 0 {
+			slog.Warn("No objects found for content", "id", idStr)
+			continue
+		}
+
+		// Get the latest version of the object
+		object := service.GetLatestVersionObject(objects)
+
+		// Get preview URL
+		previewURL, err := h.objectService.GetPreviewURL(r.Context(), object.ID)
+		if err != nil {
+			// Preview URL generation failed, but this is not critical
+			// Log the error but continue with empty preview URL
+			previewURL = ""
+		}
+
+		// Get download URL
+		downloadURL, err := h.objectService.GetDownloadURL(r.Context(), object.ID)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		resp.DownloadURL = downloadURL
+		resp.PreviewURL = previewURL
+
+		files = append(files, resp)
+	}
+
+	render.JSON(w, r, files)
 }
