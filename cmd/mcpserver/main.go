@@ -1,21 +1,98 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"log"
 	"log/slog"
+	"net/url"
 	"os"
 
 	"github.com/ilyakaznacheev/cleanenv"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/mark3labs/mcp-go/server"
 	"github.com/tendant/simple-content/internal/mcp"
+	psqlrepo "github.com/tendant/simple-content/pkg/repository/psql"
+	"github.com/tendant/simple-content/pkg/service"
+	"github.com/tendant/simple-content/pkg/storage/s3"
 )
 
 type Config struct {
 	Host    string `env:"HOST" env-default:"localhost"`
 	Port    uint16 `env:"PORT" env-default:"8000"`
 	BaseUrl string `env:"BASE_URL" env-default:"http://localhost:8000"`
+	DB      DbConfig
+	S3      S3Config
+}
+
+type DbConfig struct {
+	Port     uint16 `env:"CONTENT_PG_PORT" env-default:"5432"`
+	Host     string `env:"CONTENT_PG_HOST" env-default:"localhost"`
+	Name     string `env:"CONTENT_PG_NAME" env-default:"powercard_db"`
+	User     string `env:"CONTENT_PG_USER" env-default:"content"`
+	Password string `env:"CONTENT_PG_PASSWORD" env-default:"pwd"`
+}
+
+type S3Config struct {
+	Endpoint        string `env:"AWS_S3_ENDPOINT"`
+	AccessKeyID     string `env:"AWS_ACCESS_KEY_ID" env-default:"minioadmin"`
+	SecretAccessKey string `env:"AWS_SECRET_ACCESS_KEY" env-default:"minioadmin"`
+	BucketName      string `env:"AWS_S3_BUCKET" env-default:"content-bucket"`
+	Region          string `env:"AWS_S3_REGION" env-default:"us-east-1"`
+	UseSSL          bool   `env:"AWS_S3_USE_SSL" env-default:"false"`
+}
+
+func (c DbConfig) toDatabaseUrl() string {
+	u := url.URL{
+		Scheme: "postgres",
+		User:   url.UserPassword(c.User, c.Password),
+		Host:   fmt.Sprintf("%s:%d", c.Host, c.Port),
+		Path:   c.Name,
+	}
+	return u.String()
+}
+
+func NewDbPool(ctx context.Context, dbConfig DbConfig) (*pgxpool.Pool, error) {
+	pool, err := pgxpool.New(ctx, dbConfig.toDatabaseUrl())
+	if err != nil {
+		return nil, fmt.Errorf("failed to create connection pool: %w", err)
+	}
+
+	// Test the connection
+	if err := pool.Ping(ctx); err != nil {
+		return nil, fmt.Errorf("failed to ping database: %w", err)
+	}
+
+	return pool, nil
+}
+
+const S3_URL_DURATION = 3600 * 6 // 6 hours
+
+func initializeS3Backend(config S3Config) (*s3.S3Backend, error) {
+	s3Config := s3.Config{
+		Endpoint:               config.Endpoint,
+		AccessKeyID:            config.AccessKeyID,
+		SecretAccessKey:        config.SecretAccessKey,
+		Bucket:                 config.BucketName,
+		Region:                 config.Region,
+		UseSSL:                 config.UseSSL,
+		CreateBucketIfNotExist: false,
+		PresignDuration:        S3_URL_DURATION, // 6 hours
+	}
+
+	backend, err := s3.NewS3Backend(s3Config)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create S3 backend: %w", err)
+	}
+
+	// Type assert to get the concrete S3Backend type
+	s3Backend, ok := backend.(*s3.S3Backend)
+	if !ok {
+		return nil, fmt.Errorf("failed to cast to S3Backend")
+	}
+
+	return s3Backend, nil
 }
 
 func main() {
@@ -37,8 +114,46 @@ func main() {
 		server.WithResourceCapabilities(true, true), // Enable SSE and JSON-RPC
 	)
 
+	// Initialize database connection
+	ctx := context.Background()
+	dbPool, err := NewDbPool(ctx, cfg.DB)
+	if err != nil {
+		slog.Error("Failed to connect to database", "err", err)
+		os.Exit(1)
+	}
+
+	// Initialize repositories
+	repoFactory := psqlrepo.NewRepositoryFactory(dbPool)
+	contentRepo := repoFactory.NewContentRepository()
+	contentMetadataRepo := repoFactory.NewContentMetadataRepository()
+	objectRepo := repoFactory.NewObjectRepository()
+	objectMetadataRepo := repoFactory.NewObjectMetadataRepository()
+
+	// Initialize S3 storage backend
+	s3Backend, err := initializeS3Backend(cfg.S3)
+	if err != nil {
+		slog.Error("Failed to initialize S3 backend", "err", err)
+		os.Exit(1)
+	}
+
+	// Initialize services
+	contentService := service.NewContentService(
+		contentRepo,
+		contentMetadataRepo,
+	)
+
+	objectService := service.NewObjectService(
+		objectRepo,
+		objectMetadataRepo,
+		contentRepo,
+		contentMetadataRepo,
+	)
+
+	// Register the S3 backend with the object service
+	objectService.RegisterBackend("s3-default", s3Backend)
+
 	// Register hello content tools
-	handler := mcp.NewHandler()
+	handler := mcp.NewHandler(contentService, objectService)
 	handler.RegisterTools(s)
 
 	// Start the server based on the selected mode
