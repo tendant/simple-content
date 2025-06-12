@@ -87,6 +87,7 @@ type FileInfoResponse struct {
 func (h *FilesHandler) CreateFile(w http.ResponseWriter, r *http.Request) {
 	var req CreateFileRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		slog.Error("Fail to decode request", "error", err)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -94,21 +95,25 @@ func (h *FilesHandler) CreateFile(w http.ResponseWriter, r *http.Request) {
 	// Parse UUIDs
 	ownerID, err := uuid.Parse(req.OwnerID)
 	if err != nil {
+		slog.Error("Invalid owner ID", "owner_id", req.OwnerID, "error", err)
 		http.Error(w, "Invalid owner ID", http.StatusBadRequest)
 		return
 	}
 
 	if req.OwnerType == "" {
+		slog.Error("Owner type is required", "owner_type", req.OwnerType)
 		http.Error(w, "Owner type is required", http.StatusBadRequest)
 		return
 	}
 	if req.DocumentType == "" {
+		slog.Error("Document type is required", "document_type", req.DocumentType)
 		http.Error(w, "Document type is required", http.StatusBadRequest)
 		return
 	}
 
 	tenantID, err := uuid.Parse(req.TenantID)
 	if err != nil {
+		slog.Error("Invalid tenant ID", "tenant_id", req.TenantID, "error", err)
 		http.Error(w, "Invalid tenant ID", http.StatusBadRequest)
 		return
 	}
@@ -126,7 +131,7 @@ func (h *FilesHandler) CreateFile(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	slog.Info("Content created", "content_id", content.ID.String())
+	slog.Info("Content created", "content", content)
 
 	// Update content for missing fields
 	content.OwnerType = req.OwnerType
@@ -202,6 +207,7 @@ func (h *FilesHandler) CreateFile(w http.ResponseWriter, r *http.Request) {
 		CreatedAt: content.CreatedAt,
 		Status:    content.Status,
 	}
+	slog.Info("File created", "response", resp)
 
 	render.JSON(w, r, resp)
 }
@@ -211,6 +217,7 @@ func (h *FilesHandler) CompleteUpload(w http.ResponseWriter, r *http.Request) {
 	contentIDStr := chi.URLParam(r, "content_id")
 	contentID, err := uuid.Parse(contentIDStr)
 	if err != nil {
+		slog.Error("Invalid content ID", "content_id", contentIDStr, "error", err)
 		http.Error(w, "Invalid content ID", http.StatusBadRequest)
 		return
 	}
@@ -218,6 +225,7 @@ func (h *FilesHandler) CompleteUpload(w http.ResponseWriter, r *http.Request) {
 	// Verify content exists
 	content, err := h.contentService.GetContent(r.Context(), contentID)
 	if err != nil {
+		slog.Error("Content not found", "content_id", contentID.String(), "error", err)
 		http.Error(w, "Content not found", http.StatusNotFound)
 		return
 	}
@@ -225,6 +233,7 @@ func (h *FilesHandler) CompleteUpload(w http.ResponseWriter, r *http.Request) {
 	// Get object by content id
 	objects, err := h.objectService.GetObjectsByContentID(r.Context(), contentID)
 	if err != nil || len(objects) == 0 {
+		slog.Error("Object not found", "content_id", contentID.String(), "error", err)
 		http.Error(w, "Object not found", http.StatusNotFound)
 		return
 	}
@@ -236,6 +245,7 @@ func (h *FilesHandler) CompleteUpload(w http.ResponseWriter, r *http.Request) {
 	// This also updates the object status to uploaded
 	object_meta, err := h.objectService.UpdateObjectMetaFromStorage(r.Context(), object.ID)
 	if err != nil {
+		slog.Error("Fail to update object metadata", "object_id", object.ID.String(), "error", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -246,6 +256,7 @@ func (h *FilesHandler) CompleteUpload(w http.ResponseWriter, r *http.Request) {
 		Content: content,
 	}
 	if err := h.contentService.UpdateContent(r.Context(), updateParams); err != nil {
+		slog.Error("Fail to update content", "content_id", contentID.String(), "error", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -271,10 +282,11 @@ func (h *FilesHandler) CompleteUpload(w http.ResponseWriter, r *http.Request) {
 		FileName:       content_meta.FileName,
 	}
 	if err := h.contentService.SetContentMetadata(r.Context(), metadataParams); err != nil {
+		slog.Error("Fail to update content metadata", "content_id", contentID.String(), "error", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-
+	slog.Info("Content metadata updated", "content_id", contentID.String(), "content status", content.Status)
 	w.WriteHeader(http.StatusOK)
 	render.JSON(w, r, map[string]string{"status": "completed"})
 }
@@ -284,12 +296,14 @@ func (h *FilesHandler) UpdateMetadata(w http.ResponseWriter, r *http.Request) {
 	contentIDStr := chi.URLParam(r, "content_id")
 	contentID, err := uuid.Parse(contentIDStr)
 	if err != nil {
+		slog.Error("Invalid content ID", "content_id", contentIDStr, "error", err)
 		http.Error(w, "Invalid content ID", http.StatusBadRequest)
 		return
 	}
 
 	var req UpdateMetadataRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		slog.Error("Fail to decode request", "error", err)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -297,6 +311,7 @@ func (h *FilesHandler) UpdateMetadata(w http.ResponseWriter, r *http.Request) {
 	// Verify content exists
 	content, err := h.contentService.GetContent(r.Context(), contentID)
 	if err != nil {
+		slog.Error("Content not found", "content_id", contentID.String(), "error", err)
 		http.Error(w, "Content not found", http.StatusNotFound)
 		return
 	}
@@ -328,6 +343,7 @@ func (h *FilesHandler) UpdateMetadata(w http.ResponseWriter, r *http.Request) {
 			},
 		})
 		if err != nil {
+			slog.Error("Fail to update content", "content_id", contentID.String(), "error", err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -366,11 +382,13 @@ func (h *FilesHandler) UpdateMetadata(w http.ResponseWriter, r *http.Request) {
 		}
 		err = h.contentService.SetContentMetadata(r.Context(), metadataParams)
 		if err != nil {
+			slog.Error("Fail to update content metadata", "content_id", contentID.String(), "error", err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 	}
 
+	slog.Info("Content updated", "content_id", contentID.String())
 	w.WriteHeader(http.StatusOK)
 	render.JSON(w, r, map[string]string{"status": "updated"})
 }
