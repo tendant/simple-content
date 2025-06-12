@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"path/filepath"
 
 	"github.com/google/uuid"
 	"github.com/mark3labs/mcp-go/mcp"
@@ -110,7 +111,14 @@ func (h *Handler) handleUploadContent(ctx context.Context, request mcp.CallToolR
 	}
 
 	// Write the decoded data to a text file
-	outputFilePath := "generated_content.txt"
+	tempDir, err := os.MkdirTemp("/tmp", "mcp-content")
+	if err != nil {
+		return nil, fmt.Errorf("failed to create temp directory: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	tempFileName := "generated_content.txt"
+	outputFilePath := filepath.Join(tempDir, tempFileName)
 	err = os.WriteFile(outputFilePath, decodedData, 0644)
 	if err != nil {
 		return nil, fmt.Errorf("failed to write data to file: %v", err)
@@ -122,7 +130,7 @@ func (h *Handler) handleUploadContent(ctx context.Context, request mcp.CallToolR
 	contentParams := service.CreateContentParams{
 		OwnerID:      ownerID,
 		TenantID:     tenantId,
-		Title:        outputFilePath,
+		Title:        tempFileName,
 		Description:  "Content uploaded via MCP tool",
 		DocumentType: "text/plain",
 	}
@@ -146,10 +154,10 @@ func (h *Handler) handleUploadContent(ctx context.Context, request mcp.CallToolR
 	metadataParams := service.SetContentMetadataParams{
 		ContentID:   content.ID,
 		ContentType: "text/plain",
-		Title:       outputFilePath,
+		Title:       tempFileName,
 		Description: "Content uploaded via MCP tool",
 		Tags:        []string{"upload", "mcp"},
-		FileName:    outputFilePath,
+		FileName:    tempFileName,
 		FileSize:    int64(len(decodedData)),
 		CreatedBy:   "mcp-tool",
 		CustomMetadata: map[string]interface{}{
@@ -168,8 +176,6 @@ func (h *Handler) handleUploadContent(ctx context.Context, request mcp.CallToolR
 		ContentID:          content.ID,
 		StorageBackendName: "s3-default", // Assuming "default" is a registered backend
 		Version:            1,
-		// FIXME: object key
-		ObjectKey: "", // Let the service generate a key
 	}
 
 	object, err := h.objectService.CreateObject(ctx, objectParams)
