@@ -40,7 +40,7 @@ type DbConfig struct {
 }
 
 type S3Config struct {
-	Endpoint        string `env:"AWS_S3_ENDPOINT" env-default:"http://localhost:9000"`
+	Endpoint        string `env:"AWS_S3_ENDPOINT"`
 	AccessKeyID     string `env:"AWS_ACCESS_KEY_ID" env-default:"minioadmin"`
 	SecretAccessKey string `env:"AWS_SECRET_ACCESS_KEY" env-default:"minioadmin"`
 	BucketName      string `env:"AWS_S3_BUCKET" env-default:"content-bucket"`
