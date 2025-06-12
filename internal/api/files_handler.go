@@ -380,6 +380,7 @@ func (h *FilesHandler) GetFileInfo(w http.ResponseWriter, r *http.Request) {
 	contentIDStr := chi.URLParam(r, "content_id")
 	contentID, err := uuid.Parse(contentIDStr)
 	if err != nil {
+		slog.Error("Invalid content ID", "content_id", contentIDStr, "error", err)
 		http.Error(w, "Invalid content ID", http.StatusBadRequest)
 		return
 	}
@@ -387,6 +388,7 @@ func (h *FilesHandler) GetFileInfo(w http.ResponseWriter, r *http.Request) {
 	// Get content
 	content, err := h.contentService.GetContent(r.Context(), contentID)
 	if err != nil {
+		slog.Error("Fail to get content", "content_id", contentID.String(), "error", err)
 		http.Error(w, "Content not found", http.StatusNotFound)
 		return
 	}
@@ -394,6 +396,7 @@ func (h *FilesHandler) GetFileInfo(w http.ResponseWriter, r *http.Request) {
 	// Get content metadata
 	metadata, err := h.contentService.GetContentMetadata(r.Context(), contentID)
 	if err != nil {
+		slog.Warn("Content metadata not found", "content_id", contentID.String(), "error", err)
 		// If no metadata found, create empty metadata map
 		metadata = &model.ContentMetadata{
 			ContentID: contentID,
@@ -404,11 +407,13 @@ func (h *FilesHandler) GetFileInfo(w http.ResponseWriter, r *http.Request) {
 	// Get objects for this content
 	objects, err := h.objectService.GetObjectsByContentID(r.Context(), contentID)
 	if err != nil {
+		slog.Error("Fail to get objects", "content_id", contentID.String(), "error", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	if len(objects) == 0 {
+		slog.Error("No objects found for content", "content_id", contentID.String())
 		http.Error(w, "No objects found for content", http.StatusNotFound)
 		return
 	}
@@ -427,6 +432,7 @@ func (h *FilesHandler) GetFileInfo(w http.ResponseWriter, r *http.Request) {
 	// Get download URL
 	downloadURL, err := h.objectService.GetDownloadURL(r.Context(), object.ID)
 	if err != nil {
+		slog.Error("Fail to get download URL", "object_id", object.ID.String(), "error", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -449,6 +455,8 @@ func (h *FilesHandler) GetFileInfo(w http.ResponseWriter, r *http.Request) {
 		UpdatedAt:   content.UpdatedAt,
 		Status:      string(content.Status),
 	}
+
+	slog.Info("GetFileInfo", "content", resp)
 
 	render.JSON(w, r, resp)
 }
