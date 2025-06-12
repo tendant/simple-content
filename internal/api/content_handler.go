@@ -86,12 +86,14 @@ func (h *ContentHandler) CreateContent(w http.ResponseWriter, r *http.Request) {
 
 	ownerID, err := uuid.Parse(req.OwnerID)
 	if err != nil {
+		slog.Error("Invalid owner ID", "owner_id", req.OwnerID, "error", err)
 		http.Error(w, "Invalid owner ID", http.StatusBadRequest)
 		return
 	}
 
 	tenantID, err := uuid.Parse(req.TenantID)
 	if err != nil {
+		slog.Error("Invalid tenant ID", "tenant_id", req.TenantID, "error", err)
 		http.Error(w, "Invalid tenant ID", http.StatusBadRequest)
 		return
 	}
@@ -102,6 +104,7 @@ func (h *ContentHandler) CreateContent(w http.ResponseWriter, r *http.Request) {
 	}
 	content, err := h.contentService.CreateContent(r.Context(), createParams)
 	if err != nil {
+		slog.Error("Fail to create content", "error", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -116,6 +119,7 @@ func (h *ContentHandler) CreateContent(w http.ResponseWriter, r *http.Request) {
 		DerivationType: content.DerivationType,
 	}
 
+	slog.Info("Content created", "content", content)
 	render.Status(r, http.StatusCreated)
 	render.JSON(w, r, resp)
 }
@@ -125,6 +129,7 @@ func (h *ContentHandler) GetContent(w http.ResponseWriter, r *http.Request) {
 	idStr := chi.URLParam(r, "id")
 	id, err := uuid.Parse(idStr)
 	if err != nil {
+		slog.Error("Invalid content ID", "content_id", idStr, "error", err)
 		http.Error(w, "Invalid content ID", http.StatusBadRequest)
 		return
 	}
@@ -132,6 +137,7 @@ func (h *ContentHandler) GetContent(w http.ResponseWriter, r *http.Request) {
 	// Get Content
 	content, err := h.contentService.GetContent(r.Context(), id)
 	if err != nil {
+		slog.Error("Fail to get content", "content_id", idStr, "error", err)
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
@@ -156,6 +162,7 @@ func (h *ContentHandler) GetContent(w http.ResponseWriter, r *http.Request) {
 		resp.FileName = contentMeta.FileName
 	}
 
+	slog.Info("Content retrieved", "content", resp)
 	render.JSON(w, r, resp)
 }
 
@@ -224,6 +231,7 @@ func (h *ContentHandler) DeleteContent(w http.ResponseWriter, r *http.Request) {
 	idStr := chi.URLParam(r, "id")
 	id, err := uuid.Parse(idStr)
 	if err != nil {
+		slog.Error("Invalid content ID", "content_id", idStr, "error", err)
 		http.Error(w, "Invalid content ID", http.StatusBadRequest)
 		return
 	}
@@ -232,10 +240,12 @@ func (h *ContentHandler) DeleteContent(w http.ResponseWriter, r *http.Request) {
 		ID: id,
 	}
 	if err := h.contentService.DeleteContent(r.Context(), deleteParams); err != nil {
+		slog.Error("Fail to delete content", "content_id", idStr, "error", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
+	slog.Info("Content deleted", "content_id", idStr)
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -256,6 +266,7 @@ func (h *ContentHandler) ListContents(w http.ResponseWriter, r *http.Request) {
 	if ownerIDStr != "" {
 		ownerID, err = uuid.Parse(ownerIDStr)
 		if err != nil {
+			slog.Error("Invalid owner ID", "owner_id", ownerIDStr, "error", err)
 			http.Error(w, "Invalid owner ID", http.StatusBadRequest)
 			return
 		}
@@ -264,6 +275,7 @@ func (h *ContentHandler) ListContents(w http.ResponseWriter, r *http.Request) {
 	if tenantIDStr != "" {
 		tenantID, err = uuid.Parse(tenantIDStr)
 		if err != nil {
+			slog.Error("Invalid tenant ID", "tenant_id", tenantIDStr, "error", err)
 			http.Error(w, "Invalid tenant ID", http.StatusBadRequest)
 			return
 		}
@@ -275,6 +287,7 @@ func (h *ContentHandler) ListContents(w http.ResponseWriter, r *http.Request) {
 	}
 	contents, err := h.contentService.ListContent(r.Context(), listParams)
 	if err != nil {
+		slog.Error("Fail to list contents", "error", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -391,12 +404,14 @@ func (h *ContentHandler) UpdateMetadata(w http.ResponseWriter, r *http.Request) 
 	idStr := chi.URLParam(r, "id")
 	id, err := uuid.Parse(idStr)
 	if err != nil {
+		slog.Error("Invalid content ID", "content_id", idStr, "error", err)
 		http.Error(w, "Invalid content ID", http.StatusBadRequest)
 		return
 	}
 
 	var req ContentMetadataRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		slog.Error("Invalid request body", "error", err)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -412,10 +427,12 @@ func (h *ContentHandler) UpdateMetadata(w http.ResponseWriter, r *http.Request) 
 		CustomMetadata: req.Metadata,
 	}
 	if err := h.contentService.SetContentMetadata(r.Context(), metadataParams); err != nil {
+		slog.Error("Fail to update content metadata", "content_id", idStr, "error", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
+	slog.Info("Content metadata updated", "content_id", idStr)
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -424,12 +441,14 @@ func (h *ContentHandler) GetMetadata(w http.ResponseWriter, r *http.Request) {
 	idStr := chi.URLParam(r, "id")
 	id, err := uuid.Parse(idStr)
 	if err != nil {
+		slog.Error("Invalid content ID", "content_id", idStr, "error", err)
 		http.Error(w, "Invalid content ID", http.StatusBadRequest)
 		return
 	}
 
 	metadata, err := h.contentService.GetContentMetadata(r.Context(), id)
 	if err != nil {
+		slog.Error("Fail to get content metadata", "content_id", idStr, "error", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -444,6 +463,8 @@ func (h *ContentHandler) GetMetadata(w http.ResponseWriter, r *http.Request) {
 		ChecksumAlgorithm: metadata.ChecksumAlgorithm,
 		Metadata:          metadata.Metadata,
 	}
+
+	slog.Info("Content metadata retrieved", "content", resp)
 
 	render.JSON(w, r, resp)
 }
@@ -471,12 +492,14 @@ func (h *ContentHandler) CreateObject(w http.ResponseWriter, r *http.Request) {
 	contentIDStr := chi.URLParam(r, "id")
 	contentID, err := uuid.Parse(contentIDStr)
 	if err != nil {
+		slog.Error("Invalid content ID", "content_id", contentIDStr, "error", err)
 		http.Error(w, "Invalid content ID", http.StatusBadRequest)
 		return
 	}
 
 	var req CreateObjectRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		slog.Error("Invalid request body", "error", err)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -488,6 +511,7 @@ func (h *ContentHandler) CreateObject(w http.ResponseWriter, r *http.Request) {
 	}
 	object, err := h.objectService.CreateObject(r.Context(), createObjectParams)
 	if err != nil {
+		slog.Error("Fail to create object", "error", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -502,6 +526,8 @@ func (h *ContentHandler) CreateObject(w http.ResponseWriter, r *http.Request) {
 		CreatedAt:          object.CreatedAt,
 		UpdatedAt:          object.UpdatedAt,
 	}
+
+	slog.Info("Object created", "object_id", resp.ID)
 
 	render.Status(r, http.StatusCreated)
 	render.JSON(w, r, resp)
@@ -544,6 +570,7 @@ func (h *ContentHandler) GetDownload(w http.ResponseWriter, r *http.Request) {
 	contentIDStr := chi.URLParam(r, "id")
 	contentID, err := uuid.Parse(contentIDStr)
 	if err != nil {
+		slog.Error("Invalid content ID", "content_id", contentIDStr, "error", err)
 		http.Error(w, "Invalid content ID", http.StatusBadRequest)
 		return
 	}
@@ -551,11 +578,13 @@ func (h *ContentHandler) GetDownload(w http.ResponseWriter, r *http.Request) {
 	// Get the latest object for this content
 	objects, err := h.objectService.GetObjectsByContentID(r.Context(), contentID)
 	if err != nil {
+		slog.Error("Fail to get objects by content ID", "content_id", contentIDStr, "error", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	if len(objects) == 0 {
+		slog.Error("No objects found for this content", "content_id", contentIDStr)
 		http.Error(w, "No objects found for this content", http.StatusNotFound)
 		return
 	}
@@ -581,6 +610,7 @@ func (h *ContentHandler) GetDownload(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if latestObject == nil {
+		slog.Error("No active objects found for this content", "content_id", contentIDStr)
 		http.Error(w, "No active objects found for this content", http.StatusNotFound)
 		return
 	}
@@ -591,6 +621,8 @@ func (h *ContentHandler) GetDownload(w http.ResponseWriter, r *http.Request) {
 		"object_id": latestObject.ID,
 		"message":   "For in-memory backend, use the object_id to download the content directly",
 	}
+
+	slog.Info("Download URL retrieved", "object_id", latestObject.ID)
 
 	render.JSON(w, r, response)
 }
