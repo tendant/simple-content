@@ -8,14 +8,24 @@ import (
 	"github.com/google/uuid"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
+	"github.com/tendant/simple-content/pkg/service"
 )
 
 // Handler implements a simple hello content MCP tool
-type Handler struct{}
+type Handler struct {
+	objectService  *service.ObjectService
+	contentService *service.ContentService
+}
 
 // NewHandler creates a new instance of HelloContentHandler
-func NewHandler() *Handler {
-	return &Handler{}
+func NewHandler(
+	contentService *service.ContentService,
+	objectService *service.ObjectService,
+) *Handler {
+	return &Handler{
+		contentService: contentService,
+		objectService:  objectService,
+	}
 }
 
 // RegisterTools registers the hello content tools with the MCP server
