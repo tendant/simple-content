@@ -39,9 +39,19 @@ func (h *Handler) RegisterTools(s *server.MCPServer) {
 			mcp.Required(),
 			mcp.Description("Base64 encoded content data"),
 		),
+		mcp.WithString("owner_id",
+			mcp.Required(),
+			mcp.Description("Content owner id"),
+		),
+		mcp.WithString("owner_type",
+			mcp.Required(),
+			mcp.Description("Content owner type"),
+		),
+		mcp.WithString("tenant_id",
+			mcp.Description("Content tenant id"),
+		),
 	)
 	s.AddTool(uploadTool, h.handleUploadContent)
-
 }
 
 // handleUploadContent handles the upload_content tool call
