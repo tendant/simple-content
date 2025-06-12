@@ -32,7 +32,7 @@ func main() {
 
 	// Create MCP server with appropriate options based on mode
 	s := server.NewMCPServer(
-		"Torpago User MCP ",
+		"Content Server Mcp",
 		"1.0.0",
 		server.WithResourceCapabilities(true, true), // Enable SSE and JSON-RPC
 	)
