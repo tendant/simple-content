@@ -1,13 +1,17 @@
 package mcp
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"fmt"
+	"log/slog"
+	"os"
 
 	"github.com/google/uuid"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
+	"github.com/tendant/simple-content/pkg/model"
 	"github.com/tendant/simple-content/pkg/service"
 )
 
@@ -56,6 +60,38 @@ func (h *Handler) RegisterTools(s *server.MCPServer) {
 
 // handleUploadContent handles the upload_content tool call
 func (h *Handler) handleUploadContent(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+
+	// Get the owner id parameter
+	ownerIDStr, ok := request.GetArguments()["owner_id"].(string)
+	if !ok || ownerIDStr == "" {
+		slog.Error("owner_id parameter is required")
+		return nil, fmt.Errorf("owner_id parameter is required")
+	}
+	ownerID, err := uuid.Parse(ownerIDStr)
+	if err != nil {
+		slog.Error("invalid owner id")
+		return nil, fmt.Errorf("invalid owner id")
+	}
+
+	// Get the owner type parameter
+	ownerTypeStr, ok := request.GetArguments()["owner_type"].(string)
+	if !ok || ownerTypeStr == "" {
+		slog.Error("owner_type parameter is required")
+		return nil, fmt.Errorf("owner_type parameter is required")
+	}
+
+	// Get the tenant id parameter
+	tenantId := uuid.Nil
+	tenantIDStr, ok := request.GetArguments()["tenant_id"].(string)
+	if ok {
+		tenantID, err := uuid.Parse(tenantIDStr)
+		if err != nil {
+			slog.Error("invalid tenant id")
+			return nil, fmt.Errorf("invalid tenant id")
+		}
+		tenantId = tenantID
+	}
+
 	// Get the base64 data parameter
 	dataVal, ok := request.GetArguments()["data"]
 	if !ok || dataVal == nil {
@@ -80,7 +116,108 @@ func (h *Handler) handleUploadContent(ctx context.Context, request mcp.CallToolR
 		return nil, fmt.Errorf("failed to write data to file: %v", err)
 	}
 
-	log.Printf("Successfully wrote decoded data to %s", outputFilePath)
+	slog.Info("Successfully wrote decoded data to %s", outputFilePath)
 
-	return mcp.NewToolResultText(fmt.Sprintf("Content uploaded successfully.\nContent ID: %s\nDownload URL: %s", contentID, downloadURL)), nil
+	// Create content
+	contentParams := service.CreateContentParams{
+		OwnerID:      ownerID,
+		TenantID:     tenantId,
+		Title:        outputFilePath,
+		Description:  "Content uploaded via MCP tool",
+		DocumentType: "text/plain",
+	}
+
+	content, err := h.contentService.CreateContent(ctx, contentParams)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create content: %v", err)
+	}
+
+	// Update Content for missing fields
+	content.OwnerType = ownerTypeStr
+	updateParams := service.UpdateContentParams{
+		Content: content,
+	}
+	err = h.contentService.UpdateContent(ctx, updateParams)
+	if err != nil {
+		slog.Warn("Failed to update content", "err", err)
+	}
+
+	// Set content metadata
+	metadataParams := service.SetContentMetadataParams{
+		ContentID:   content.ID,
+		ContentType: "text/plain",
+		Title:       outputFilePath,
+		Description: "Content uploaded via MCP tool",
+		Tags:        []string{"upload", "mcp"},
+		FileName:    outputFilePath,
+		FileSize:    int64(len(decodedData)),
+		CreatedBy:   "mcp-tool",
+		CustomMetadata: map[string]interface{}{
+			"source": "mcp-upload",
+			"format": "text",
+		},
+	}
+
+	err = h.contentService.SetContentMetadata(ctx, metadataParams)
+	if err != nil {
+		return nil, fmt.Errorf("failed to set content metadata: %v", err)
+	}
+
+	// Create a new object for the content
+	objectParams := service.CreateObjectParams{
+		ContentID:          content.ID,
+		StorageBackendName: "s3-default", // Assuming "default" is a registered backend
+		Version:            1,
+		// FIXME: object key
+		ObjectKey: "", // Let the service generate a key
+	}
+
+	object, err := h.objectService.CreateObject(ctx, objectParams)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create object: %v", err)
+	}
+
+	// Upload the object to storage
+	reader := bytes.NewReader(decodedData)
+	err = h.objectService.UploadObject(ctx, object.ID, reader)
+	if err != nil {
+		return nil, fmt.Errorf("failed to upload object: %v", err)
+	}
+
+	// Get object metadata from storage
+	_, err = h.objectService.UpdateObjectMetaFromStorage(ctx, object.ID)
+	if err != nil {
+		slog.Warn("Failed to update object metadata from storage", "err", err)
+	}
+
+	// Update content status to uploaded
+	content.Status = model.ContentStatusUploaded
+	updateParams = service.UpdateContentParams{
+		Content: content,
+	}
+
+	err = h.contentService.UpdateContent(ctx, updateParams)
+	if err != nil {
+		return nil, fmt.Errorf("failed to update content status: %v", err)
+	}
+
+	// Get a download URL for the object
+	downloadURL, err := h.objectService.GetDownloadURL(ctx, object.ID)
+	if err != nil {
+		slog.Error("Failed to get download URL", "err", err)
+		return nil, fmt.Errorf("failed to get download URL: %v", err)
+	}
+
+	slog.Info("Created content with ID: %s", content.ID)
+
+	// Delete the temporary file after successful upload
+	err = os.Remove(outputFilePath)
+	if err != nil {
+		slog.Warn("Failed to delete temporary file", "path", outputFilePath, "err", err)
+		// Continue despite error, as the upload was successful
+	} else {
+		slog.Info("Deleted temporary file after successful upload", "path", outputFilePath)
+	}
+
+	return mcp.NewToolResultText(fmt.Sprintf("Content uploaded successfully.\nContent ID: %s\nDownload URL: %s", content.ID, downloadURL)), nil
 }
