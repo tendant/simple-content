@@ -454,6 +454,8 @@ func (h *FilesHandler) GetFileInfo(w http.ResponseWriter, r *http.Request) {
 		CreatedAt:   content.CreatedAt,
 		UpdatedAt:   content.UpdatedAt,
 		Status:      string(content.Status),
+		MimeType:    metadata.MimeType,
+		FileSize:    metadata.FileSize,
 	}
 
 	slog.Info("GetFileInfo", "content", resp)
