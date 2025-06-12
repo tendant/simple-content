@@ -9,6 +9,7 @@ import (
 
 	"github.com/ilyakaznacheev/cleanenv"
 	"github.com/mark3labs/mcp-go/server"
+	"github.com/tendant/simple-content/internal/mcp"
 )
 
 type Config struct {
@@ -35,6 +36,10 @@ func main() {
 		"1.0.0",
 		server.WithResourceCapabilities(true, true), // Enable SSE and JSON-RPC
 	)
+
+	// Register hello content tools
+	helloHandler := mcp.NewHelloContentHandler()
+	helloHandler.RegisterTools(s)
 
 	// Start the server based on the selected mode
 	switch *mode {
