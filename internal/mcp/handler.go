@@ -67,17 +67,20 @@ func (h *Handler) handleUploadContent(ctx context.Context, request mcp.CallToolR
 		return nil, fmt.Errorf("data parameter must be a string")
 	}
 
-	// Validate base64 format (placeholder validation)
-	_, err := base64.StdEncoding.DecodeString(dataStr)
+	// Validate base64 format and decode the data
+	decodedData, err := base64.StdEncoding.DecodeString(dataStr)
 	if err != nil {
 		return nil, fmt.Errorf("invalid base64 data: %v", err)
 	}
 
-	// Generate a UUID for the content ID
-	contentID := uuid.New().String()
+	// Write the decoded data to a text file
+	outputFilePath := "generated_content.txt"
+	err = os.WriteFile(outputFilePath, decodedData, 0644)
+	if err != nil {
+		return nil, fmt.Errorf("failed to write data to file: %v", err)
+	}
 
-	// Generate a placeholder download URL
-	downloadURL := fmt.Sprintf("https://content.example.com/download/%s", contentID)
+	log.Printf("Successfully wrote decoded data to %s", outputFilePath)
 
 	return mcp.NewToolResultText(fmt.Sprintf("Content uploaded successfully.\nContent ID: %s\nDownload URL: %s", contentID, downloadURL)), nil
 }
