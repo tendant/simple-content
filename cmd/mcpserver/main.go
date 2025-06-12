@@ -10,6 +10,7 @@ import (
 
 	"github.com/ilyakaznacheev/cleanenv"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/joho/godotenv"
 	"github.com/mark3labs/mcp-go/server"
 	"github.com/tendant/simple-content/internal/mcp"
 	psqlrepo "github.com/tendant/simple-content/pkg/repository/psql"
@@ -102,6 +103,12 @@ func main() {
 
 	// Parse command line flags
 	flag.Parse()
+
+	// Load environment variables from .env file
+	if err := godotenv.Load(".env"); err != nil {
+		// It's okay if .env doesn't exist, we'll use default values
+		slog.Info("No .env file found or error loading it, using default values", "err", err)
+	}
 
 	var cfg Config
 	cleanenv.ReadEnv(&cfg)
