@@ -38,8 +38,8 @@ func main() {
 	)
 
 	// Register hello content tools
-	helloHandler := mcp.NewHelloContentHandler()
-	helloHandler.RegisterTools(s)
+	handler := mcp.NewHandler()
+	handler.RegisterTools(s)
 
 	// Start the server based on the selected mode
 	switch *mode {
