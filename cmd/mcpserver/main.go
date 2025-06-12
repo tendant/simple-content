@@ -4,7 +4,6 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"log"
 	"log/slog"
 	"net/url"
 	"os"
@@ -38,7 +37,7 @@ type S3Config struct {
 	Endpoint        string `env:"AWS_S3_ENDPOINT"`
 	AccessKeyID     string `env:"AWS_ACCESS_KEY_ID" env-default:"minioadmin"`
 	SecretAccessKey string `env:"AWS_SECRET_ACCESS_KEY" env-default:"minioadmin"`
-	BucketName      string `env:"AWS_S3_BUCKET" env-default:"content-bucket"`
+	BucketName      string `env:"AWS_S3_BUCKET" env-default:"mymusic"`
 	Region          string `env:"AWS_S3_REGION" env-default:"us-east-1"`
 	UseSSL          bool   `env:"AWS_S3_USE_SSL" env-default:"false"`
 }
@@ -168,9 +167,10 @@ func main() {
 		}
 	case "http":
 		httpServer := server.NewStreamableHTTPServer(s)
-		log.Printf("HTTP server listening on :%d", cfg.Port)
+		slog.Info("HTTP server listening", "port", cfg.Port)
 		if err := httpServer.Start(fmt.Sprintf(":%d", cfg.Port)); err != nil {
-			log.Fatalf("Server error: %v", err)
+			slog.Error("Server error", "err", err)
+			os.Exit(-1)
 		}
 	default:
 		// Default to stdio mode
