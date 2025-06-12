@@ -48,6 +48,8 @@ type S3Config struct {
 	UseSSL          bool   `env:"AWS_S3_USE_SSL" env-default:"false"`
 }
 
+const S3_URL_DURATION = 3600 * 6 // 6 hours
+
 func (c DbConfig) toDatabaseUrl() string {
 	u := url.URL{
 		Scheme: "postgres",
@@ -81,7 +83,7 @@ func initializeS3Backend(config S3Config) (*s3.S3Backend, error) {
 		Region:                 config.Region,
 		UseSSL:                 config.UseSSL,
 		CreateBucketIfNotExist: false,
-		PresignDuration:        3600, // 1 hour
+		PresignDuration:        S3_URL_DURATION, // 6 hours
 	}
 
 	backend, err := s3.NewS3Backend(s3Config)
