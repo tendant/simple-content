@@ -143,21 +143,21 @@ func (s *ObjectService) UpdateObject(ctx context.Context, object *model.Object) 
 
 // DeleteObject deletes an object
 func (s *ObjectService) DeleteObject(ctx context.Context, id uuid.UUID) error {
-	object, err := s.objectRepo.Get(ctx, id)
-	if err != nil {
-		return err
-	}
+	// object, err := s.objectRepo.Get(ctx, id)
+	// if err != nil {
+	// 	return err
+	// }
 
-	// Get the backend implementation
-	backend, err := s.GetBackend(object.StorageBackendName)
-	if err != nil {
-		return err
-	}
+	// // Get the backend implementation
+	// backend, err := s.GetBackend(object.StorageBackendName)
+	// if err != nil {
+	// 	return err
+	// }
 
-	// Delete the object from storage
-	if err := backend.Delete(ctx, object.ObjectKey); err != nil {
-		return err
-	}
+	// // Delete the object from storage
+	// if err := backend.Delete(ctx, object.ObjectKey); err != nil {
+	// 	return err
+	// }
 
 	// Delete the object from the repository
 	return s.objectRepo.Delete(ctx, id)
