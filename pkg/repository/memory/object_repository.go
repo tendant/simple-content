@@ -64,6 +64,21 @@ func (r *ObjectRepository) GetByContentID(ctx context.Context, contentID uuid.UU
 	return result, nil
 }
 
+// GetByObjectKeyAndStorageBackend retrieves a non-deleted object by object key and storage backend name
+func (r *ObjectRepository) GetByObjectKeyAndStorageBackendName(ctx context.Context, objectKey string, storageBackendName string) (*domain.Object, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	for _, object := range r.objects {
+		// Check if object matches both object key and storage backend name
+		if object.ObjectKey == objectKey && object.StorageBackendName == storageBackendName {
+			return object, nil
+		}
+	}
+
+	return nil, errors.New("object not found")
+}
+
 // Update updates an existing object
 func (r *ObjectRepository) Update(ctx context.Context, object *domain.Object) error {
 	r.mu.Lock()
