@@ -368,3 +368,55 @@ func TestObjectService_GetObjectByObjectKeyAndStorageBackendName(t *testing.T) {
 		assert.Equal(t, uuid.Nil, foundObject)
 	})
 }
+
+func TestObjectService_GetObjectMetaFromStorageByObjectKeyAndStorageBackendName(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("Success case", func(t *testing.T) {
+		// Setup
+		svc, backend := setupObjectService()
+		objectKey := "test-object-key"
+
+		// Upload test data to the backend
+		testData := []byte("test data content")
+		err := backend.Upload(ctx, objectKey, bytes.NewReader(testData))
+		assert.NoError(t, err)
+
+		// Call the function being tested
+		objectMeta, err := svc.GetObjectMetaFromStorageByObjectKeyAndStorageBackendName(ctx, objectKey, "memory")
+
+		// Verify results
+		assert.NoError(t, err)
+		assert.NotNil(t, objectMeta)
+		assert.Equal(t, int64(len(testData)), objectMeta.Size)
+		assert.Equal(t, objectKey, objectMeta.Key)
+	})
+
+	t.Run("Backend not found", func(t *testing.T) {
+		// Setup
+		svc, _ := setupObjectService()
+		objectKey := "test-object-key"
+
+		// Call with non-existent backend
+		objectMeta, err := svc.GetObjectMetaFromStorageByObjectKeyAndStorageBackendName(ctx, objectKey, "non-existent-backend")
+
+		// Verify error
+		assert.Error(t, err)
+		assert.Nil(t, objectMeta)
+		assert.Contains(t, err.Error(), "failed to get backend")
+	})
+
+	t.Run("Object key not found", func(t *testing.T) {
+		// Setup
+		svc, _ := setupObjectService()
+		nonExistentKey := "non-existent-key"
+
+		// Call the function being tested with a key that doesn't exist
+		objectMeta, err := svc.GetObjectMetaFromStorageByObjectKeyAndStorageBackendName(ctx, nonExistentKey, "memory")
+
+		// Verify error
+		assert.Error(t, err)
+		assert.Nil(t, objectMeta)
+		assert.Contains(t, err.Error(), "object not found")
+	})
+}
