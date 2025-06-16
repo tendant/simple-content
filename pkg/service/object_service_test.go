@@ -167,6 +167,8 @@ func TestObjectService_GetObjectsByContentID(t *testing.T) {
 	svc, _ := setupObjectService()
 	ctx := context.Background()
 	contentID := uuid.New()
+
+	// Create multiple objects for the same content
 	createObjectParams1 := service.CreateObjectParams{
 		ContentID:          contentID,
 		StorageBackendName: "memory",
@@ -174,6 +176,7 @@ func TestObjectService_GetObjectsByContentID(t *testing.T) {
 	}
 	object1, err := svc.CreateObject(ctx, createObjectParams1)
 	assert.NoError(t, err)
+
 	createObjectParams2 := service.CreateObjectParams{
 		ContentID:          contentID,
 		StorageBackendName: "memory",
@@ -182,10 +185,89 @@ func TestObjectService_GetObjectsByContentID(t *testing.T) {
 	object2, err := svc.CreateObject(ctx, createObjectParams2)
 	assert.NoError(t, err)
 
+	// Get objects by content ID
 	objects, err := svc.GetObjectsByContentID(ctx, contentID)
 	assert.NoError(t, err)
 	assert.Len(t, objects, 2)
+
+	// Verify the objects are the ones we created
 	ids := []uuid.UUID{objects[0].ID, objects[1].ID}
 	assert.Contains(t, ids, object1.ID)
 	assert.Contains(t, ids, object2.ID)
+}
+
+func TestObjectService_GetObjectByObjectKeyAndStorageBackendName(t *testing.T) {
+	svc, _ := setupObjectService()
+	ctx := context.Background()
+	contentID := uuid.New()
+
+	// Create an object with a specific object key
+	uniqueName := "memory"
+
+	// Create the object first
+	createObjectParams := service.CreateObjectParams{
+		ContentID:          contentID,
+		StorageBackendName: uniqueName,
+		Version:            1,
+	}
+	object, err := svc.CreateObject(ctx, createObjectParams)
+	assert.NoError(t, err)
+
+	// Create another object with different key but same storage backend
+	createObjectParams2 := service.CreateObjectParams{
+		ContentID:          contentID,
+		StorageBackendName: uniqueName,
+		Version:            2,
+	}
+	_, err = svc.CreateObject(ctx, createObjectParams2)
+	assert.NoError(t, err)
+
+	// Test cases
+	t.Run("Find object by key and storage backend name", func(t *testing.T) {
+		// Get the object by key and storage backend name
+		params := service.GetObjectByObjectKeyAndStorageBackendNameParams{
+			ObjectKey:          object.ObjectKey,
+			StorageBackendName: uniqueName,
+		}
+		foundObject, err := svc.GetObjectByObjectKeyAndStorageBackendName(ctx, params)
+		assert.NoError(t, err)
+		assert.Equal(t, object.ID, foundObject)
+	})
+
+	t.Run("Object not found with incorrect key", func(t *testing.T) {
+		// Try to get an object with a non-existent key
+		params := service.GetObjectByObjectKeyAndStorageBackendNameParams{
+			ObjectKey:          "non-existent-key",
+			StorageBackendName: uniqueName,
+		}
+		foundObject, err := svc.GetObjectByObjectKeyAndStorageBackendName(ctx, params)
+		assert.NoError(t, err)
+		assert.Equal(t, uuid.Nil, foundObject)
+	})
+
+	t.Run("Object not found with incorrect storage backend name", func(t *testing.T) {
+		// Try to get an object with a non-existent storage backend name
+		params := service.GetObjectByObjectKeyAndStorageBackendNameParams{
+			ObjectKey:          object.ObjectKey,
+			StorageBackendName: "non-existent-backend",
+		}
+		foundObject, err := svc.GetObjectByObjectKeyAndStorageBackendName(ctx, params)
+		assert.NoError(t, err)
+		assert.Equal(t, uuid.Nil, foundObject)
+	})
+
+	t.Run("Deleted object not found", func(t *testing.T) {
+		// Delete the object
+		err := svc.DeleteObject(ctx, object.ID)
+		assert.NoError(t, err)
+
+		// Try to get the deleted object by key and storage backend name
+		params := service.GetObjectByObjectKeyAndStorageBackendNameParams{
+			ObjectKey:          object.ObjectKey,
+			StorageBackendName: uniqueName,
+		}
+		foundObject, err := svc.GetObjectByObjectKeyAndStorageBackendName(ctx, params)
+		assert.NoError(t, err)
+		assert.Equal(t, uuid.Nil, foundObject)
+	})
 }

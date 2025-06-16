@@ -5,12 +5,13 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
+	model "github.com/tendant/simple-content/internal/domain"
 	"github.com/tendant/simple-content/internal/repository"
 	"github.com/tendant/simple-content/internal/storage"
-	"github.com/tendant/simple-content/pkg/model"
 )
 
 // ObjectService handles object-related operations
@@ -168,7 +169,6 @@ func (s *ObjectService) UploadObject(ctx context.Context, id uuid.UUID, reader i
 
 	object, err := s.objectRepo.Get(ctx, id)
 	if err != nil {
-		slog.Error("Failed to get object", "err", err)
 		return err
 	}
 
@@ -378,6 +378,25 @@ func (s *ObjectService) GetObjectMetaFromStorage(ctx context.Context, objectID u
 	}
 
 	return objectMeta, nil
+}
+
+// GetObjectByObjectKeyAndStorageBackendNameParams contains parameters for looking up object by object key and storage backend name
+type GetObjectByObjectKeyAndStorageBackendNameParams struct {
+	StorageBackendName string
+	ObjectKey          string
+}
+
+// GetObjectByObjectKeyAndStorageBackendName looks for object by object_key and storage_backend_name and returns the object UUID if found, nil if not exists
+func (s *ObjectService) GetObjectByObjectKeyAndStorageBackendName(ctx context.Context, params GetObjectByObjectKeyAndStorageBackendNameParams) (uuid.UUID, error) {
+
+	object, err := s.objectRepo.GetByObjectKeyAndStorageBackendName(ctx, params.ObjectKey, params.StorageBackendName)
+	if err != nil {
+		if strings.Contains(err.Error(), "object not found") {
+			return uuid.Nil, nil
+		}
+		return uuid.Nil, fmt.Errorf("failed to get object by key and storage backend name: %w", err)
+	}
+	return object.ID, nil
 }
 
 // GenerateObjectKey creates an object key based on content ID, object ID and content metadata
