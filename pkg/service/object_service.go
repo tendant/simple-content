@@ -366,6 +366,25 @@ func (s *ObjectService) GetObjectMetaFromStorage(ctx context.Context, objectID u
 	return objectMeta, nil
 }
 
+// GetObjectMetaFromStorageByObjectKeyAndStorageBackendName retrieves metadata for an object directly from the storage backend
+// This is useful when the upload happens client-side and we need to update our metadata
+func (s *ObjectService) GetObjectMetaFromStorageByObjectKeyAndStorageBackendName(ctx context.Context, objectKey string, storageBackendName string) (*storage.ObjectMeta, error) {
+
+	// Get the backend implementation
+	backend, err := s.GetBackend(storageBackendName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get backend: %w", err)
+	}
+
+	// Get object meta from storage backend
+	objectMeta, err := backend.GetObjectMeta(ctx, objectKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get object meta from storage: %w", err)
+	}
+
+	return objectMeta, nil
+}
+
 // GetObjectByObjectKeyAndStorageBackendNameParams contains parameters for looking up object by object key and storage backend name
 type GetObjectByObjectKeyAndStorageBackendNameParams struct {
 	StorageBackendName string
