@@ -154,6 +154,7 @@ func (s *ObjectService) UploadObject(ctx context.Context, id uuid.UUID, reader i
 
 	object, err := s.objectRepo.Get(ctx, id)
 	if err != nil {
+		slog.Error("Failed to get object", "err", err)
 		return err
 	}
 
