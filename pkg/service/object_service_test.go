@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/tendant/simple-content/internal/storage"
 	"github.com/tendant/simple-content/pkg/repository/memory"
 	"github.com/tendant/simple-content/pkg/service"
 	memorystorage "github.com/tendant/simple-content/pkg/storage/memory"
@@ -194,6 +195,102 @@ func TestObjectService_GetObjectsByContentID(t *testing.T) {
 	ids := []uuid.UUID{objects[0].ID, objects[1].ID}
 	assert.Contains(t, ids, object1.ID)
 	assert.Contains(t, ids, object2.ID)
+}
+
+func TestObjectService_GetObjectMetaFromStorage(t *testing.T) {
+	svc, backend := setupObjectService()
+	ctx := context.Background()
+	contentID := uuid.New()
+
+	// Create an object
+	createObjectParams := service.CreateObjectParams{
+		ContentID:          contentID,
+		StorageBackendName: "memory",
+		Version:            1,
+	}
+	object, err := svc.CreateObject(ctx, createObjectParams)
+	assert.NoError(t, err)
+	assert.NotNil(t, object)
+
+	// Test cases
+	t.Run("Object exists - successful retrieval", func(t *testing.T) {
+		// Upload some data to the object so we have metadata
+		testData := []byte("test data content")
+		err := backend.Upload(ctx, object.ObjectKey, bytes.NewReader(testData))
+		assert.NoError(t, err)
+
+		// Get object metadata from storage
+		objectMeta, err := svc.GetObjectMetaFromStorage(ctx, object.ID)
+		assert.NoError(t, err)
+		assert.NotNil(t, objectMeta)
+
+		// Verify metadata matches what we expect from storage.ObjectMeta
+		assert.Equal(t, object.ObjectKey, objectMeta.Key)
+		assert.Equal(t, int64(len(testData)), objectMeta.Size)
+
+		// Verify the object has the expected storage metadata structure
+		assert.IsType(t, &storage.ObjectMeta{}, objectMeta)
+	})
+
+	t.Run("Object does not exist in storage", func(t *testing.T) {
+		// Create another object but don't upload any data
+		createObjectParams := service.CreateObjectParams{
+			ContentID:          contentID,
+			StorageBackendName: "memory",
+			Version:            2,
+		}
+		objectWithoutData, err := svc.CreateObject(ctx, createObjectParams)
+		assert.NoError(t, err)
+
+		// Try to get metadata for an object that doesn't exist in storage
+		_, err = svc.GetObjectMetaFromStorage(ctx, objectWithoutData.ID)
+
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "object not found")
+	})
+
+	t.Run("Object ID does not exist", func(t *testing.T) {
+		// Try to get metadata for a non-existent object ID
+		_, err := svc.GetObjectMetaFromStorage(ctx, uuid.New())
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "object not found")
+	})
+}
+
+// TestObjectService_GetObjectMetaFromStorage_NonExistentKey tests specifically the scenario
+// where an object key doesn't exist in storage, simulating a Minio/S3 backend behavior
+func TestObjectService_GetObjectMetaFromStorage_NonExistentKey(t *testing.T) {
+	// Set up the service with memory backend
+	svc, backend := setupObjectService()
+	ctx := context.Background()
+	contentID := uuid.New()
+
+	// Create an object with a specific object key
+	createObjectParams := service.CreateObjectParams{
+		ContentID:          contentID,
+		StorageBackendName: "memory",
+		Version:            1,
+	}
+	object, err := svc.CreateObject(ctx, createObjectParams)
+	assert.NoError(t, err)
+
+	// Verify the object was created successfully
+	assert.NotNil(t, object)
+	assert.NotEmpty(t, object.ObjectKey)
+
+	// Test when the object key doesn't exist in storage
+	// Note: We don't upload any data to the backend, so the object key doesn't exist
+
+	// Attempt to get metadata for the object that doesn't exist in storage
+	_, err = svc.GetObjectMetaFromStorage(ctx, object.ID)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "object not found")
+
+	// Verify the error comes from the storage backend by trying to download the object
+	// This should also fail since the object doesn't exist in storage
+	_, downloadErr := backend.Download(ctx, object.ObjectKey)
+	assert.Error(t, downloadErr)
+	assert.Contains(t, downloadErr.Error(), "object not found", "Download should also fail for non-existent object")
 }
 
 func TestObjectService_GetObjectByObjectKeyAndStorageBackendName(t *testing.T) {
