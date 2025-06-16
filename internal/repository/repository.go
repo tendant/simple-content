@@ -35,6 +35,7 @@ type ObjectRepository interface {
 	Create(ctx context.Context, object *domain.Object) error
 	Get(ctx context.Context, id uuid.UUID) (*domain.Object, error)
 	GetByContentID(ctx context.Context, contentID uuid.UUID) ([]*domain.Object, error)
+	GetByObjectKeyAndStorageBackendName(ctx context.Context, objectKey string, storageBackendName string) (*domain.Object, error)
 	Update(ctx context.Context, object *domain.Object) error
 	Delete(ctx context.Context, id uuid.UUID) error
 }

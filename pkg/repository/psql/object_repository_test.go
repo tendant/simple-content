@@ -263,6 +263,7 @@ func TestPSQLObjectRepository_Delete(t *testing.T) {
 			FileName:           "test-file.txt",
 			ObjectType:         "file",
 			Status:             domain.ObjectStatusCreated,
+			Version:            1,
 		}
 
 		// Create the object
@@ -276,5 +277,99 @@ func TestPSQLObjectRepository_Delete(t *testing.T) {
 		// Try to get the deleted object
 		_, err = objectRepo.Get(ctx, object.ID)
 		assert.Error(t, err)
+	})
+}
+
+func TestPSQLObjectRepository_GetByObjectKeyAndStorageBackendName(t *testing.T) {
+	RunTest(t, func(t *testing.T, db *TestDB) {
+		// Create repositories
+		contentRepo := NewPSQLContentRepository(db.Pool)
+		objectRepo := NewPSQLObjectRepository(db.Pool)
+		ctx := context.Background()
+
+		// Create a content first
+		tenantID := uuid.New()
+		ownerID := uuid.New()
+		content := &domain.Content{
+			TenantID:       tenantID,
+			OwnerID:        ownerID,
+			OwnerType:      "user",
+			Name:           "Test Content",
+			Status:         domain.ContentStatusCreated,
+			DerivationType: domain.ContentDerivationTypeOriginal,
+		}
+		err := contentRepo.Create(ctx, content)
+		require.NoError(t, err)
+
+		// Create an object with specific object key and storage backend name
+		uniqueName := "unique-storage-backend"
+		uniqueKey := "unique-object-key"
+		object := &domain.Object{
+			ContentID:          content.ID,
+			StorageBackendName: uniqueName,
+			StorageClass:       "standard",
+			ObjectKey:          uniqueKey,
+			FileName:           "test-file.txt",
+			Version:            1,
+			ObjectType:         "file",
+			Status:             domain.ObjectStatusCreated,
+		}
+
+		// Create the object
+		err = objectRepo.Create(ctx, object)
+		require.NoError(t, err)
+
+		// Create another object with same content ID but different object key
+		object2 := &domain.Object{
+			ContentID:          content.ID,
+			StorageBackendName: uniqueName,
+			StorageClass:       "standard",
+			ObjectKey:          "different-key",
+			FileName:           "another-file.txt",
+			Version:            1,
+			ObjectType:         "file",
+			Status:             domain.ObjectStatusCreated,
+		}
+
+		// Create the second object
+		err = objectRepo.Create(ctx, object2)
+		require.NoError(t, err)
+
+		// Test cases
+		t.Run("Find object by key and storage backend name", func(t *testing.T) {
+			// Get the object by key and storage backend name
+			foundObject, err := objectRepo.GetByObjectKeyAndStorageBackendName(ctx, uniqueKey, uniqueName)
+			require.NoError(t, err)
+			assert.NotNil(t, foundObject)
+			assert.Equal(t, object.ID, foundObject.ID)
+			assert.Equal(t, object.ContentID, foundObject.ContentID)
+			assert.Equal(t, uniqueKey, foundObject.ObjectKey)
+			assert.Equal(t, uniqueName, foundObject.StorageBackendName)
+		})
+
+		t.Run("Object not found with incorrect key", func(t *testing.T) {
+			// Try to get an object with a non-existent key
+			_, err := objectRepo.GetByObjectKeyAndStorageBackendName(ctx, "non-existent-key", uniqueName)
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "object not found")
+		})
+
+		t.Run("Object not found with incorrect storage backend name", func(t *testing.T) {
+			// Try to get an object with a non-existent storage backend name
+			_, err := objectRepo.GetByObjectKeyAndStorageBackendName(ctx, uniqueKey, "non-existent-backend")
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "object not found")
+		})
+
+		t.Run("Deleted object not found", func(t *testing.T) {
+			// Delete the object
+			err := objectRepo.Delete(ctx, object.ID)
+			require.NoError(t, err)
+
+			// Try to get the deleted object by key and storage backend name
+			_, err = objectRepo.GetByObjectKeyAndStorageBackendName(ctx, uniqueKey, uniqueName)
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "object not found")
+		})
 	})
 }

@@ -235,19 +235,41 @@ func (r *PSQLObjectRepository) Update(ctx context.Context, object *domain.Object
 func (r *PSQLObjectRepository) Delete(ctx context.Context, id uuid.UUID) error {
 	query := `
 		UPDATE content.object
-		SET deleted_at = $2
-		WHERE id = $1 AND deleted_at IS NULL
+		SET deleted_at = $1
+		WHERE id = $2
 	`
 
-	result, err := r.db.Exec(ctx, query, id, time.Now())
+	_, err := r.db.Exec(ctx, query, time.Now().UTC(), id)
+	return err
+}
+
+// GetByObjectKeyAndStorageBackend retrieves a non-deleted object by object key and storage backend name
+func (r *PSQLObjectRepository) GetByObjectKeyAndStorageBackendName(ctx context.Context, objectKey string, storageBackendName string) (*domain.Object, error) {
+	query := `
+		SELECT 
+			id, content_id, storage_backend_name, status, object_key
+		FROM content.object
+		WHERE object_key = $1 AND storage_backend_name = $2 AND deleted_at IS NULL
+		ORDER BY version DESC
+		LIMIT 1
+	`
+
+	object := &domain.Object{}
+
+	err := r.db.QueryRow(ctx, query, objectKey, storageBackendName).Scan(
+		&object.ID,
+		&object.ContentID,
+		&object.StorageBackendName,
+		&object.Status,
+		&object.ObjectKey,
+	)
+
 	if err != nil {
-		return err
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, errors.New("object not found")
+		}
+		return nil, err
 	}
 
-	rowsAffected := result.RowsAffected()
-	if rowsAffected == 0 {
-		return fmt.Errorf("object not found or already deleted")
-	}
-
-	return nil
+	return object, nil
 }
