@@ -130,16 +130,21 @@ func initializeS3Backend() (*s3.S3Backend, error) {
 
 func executeContentFlow(ctx context.Context, contentService *service.ContentService, objectService *service.ObjectService) error {
 	// 1. Create a tenant and owner ID (in a real app, these would come from your auth system)
+	ownerType := "user"
 	tenantID := uuid.New()
 	ownerID := uuid.New()
+	fileName := "filename.jpg"
 	slog.Info("Using tenant ID", "tenantID", tenantID)
 	slog.Info("Using owner ID", "ownerID", ownerID)
 
-	// 2. Create a new content
+	// 2 Create content
+	// 2.1 Create a new content
 	slog.Info("Creating new content...")
 	createParams := service.CreateContentParams{
-		OwnerID:  ownerID,
-		TenantID: tenantID,
+		OwnerID:      ownerID,
+		TenantID:     tenantID,
+		Title:        fileName,
+		DocumentType: "receipt",
 	}
 	content, err := contentService.CreateContent(ctx, createParams)
 	if err != nil {
@@ -147,16 +152,27 @@ func executeContentFlow(ctx context.Context, contentService *service.ContentServ
 	}
 	slog.Info("Content created with ID", "contentID", content.ID)
 
+	// 2.2 Patch the missing fields
+	content.OwnerType = ownerType
+	updateParams := service.UpdateContentParams{
+		Content: content,
+	}
+	err = contentService.UpdateContent(ctx, updateParams)
+	if err != nil {
+		return fmt.Errorf("failed to update content: %w", err)
+	}
+	slog.Info("Content updated", "content", content)
+
 	// 3. Set content metadata
 	slog.Info("Setting content metadata...")
 	metadataParams := service.SetContentMetadataParams{
 		ContentID:   content.ID,
-		ContentType: "image/jpeg",
-		Title:       "Example Image",
+		ContentType: "image/png",
+		Title:       fileName,
 		Description: "This is an example image uploaded through the content flow",
 		Tags:        []string{"example", "image", "test"},
 		FileSize:    0, // File size will be updated later
-		CreatedBy:   "example-user",
+		CreatedBy:   ownerID.String(),
 		CustomMetadata: map[string]interface{}{
 			"source": "example-app",
 		},
@@ -167,6 +183,7 @@ func executeContentFlow(ctx context.Context, contentService *service.ContentServ
 	}
 
 	// 4. Create a new object for the content
+	// 4.1 Create a new object
 	slog.Info("Creating new object...")
 	createObjectParams := service.CreateObjectParams{
 		ContentID:          content.ID,
@@ -181,6 +198,13 @@ func executeContentFlow(ctx context.Context, contentService *service.ContentServ
 		return fmt.Errorf("failed to create object: %w", err)
 	}
 	slog.Info("Object created with ID", "objectID", object.ID)
+	// 4.2 Patch the missing fields
+	object.FileName = fileName
+	object.ObjectType = "image/jpeg"
+	err = objectService.UpdateObject(ctx, object)
+	if err != nil {
+		slog.Warn("Failed to patch object", "err", err)
+	}
 
 	// 5. Get a sample image file to upload
 	filePath := getEnvOrDefault("SAMPLE_IMAGE_PATH", "./receipt.jpg")
@@ -198,18 +222,25 @@ func executeContentFlow(ctx context.Context, contentService *service.ContentServ
 	}
 	slog.Info("Object uploaded successfully!")
 
-	// 7. Get object metadata
+	// 7. Update object meta from storage
+	object_meta, err := objectService.UpdateObjectMetaFromStorage(ctx, object.ID)
+	if err != nil {
+		return fmt.Errorf("failed to update object meta from storage: %w", err)
+	}
+	slog.Info("Object meta updated successfully!", "objectMeta", object_meta)
+
+	// 8. Get object metadata
 	fileInfo, err := objectService.GetObjectMetadata(ctx, object.ID)
 	if err != nil {
 		return fmt.Errorf("failed to get object metadata: %w", err)
 	}
 	slog.Info("Object metadata retrieved successfully!", "fileInfo", fileInfo)
 
-	// 8. Update content status to uploaded
+	// 9. Update content status to uploaded
 	slog.Info("Updating content status to uploaded...")
 	content.Status = model.ContentStatusUploaded
 	content.UpdatedAt = time.Now().UTC()
-	updateParams := service.UpdateContentParams{
+	updateParams = service.UpdateContentParams{
 		Content: content,
 	}
 	err = contentService.UpdateContent(ctx, updateParams)
@@ -217,7 +248,7 @@ func executeContentFlow(ctx context.Context, contentService *service.ContentServ
 		return fmt.Errorf("failed to update content status: %w", err)
 	}
 
-	// 9. Get a download URL for the object
+	// 10. Get a download URL for the object
 	slog.Info("Generating download URL...")
 	downloadURL, err := objectService.GetDownloadURL(ctx, object.ID)
 	if err != nil {
@@ -225,7 +256,7 @@ func executeContentFlow(ctx context.Context, contentService *service.ContentServ
 	}
 	slog.Info("Download URL", "downloadURL", downloadURL)
 
-	// 10. Download the object to verify it was uploaded correctly
+	// 11. Download the object to verify it was uploaded correctly
 	slog.Info("Downloading object to verify upload...")
 	reader, err := objectService.DownloadObject(ctx, object.ID)
 	if err != nil {
