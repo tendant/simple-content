@@ -80,6 +80,7 @@ type FileInfoResponse struct {
 	FileSize       int64                  `json:"file_size"`
 	DerivationType string                 `json:"derivation_type"`
 	OwnerID        string                 `json:"owner_id"`
+	OwnerType      string                 `json:"owner_type"`
 	TenantID       string                 `json:"tenant_id"`
 }
 
@@ -474,6 +475,9 @@ func (h *FilesHandler) GetFileInfo(w http.ResponseWriter, r *http.Request) {
 		Status:      string(content.Status),
 		MimeType:    metadata.MimeType,
 		FileSize:    metadata.FileSize,
+		OwnerID:     content.OwnerID.String(),
+		TenantID:    content.TenantID.String(),
+		OwnerType:   string(content.OwnerType),
 	}
 
 	slog.Info("GetFileInfo", "content", resp)
