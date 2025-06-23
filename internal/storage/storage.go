@@ -22,6 +22,11 @@ type ObjectMeta struct {
 	Metadata map[string]string
 }
 
+type UploadParams struct {
+	ObjectKey string
+	MimeType  string
+}
+
 // Backend defines the interface for storage backends
 type Backend interface {
 	// GetUploadURL returns a URL for uploading content
@@ -29,6 +34,8 @@ type Backend interface {
 
 	// Upload uploads content directly
 	Upload(ctx context.Context, objectKey string, reader io.Reader) error
+
+	UploadWithParams(ctx context.Context, reader io.Reader, params UploadParams) error
 
 	// GetDownloadURL returns a URL for downloading content
 	GetDownloadURL(ctx context.Context, objectKey string, downloadFilename string) (string, error)

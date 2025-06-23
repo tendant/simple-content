@@ -38,11 +38,6 @@ type Config struct {
 	CreateBucketIfNotExist bool // Create bucket if it doesn't exist
 }
 
-type S3ExtendedBackend interface {
-	storage.Backend
-	UploadWithParams(ctx context.Context, reader io.Reader, params S3UploadParams) error
-}
-
 // S3Backend is an AWS S3 implementation of the storage.Backend interface
 type S3Backend struct {
 	client          *s3.Client
@@ -474,13 +469,7 @@ func (b *S3Backend) Upload(ctx context.Context, objectKey string, reader io.Read
 	return nil
 }
 
-// Upload uploads content directly to S3
-type S3UploadParams struct {
-	ObjectKey string
-	MimeType  string
-}
-
-func (b *S3Backend) UploadWithParams(ctx context.Context, reader io.Reader, params S3UploadParams) error {
+func (b *S3Backend) UploadWithParams(ctx context.Context, reader io.Reader, params storage.UploadParams) error {
 	uploader := manager.NewUploader(b.client)
 
 	input := &s3.PutObjectInput{

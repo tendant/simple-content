@@ -104,6 +104,10 @@ func (b *FSBackend) Upload(ctx context.Context, objectKey string, reader io.Read
 	return nil
 }
 
+func (b *FSBackend) UploadWithParams(ctx context.Context, reader io.Reader, params storage.UploadParams) error {
+	return b.Upload(ctx, params.ObjectKey, reader)
+}
+
 // GetDownloadURL returns a URL for downloading content
 func (b *FSBackend) GetDownloadURL(ctx context.Context, objectKey string, downloadFilename string) (string, error) {
 	if b.urlPrefix == "" {

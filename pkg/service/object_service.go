@@ -3,7 +3,6 @@ package service
 import (
 	"bytes"
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -15,7 +14,6 @@ import (
 	model "github.com/tendant/simple-content/internal/domain"
 	"github.com/tendant/simple-content/internal/repository"
 	"github.com/tendant/simple-content/internal/storage"
-	"github.com/tendant/simple-content/pkg/storage/s3"
 	"github.com/tendant/simple-content/pkg/utils"
 )
 
@@ -221,10 +219,6 @@ func (s *ObjectService) UploadObjectWithMetadata(ctx context.Context, reader io.
 		slog.Error("Failed to get backend", "err", err)
 		return err
 	}
-	if _, ok := backend.(s3.S3ExtendedBackend); !ok {
-		slog.Error("Backend is not S3Backend", "backend", backend)
-		return errors.New("backend is not S3Backend")
-	}
 
 	// Detect mimeType if not provided
 	mimeType := params.MimeType
@@ -237,7 +231,7 @@ func (s *ObjectService) UploadObjectWithMetadata(ctx context.Context, reader io.
 	}
 
 	// Upload the object
-	err = backend.(s3.S3ExtendedBackend).UploadWithParams(ctx, reader, s3.S3UploadParams{
+	err = backend.UploadWithParams(ctx, reader, storage.UploadParams{
 		ObjectKey: object.ObjectKey,
 		MimeType:  mimeType,
 	})
@@ -247,7 +241,7 @@ func (s *ObjectService) UploadObjectWithMetadata(ctx context.Context, reader io.
 	}
 
 	// Get object meta from storage backend
-	objectMeta, err := backend.(s3.S3ExtendedBackend).GetObjectMeta(ctx, object.ObjectKey)
+	objectMeta, err := backend.GetObjectMeta(ctx, object.ObjectKey)
 	if err != nil {
 		slog.Error("Failed to get object meta", "err", err)
 		return err
