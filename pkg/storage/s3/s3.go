@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"net/url"
 	"time"
 
@@ -442,10 +443,21 @@ func (b *S3Backend) GetUploadURL(ctx context.Context, objectKey string) (string,
 func (b *S3Backend) Upload(ctx context.Context, objectKey, mimeType string, reader io.Reader) error {
 	uploader := manager.NewUploader(b.client)
 
+	// Detect content type if not provided
+	if mimeType == "" {
+		buffer := make([]byte, 512)
+		_, err := reader.Read(buffer)
+		if err != nil && err != io.EOF {
+			return fmt.Errorf("failed to read file for MIME detection: %w", err)
+		}
+		mimeType = http.DetectContentType(buffer)
+	}
+
 	input := &s3.PutObjectInput{
-		Bucket: aws.String(b.bucket),
-		Key:    aws.String(objectKey),
-		Body:   reader,
+		Bucket:      aws.String(b.bucket),
+		Key:         aws.String(objectKey),
+		Body:        reader,
+		ContentType: aws.String(mimeType),
 	}
 
 	// Add server-side encryption if enabled
@@ -460,6 +472,7 @@ func (b *S3Backend) Upload(ctx context.Context, objectKey, mimeType string, read
 		}
 	}
 
+	// Upload to s3
 	_, err := uploader.Upload(ctx, input)
 	if err != nil {
 		return fmt.Errorf("failed to upload object: %w", err)
