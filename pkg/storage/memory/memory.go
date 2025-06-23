@@ -12,14 +12,16 @@ import (
 
 // MemoryBackend is an in-memory implementation of the storage.Backend interface
 type MemoryBackend struct {
-	mu      sync.RWMutex
-	objects map[string][]byte
+	mu              sync.RWMutex
+	objects         map[string][]byte
+	objectsMimeType map[string]string
 }
 
 // NewMemoryBackend creates a new in-memory storage backend
 func NewMemoryBackend() storage.Backend {
 	return &MemoryBackend{
-		objects: make(map[string][]byte),
+		objects:         make(map[string][]byte),
+		objectsMimeType: make(map[string]string),
 	}
 }
 
@@ -32,11 +34,16 @@ func (b *MemoryBackend) GetObjectMeta(ctx context.Context, objectKey string) (*s
 	if !exists {
 		return nil, errors.New("object not found")
 	}
+	mimeType, exists := b.objectsMimeType[objectKey]
+	if !exists {
+		return nil, errors.New("object not found")
+	}
 
 	meta := &storage.ObjectMeta{
-		Key:      objectKey,
-		Size:     int64(len(data)),
-		Metadata: make(map[string]string),
+		Key:         objectKey,
+		Size:        int64(len(data)),
+		ContentType: mimeType,
+		Metadata:    map[string]string{"mime_type": mimeType},
 	}
 
 	return meta, nil
@@ -63,7 +70,13 @@ func (b *MemoryBackend) Upload(ctx context.Context, objectKey string, reader io.
 }
 
 func (b *MemoryBackend) UploadWithParams(ctx context.Context, reader io.Reader, params storage.UploadParams) error {
-	return b.Upload(ctx, params.ObjectKey, reader)
+
+	err := b.Upload(ctx, params.ObjectKey, reader)
+	if err != nil {
+		return err
+	}
+	b.objectsMimeType[params.ObjectKey] = params.MimeType
+	return nil
 }
 
 // GetDownloadURL returns a URL for downloading content

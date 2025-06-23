@@ -115,6 +115,47 @@ func TestObjectService_UploadAndDownloadObject(t *testing.T) {
 	assert.Equal(t, data, readData)
 }
 
+func TestObjectService_UploadWithMetadataAndDownloadObject(t *testing.T) {
+	svc, _ := setupObjectService()
+	ctx := context.Background()
+	contentID := uuid.New()
+	createObjectParams := service.CreateObjectParams{
+		ContentID:          contentID,
+		StorageBackendName: "memory",
+		Version:            1,
+	}
+	object, err := svc.CreateObject(ctx, createObjectParams)
+	assert.NoError(t, err)
+
+	object_meta, err := svc.GetObjectMetadata(ctx, object.ID)
+
+	object_meta["mime_type"] = "text/plain"
+	object_meta["file_name"] = "test.txt"
+	err = svc.SetObjectMetadata(ctx, object.ID, object_meta)
+	assert.NoError(t, err)
+
+	data := []byte("hello world")
+	err = svc.UploadObjectWithMetadata(ctx, bytes.NewReader(data), service.UploadObjectWithMetadataParams{
+		ObjectID: object.ID,
+		MimeType: "text/plain",
+	})
+	assert.NoError(t, err)
+
+	_, err = svc.UpdateObjectMetaFromStorage(ctx, object.ID)
+	assert.NoError(t, err)
+
+	object_meta, err = svc.GetObjectMetadata(ctx, object.ID)
+	assert.NoError(t, err)
+
+	assert.Equal(t, "text/plain", object_meta["mime_type"])
+
+	reader, err := svc.DownloadObject(ctx, object.ID)
+	assert.NoError(t, err)
+	readData, err := io.ReadAll(reader)
+	assert.NoError(t, err)
+	assert.Equal(t, data, readData)
+}
+
 func TestObjectService_SetAndGetObjectMetadata(t *testing.T) {
 	svc, _ := setupObjectService()
 	ctx := context.Background()
