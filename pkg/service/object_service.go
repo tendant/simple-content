@@ -224,8 +224,13 @@ func (s *ObjectService) UploadObjectWithMetadata(ctx context.Context, reader io.
 	mimeType := params.MimeType
 	if mimeType == "" {
 		buffer := make([]byte, 512)
-		teeReader := io.TeeReader(reader, bytes.NewBuffer(nil))
-		n, _ := teeReader.Read(buffer)
+		var buf bytes.Buffer
+		teeReader := io.TeeReader(reader, &buf)
+		n, err := teeReader.Read(buffer)
+		if err != nil && err != io.EOF {
+			slog.Error("Failed to read file for MIME type detection", "err", err)
+			return fmt.Errorf("failed to read for MIME detection: %w", err)
+		}
 		mimeType = http.DetectContentType(buffer[:n])
 		reader = io.MultiReader(bytes.NewReader(buffer[:n]), reader)
 	}
