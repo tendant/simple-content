@@ -67,6 +67,10 @@ func (b *MockStorageBackend) Upload(ctx context.Context, objectKey string, reade
 	return nil
 }
 
+func (b *MockStorageBackend) UploadWithParams(ctx context.Context, reader io.Reader, params storage.UploadParams) error {
+	return b.Upload(ctx, params.ObjectKey, reader)
+}
+
 func (b *MockStorageBackend) GetDownloadURL(ctx context.Context, objectKey string, downloadFilename string) (string, error) {
 	return "https://mock-storage.example.com/download/" + objectKey, nil
 }

@@ -62,6 +62,10 @@ func (b *MemoryBackend) Upload(ctx context.Context, objectKey string, reader io.
 	return nil
 }
 
+func (b *MemoryBackend) UploadWithParams(ctx context.Context, reader io.Reader, params storage.UploadParams) error {
+	return b.Upload(ctx, params.ObjectKey, reader)
+}
+
 // GetDownloadURL returns a URL for downloading content
 // In-memory implementation doesn't use URLs
 func (b *MemoryBackend) GetDownloadURL(ctx context.Context, objectKey string, downloadFilename string) (string, error) {

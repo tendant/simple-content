@@ -48,6 +48,7 @@ type S3Backend struct {
 	sseAlgorithm    string
 	sseKMSKeyID     string
 }
+
 type resolverV2 struct {
 	s3Endpoint string
 	s3Region   string
@@ -446,6 +447,36 @@ func (b *S3Backend) Upload(ctx context.Context, objectKey string, reader io.Read
 		Bucket: aws.String(b.bucket),
 		Key:    aws.String(objectKey),
 		Body:   reader,
+	}
+
+	// Add server-side encryption if enabled
+	if b.enableSSE {
+		if b.sseAlgorithm == "AES256" {
+			input.ServerSideEncryption = types.ServerSideEncryptionAes256
+		} else if b.sseAlgorithm == "aws:kms" {
+			input.ServerSideEncryption = types.ServerSideEncryptionAwsKms
+			if b.sseKMSKeyID != "" {
+				input.SSEKMSKeyId = aws.String(b.sseKMSKeyID)
+			}
+		}
+	}
+
+	_, err := uploader.Upload(ctx, input)
+	if err != nil {
+		return fmt.Errorf("failed to upload object: %w", err)
+	}
+
+	return nil
+}
+
+func (b *S3Backend) UploadWithParams(ctx context.Context, reader io.Reader, params storage.UploadParams) error {
+	uploader := manager.NewUploader(b.client)
+
+	input := &s3.PutObjectInput{
+		Bucket:      aws.String(b.bucket),
+		Key:         aws.String(params.ObjectKey),
+		Body:        reader,
+		ContentType: aws.String(params.MimeType),
 	}
 
 	// Add server-side encryption if enabled

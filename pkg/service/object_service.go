@@ -1,10 +1,12 @@
 package service
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
 	"log/slog"
+	"net/http"
 	"strings"
 	"time"
 
@@ -178,6 +180,78 @@ func (s *ObjectService) UploadObject(ctx context.Context, id uuid.UUID, reader i
 		slog.Error("Failed to get object meta", "err", err)
 		return err
 	}
+
+	// Update object metadata
+	updatedTime := time.Now().UTC()
+	objectMetaData := &model.ObjectMetadata{
+		ObjectID:  object.ID,
+		ETag:      objectMeta.ETag,
+		SizeBytes: objectMeta.Size,
+		MimeType:  objectMeta.ContentType,
+		UpdatedAt: updatedTime,
+	}
+	if err := s.objectMetadataRepo.Set(ctx, objectMetaData); err != nil {
+		slog.Error("Failed to update object metadata", "err", err)
+		return err
+	}
+
+	// Update object status
+	object.Status = model.ObjectStatusUploaded
+	object.UpdatedAt = updatedTime
+	return s.objectRepo.Update(ctx, object)
+}
+
+type UploadObjectWithMetadataParams struct {
+	ObjectID uuid.UUID
+	MimeType string
+}
+
+func (s *ObjectService) UploadObjectWithMetadata(ctx context.Context, reader io.Reader, params UploadObjectWithMetadataParams) error {
+	object, err := s.objectRepo.Get(ctx, params.ObjectID)
+	if err != nil {
+		slog.Error("Failed to get object", "err", err)
+		return err
+	}
+
+	// Get the backend implementation
+	backend, err := s.GetBackend(object.StorageBackendName)
+	if err != nil {
+		slog.Error("Failed to get backend", "err", err)
+		return err
+	}
+
+	// Detect mimeType if not provided
+	mimeType := params.MimeType
+	if mimeType == "" {
+		buffer := make([]byte, 512)
+		var buf bytes.Buffer
+		teeReader := io.TeeReader(reader, &buf)
+		n, err := teeReader.Read(buffer)
+		if err != nil && err != io.EOF {
+			slog.Error("Failed to read file for MIME type detection", "err", err)
+			return fmt.Errorf("failed to read for MIME detection: %w", err)
+		}
+		mimeType = http.DetectContentType(buffer[:n])
+		reader = io.MultiReader(bytes.NewReader(buffer[:n]), reader)
+	}
+
+	// Upload the object
+	err = backend.UploadWithParams(ctx, reader, storage.UploadParams{
+		ObjectKey: object.ObjectKey,
+		MimeType:  mimeType,
+	})
+	if err != nil {
+		slog.Error("Failed to upload object", "err", err)
+		return err
+	}
+
+	// Get object meta from storage backend
+	objectMeta, err := backend.GetObjectMeta(ctx, object.ObjectKey)
+	if err != nil {
+		slog.Error("Failed to get object meta", "err", err)
+		return err
+	}
+	slog.Info("******* Object meta retrieved successfully!", "fileInfo", objectMeta)
 
 	// Update object metadata
 	updatedTime := time.Now().UTC()
