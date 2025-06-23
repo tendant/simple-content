@@ -31,7 +31,7 @@ func TestFSBackend(t *testing.T) {
 	content := "Hello, World!"
 
 	// Test Upload
-	err = backend.Upload(ctx, objectKey, strings.NewReader(content))
+	err = backend.Upload(ctx, objectKey, "text/plain", strings.NewReader(content))
 	assert.NoError(t, err)
 
 	// Verify file exists

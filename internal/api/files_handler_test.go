@@ -55,7 +55,7 @@ func (b *MockStorageBackend) GetUploadURL(ctx context.Context, objectKey string)
 	return "https://mock-storage.example.com/upload/" + objectKey, nil
 }
 
-func (b *MockStorageBackend) Upload(ctx context.Context, objectKey string, reader io.Reader) error {
+func (b *MockStorageBackend) Upload(ctx context.Context, objectKey string, mimeType string, reader io.Reader) error {
 	data, err := io.ReadAll(reader)
 	if err != nil {
 		return err
@@ -213,7 +213,7 @@ func TestFilesHandler_CompleteUpload(t *testing.T) {
 
 	// Upload some test data
 	testData := "test file content"
-	err = backend.Upload(context.Background(), object.ObjectKey, bytes.NewReader([]byte(testData)))
+	err = backend.Upload(context.Background(), object.ObjectKey, "text/plain", bytes.NewReader([]byte(testData)))
 	require.NoError(t, err)
 
 	// Make request

@@ -167,7 +167,7 @@ func executeContentFlow(ctx context.Context, contentService *service.ContentServ
 	slog.Info("Setting content metadata...")
 	metadataParams := service.SetContentMetadataParams{
 		ContentID:   content.ID,
-		ContentType: "image/png",
+		ContentType: "",
 		Title:       fileName,
 		Description: "This is an example image uploaded through the content flow",
 		Tags:        []string{"example", "image", "test"},
@@ -198,16 +198,17 @@ func executeContentFlow(ctx context.Context, contentService *service.ContentServ
 		return fmt.Errorf("failed to create object: %w", err)
 	}
 	slog.Info("Object created with ID", "objectID", object.ID)
+
 	// 4.2 Patch the missing fields
 	object.FileName = fileName
-	object.ObjectType = "image/jpeg"
+	object.ObjectType = "application/pdf"
 	err = objectService.UpdateObject(ctx, object)
 	if err != nil {
 		slog.Warn("Failed to patch object", "err", err)
 	}
 
 	// 5. Get a sample image file to upload
-	filePath := getEnvOrDefault("SAMPLE_IMAGE_PATH", "./receipt.jpg")
+	filePath := getEnvOrDefault("SAMPLE_PDF_PATH", "./aichat_test.pdf")
 	file, err := os.Open(filePath)
 	if err != nil {
 		return fmt.Errorf("failed to open sample file: %w", err)

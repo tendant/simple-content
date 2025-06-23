@@ -83,7 +83,7 @@ func TestObjectService_DeleteObject(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Upload some data to storage
-	backend.Upload(ctx, object.ObjectKey, bytes.NewReader([]byte("test data")))
+	backend.Upload(ctx, object.ObjectKey, object.ObjectType, bytes.NewReader([]byte("test data")))
 
 	err = svc.DeleteObject(ctx, object.ID)
 	assert.NoError(t, err)
@@ -216,7 +216,7 @@ func TestObjectService_GetObjectMetaFromStorage(t *testing.T) {
 	t.Run("Object exists - successful retrieval", func(t *testing.T) {
 		// Upload some data to the object so we have metadata
 		testData := []byte("test data content")
-		err := backend.Upload(ctx, object.ObjectKey, bytes.NewReader(testData))
+		err := backend.Upload(ctx, object.ObjectKey, "text/plain", bytes.NewReader(testData))
 		assert.NoError(t, err)
 
 		// Get object metadata from storage
@@ -379,7 +379,7 @@ func TestObjectService_GetObjectMetaFromStorageByObjectKeyAndStorageBackendName(
 
 		// Upload test data to the backend
 		testData := []byte("test data content")
-		err := backend.Upload(ctx, objectKey, bytes.NewReader(testData))
+		err := backend.Upload(ctx, objectKey, "text/plain", bytes.NewReader(testData))
 		assert.NoError(t, err)
 
 		// Call the function being tested

@@ -45,7 +45,7 @@ func TestS3BackendWithMinIO(t *testing.T) {
 	content := "Hello, MinIO! This is an integration test."
 
 	// Test Upload
-	err = backend.Upload(ctx, objectKey, strings.NewReader(content))
+	err = backend.Upload(ctx, objectKey, "text/plain", strings.NewReader(content))
 	assert.NoError(t, err)
 
 	// Test GetUploadURL
@@ -111,7 +111,7 @@ func TestS3BackendWithMinIOAndSSE(t *testing.T) {
 	content := "Hello, MinIO with SSE! This is an integration test."
 
 	// Test Upload with SSE
-	err = backend.Upload(ctx, objectKey, strings.NewReader(content))
+	err = backend.Upload(ctx, objectKey, "text/plain", strings.NewReader(content))
 	assert.NoError(t, err)
 
 	// Test Download with SSE

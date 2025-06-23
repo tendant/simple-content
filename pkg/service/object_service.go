@@ -167,7 +167,7 @@ func (s *ObjectService) UploadObject(ctx context.Context, id uuid.UUID, reader i
 	}
 
 	// Upload the object
-	if err := backend.Upload(ctx, object.ObjectKey, reader); err != nil {
+	if err := backend.Upload(ctx, object.ObjectKey, object.ObjectType, reader); err != nil {
 		slog.Error("Failed to upload object", "err", err)
 		return err
 	}
