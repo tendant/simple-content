@@ -251,7 +251,6 @@ func (s *ObjectService) UploadObjectWithMetadata(ctx context.Context, reader io.
 		slog.Error("Failed to get object meta", "err", err)
 		return err
 	}
-	slog.Info("******* Object meta retrieved successfully!", "fileInfo", objectMeta)
 
 	// Update object metadata
 	updatedTime := time.Now().UTC()
