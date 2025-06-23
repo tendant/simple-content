@@ -439,7 +439,7 @@ func (b *S3Backend) GetUploadURL(ctx context.Context, objectKey string) (string,
 }
 
 // Upload uploads content directly to S3
-func (b *S3Backend) Upload(ctx context.Context, objectKey string, reader io.Reader) error {
+func (b *S3Backend) Upload(ctx context.Context, objectKey, mimeType string, reader io.Reader) error {
 	uploader := manager.NewUploader(b.client)
 
 	input := &s3.PutObjectInput{

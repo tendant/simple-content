@@ -49,7 +49,7 @@ func (b *MemoryBackend) GetUploadURL(ctx context.Context, objectKey string) (str
 }
 
 // Upload uploads content directly
-func (b *MemoryBackend) Upload(ctx context.Context, objectKey string, reader io.Reader) error {
+func (b *MemoryBackend) Upload(ctx context.Context, objectKey, mimeType string, reader io.Reader) error {
 	data, err := io.ReadAll(reader)
 	if err != nil {
 		return err

@@ -79,7 +79,7 @@ func (b *FSBackend) GetUploadURL(ctx context.Context, objectKey string) (string,
 }
 
 // Upload uploads content directly to the file system
-func (b *FSBackend) Upload(ctx context.Context, objectKey string, reader io.Reader) error {
+func (b *FSBackend) Upload(ctx context.Context, objectKey, mimeType string, reader io.Reader) error {
 	filePath := filepath.Join(b.baseDir, objectKey)
 
 	// Create directory structure if it doesn't exist
