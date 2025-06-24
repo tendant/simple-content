@@ -9,6 +9,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/google/uuid"
+	"github.com/tendant/simple-content/internal/domain"
 	"github.com/tendant/simple-content/pkg/service"
 )
 
@@ -544,9 +545,19 @@ func (h *ContentHandler) ListObjects(w http.ResponseWriter, r *http.Request) {
 
 	objects, err := h.objectService.GetObjectsByContentID(r.Context(), contentID)
 	if err != nil {
+		slog.Error("Fail to get objects by content ID", "content_id", contentIDStr, "error", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	if len(objects) == 0 {
+		slog.Warn("No objects found for content", "content_id", contentIDStr)
+		http.Error(w, "No objects found for content", http.StatusNotFound)
+		return
+	}
+
+	// Only return the latest object for now
+	latestObject := service.GetLatestVersionObject(objects)
+	objects = []*domain.Object{latestObject}
 
 	var resp []ObjectResponse
 	for _, object := range objects {
