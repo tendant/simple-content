@@ -551,7 +551,7 @@ func (h *ContentHandler) ListObjects(w http.ResponseWriter, r *http.Request) {
 	}
 	if len(objects) == 0 {
 		slog.Warn("No objects found for content", "content_id", contentIDStr)
-		http.Error(w, "No objects found for content", http.StatusNotFound)
+		http.Error(w, "No objects found for content "+contentIDStr, http.StatusNotFound)
 		return
 	}
 
