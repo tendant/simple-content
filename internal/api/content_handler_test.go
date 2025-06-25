@@ -83,7 +83,7 @@ func setupContentHandlerTest() (*ContentHandler, *MockObjectRepository) {
 	return NewContentHandler(contentService, objectService), mockObjectRepo
 }
 
-func TestContentHandler_ListObjects_Success(t *testing.T) {
+func TestContentHandler_ListObjects_Success_DefaultLatest(t *testing.T) {
 	// Setup
 	handler, mockObjectRepo := setupContentHandlerTest()
 	router := chi.NewRouter()
@@ -118,7 +118,7 @@ func TestContentHandler_ListObjects_Success(t *testing.T) {
 	// Setup mock expectations
 	mockObjectRepo.On("GetByContentID", mock.Anything, contentID).Return(objects, nil)
 
-	// Make request
+	// Make request - default behavior should return only latest version
 	req := httptest.NewRequest("GET", "/"+contentID.String()+"/objects", nil)
 	w := httptest.NewRecorder()
 
@@ -139,6 +139,138 @@ func TestContentHandler_ListObjects_Success(t *testing.T) {
 	assert.Equal(t, objects[1].Version, resp[0].Version)
 	assert.Equal(t, objects[1].ObjectKey, resp[0].ObjectKey)
 	assert.Equal(t, objects[1].Status, resp[0].Status)
+
+	// Verify all expectations were met
+	mockObjectRepo.AssertExpectations(t)
+}
+
+func TestContentHandler_ListObjects_Success_LatestTrue(t *testing.T) {
+	// Setup
+	handler, mockObjectRepo := setupContentHandlerTest()
+	router := chi.NewRouter()
+	router.Get("/{id}/objects", handler.ListObjects)
+
+	// Create test data
+	contentID := uuid.New()
+	now := time.Now().UTC()
+	objects := []*domain.Object{
+		{
+			ID:                 uuid.New(),
+			ContentID:          contentID,
+			StorageBackendName: "s3-default",
+			Version:            1,
+			ObjectKey:          "test-object-key",
+			Status:             domain.ObjectStatusUploaded,
+			CreatedAt:          now,
+			UpdatedAt:          now,
+		},
+		{
+			ID:                 uuid.New(),
+			ContentID:          contentID,
+			StorageBackendName: "s3-default",
+			Version:            2,
+			ObjectKey:          "test-object-key-v2",
+			Status:             domain.ObjectStatusUploaded,
+			CreatedAt:          now.Add(time.Hour),
+			UpdatedAt:          now.Add(time.Hour),
+		},
+	}
+
+	// Setup mock expectations
+	mockObjectRepo.On("GetByContentID", mock.Anything, contentID).Return(objects, nil)
+
+	// Make request with explicit latest=true
+	req := httptest.NewRequest("GET", "/"+contentID.String()+"/objects?latest=true", nil)
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	// Check response
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var resp []ObjectResponse
+	err := json.Unmarshal(w.Body.Bytes(), &resp)
+	require.NoError(t, err)
+
+	// Should only return the latest version (version 2)
+	assert.Equal(t, 1, len(resp))
+	assert.Equal(t, objects[1].ID.String(), resp[0].ID)
+	assert.Equal(t, objects[1].ContentID.String(), resp[0].ContentID)
+	assert.Equal(t, objects[1].StorageBackendName, resp[0].StorageBackendName)
+	assert.Equal(t, objects[1].Version, resp[0].Version)
+	assert.Equal(t, objects[1].ObjectKey, resp[0].ObjectKey)
+	assert.Equal(t, objects[1].Status, resp[0].Status)
+
+	// Verify all expectations were met
+	mockObjectRepo.AssertExpectations(t)
+}
+
+func TestContentHandler_ListObjects_Success_LatestFalse(t *testing.T) {
+	// Setup
+	handler, mockObjectRepo := setupContentHandlerTest()
+	router := chi.NewRouter()
+	router.Get("/{id}/objects", handler.ListObjects)
+
+	// Create test data
+	contentID := uuid.New()
+	now := time.Now().UTC()
+	objects := []*domain.Object{
+		{
+			ID:                 uuid.New(),
+			ContentID:          contentID,
+			StorageBackendName: "s3-default",
+			Version:            1,
+			ObjectKey:          "test-object-key",
+			Status:             domain.ObjectStatusUploaded,
+			CreatedAt:          now,
+			UpdatedAt:          now,
+		},
+		{
+			ID:                 uuid.New(),
+			ContentID:          contentID,
+			StorageBackendName: "s3-default",
+			Version:            2,
+			ObjectKey:          "test-object-key-v2",
+			Status:             domain.ObjectStatusUploaded,
+			CreatedAt:          now.Add(time.Hour),
+			UpdatedAt:          now.Add(time.Hour),
+		},
+	}
+
+	// Setup mock expectations
+	mockObjectRepo.On("GetByContentID", mock.Anything, contentID).Return(objects, nil)
+
+	// Make request with latest=false
+	req := httptest.NewRequest("GET", "/"+contentID.String()+"/objects?latest=false", nil)
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	// Check response
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var resp []ObjectResponse
+	err := json.Unmarshal(w.Body.Bytes(), &resp)
+	require.NoError(t, err)
+
+	// Should return all versions
+	assert.Equal(t, 2, len(resp))
+
+	// Check first object (version 1)
+	assert.Equal(t, objects[0].ID.String(), resp[0].ID)
+	assert.Equal(t, objects[0].ContentID.String(), resp[0].ContentID)
+	assert.Equal(t, objects[0].StorageBackendName, resp[0].StorageBackendName)
+	assert.Equal(t, objects[0].Version, resp[0].Version)
+	assert.Equal(t, objects[0].ObjectKey, resp[0].ObjectKey)
+	assert.Equal(t, objects[0].Status, resp[0].Status)
+
+	// Check second object (version 2)
+	assert.Equal(t, objects[1].ID.String(), resp[1].ID)
+	assert.Equal(t, objects[1].ContentID.String(), resp[1].ContentID)
+	assert.Equal(t, objects[1].StorageBackendName, resp[1].StorageBackendName)
+	assert.Equal(t, objects[1].Version, resp[1].Version)
+	assert.Equal(t, objects[1].ObjectKey, resp[1].ObjectKey)
+	assert.Equal(t, objects[1].Status, resp[1].Status)
 
 	// Verify all expectations were met
 	mockObjectRepo.AssertExpectations(t)
