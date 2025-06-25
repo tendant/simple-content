@@ -9,6 +9,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/google/uuid"
+	"github.com/tendant/simple-content/internal/domain"
 	"github.com/tendant/simple-content/pkg/service"
 )
 
@@ -534,6 +535,8 @@ func (h *ContentHandler) CreateObject(w http.ResponseWriter, r *http.Request) {
 }
 
 // ListObjects lists objects for a content
+// Query parameters:
+//   - latest=true: Only return the latest version object (default: true)
 func (h *ContentHandler) ListObjects(w http.ResponseWriter, r *http.Request) {
 	contentIDStr := chi.URLParam(r, "id")
 	contentID, err := uuid.Parse(contentIDStr)
@@ -544,8 +547,27 @@ func (h *ContentHandler) ListObjects(w http.ResponseWriter, r *http.Request) {
 
 	objects, err := h.objectService.GetObjectsByContentID(r.Context(), contentID)
 	if err != nil {
+		slog.Error("Fail to get objects by content ID", "content_id", contentIDStr, "error", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
+	}
+	if len(objects) == 0 {
+		slog.Warn("No objects found for content", "content_id", contentIDStr)
+		http.Error(w, "No objects found for content "+contentIDStr, http.StatusNotFound)
+		return
+	}
+
+	// Check if we should only return the latest version
+	latestOnly := true // Default to true for backward compatibility
+	latestParam := r.URL.Query().Get("latest")
+	if latestParam == "false" {
+		latestOnly = false
+	}
+
+	// Filter objects based on the latest parameter
+	if latestOnly {
+		latestObject := service.GetLatestVersionObject(objects)
+		objects = []*domain.Object{latestObject}
 	}
 
 	var resp []ObjectResponse
