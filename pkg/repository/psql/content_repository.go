@@ -333,10 +333,10 @@ func (r *PSQLContentRepository) ListDerivedContent(ctx context.Context, params r
 func (r *PSQLContentRepository) CreateDerivedContentRelationship(ctx context.Context, params repo.CreateDerivedContentParams) (domain.DeriverdContent, error) {
 	query := `
 		INSERT INTO content.content_derived (
-			parent_content_id, derived_content_id, derivation_type, created_at, updated_at
+			parent_content_id, derived_content_id, derivation_type, derivation_params, processing_metadata, created_at, updated_at
 		) VALUES (
-			$1, $2, $3, $4, $5
-		) RETURNING id, parent_content_id, derived_content_id, derivation_type
+			$1, $2, $3, $4, $5, $6, $7
+		) RETURNING id, parent_content_id, derived_content_id, derivation_type, derivation_params, processing_metadata
 	`
 
 	// Set timestamps if not provided
@@ -347,19 +347,25 @@ func (r *PSQLContentRepository) CreateDerivedContentRelationship(ctx context.Con
 		params.ParentID,
 		params.DerivedContentID,
 		params.Relationship,
+		params.DerivationParams,
+		params.ProcessingMetadata,
 		now,
 		now,
 	)
 	// Create a variable to hold the ID since we don't need to store it in params
 	var id uuid.UUID
-	err := row.Scan(&id, &params.ParentID, &params.DerivedContentID, &params.Relationship)
+	var derivationParams map[string]interface{}
+	var processingMetadata map[string]interface{}
+	err := row.Scan(&id, &params.ParentID, &params.DerivedContentID, &params.Relationship, &derivationParams, &processingMetadata)
 
 	return domain.DeriverdContent{
-		ParentID:         params.ParentID,
-		DerivedContentID: params.DerivedContentID,
-		DerivationType:   params.Relationship,
-		CreatedAt:        now,
-		UpdatedAt:        now,
+		ParentID:           params.ParentID,
+		DerivedContentID:   params.DerivedContentID,
+		DerivationType:     params.Relationship,
+		DerivationParams:   derivationParams,
+		ProcessingMetadata: processingMetadata,
+		CreatedAt:          now,
+		UpdatedAt:          now,
 	}, err
 }
 

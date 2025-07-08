@@ -420,3 +420,208 @@ func TestPSQLContentRepository_ListDerivedContent(t *testing.T) {
 		})
 	})
 }
+
+func TestPSQLContentRepository_CreateDerivedContentRelationship(t *testing.T) {
+	RunTest(t, func(t *testing.T, db *TestDB) {
+		// Create a new repository
+		repo := NewPSQLContentRepository(db.Pool)
+		ctx := context.Background()
+
+		// Create a tenant
+		tenantID := uuid.New()
+
+		// Create a parent content
+		parentContent := &domain.Content{
+			TenantID:       tenantID,
+			OwnerID:        uuid.New(),
+			OwnerType:      "user",
+			Name:           "Parent Content",
+			Description:    "Parent Description",
+			DocumentType:   "receipt",
+			Status:         domain.ContentStatusCreated,
+			DerivationType: domain.ContentDerivationTypeOriginal,
+		}
+		err := repo.Create(ctx, parentContent)
+		require.NoError(t, err)
+
+		// Create a derived content
+		derivedContent := &domain.Content{
+			TenantID:       tenantID,
+			OwnerID:        uuid.New(),
+			OwnerType:      "user",
+			Name:           "Derived Content",
+			Description:    "Derived Description",
+			DocumentType:   "thumbnail",
+			Status:         domain.ContentStatusCreated,
+			DerivationType: domain.ContentDerivationTypeDerived,
+		}
+		err = repo.Create(ctx, derivedContent)
+		require.NoError(t, err)
+
+		// Create relationship with derivation params and processing metadata
+		t.Run("Create relationship with params and metadata", func(t *testing.T) {
+			derivationParams := map[string]interface{}{
+				"width":  720,
+				"height": 480,
+				"format": "jpg",
+			}
+			processingMetadata := map[string]interface{}{
+				"processor":      "thumbnail-service",
+				"processingTime": 1.5,
+				"status":         "completed",
+			}
+
+			params := repolib.CreateDerivedContentParams{
+				ParentID:           parentContent.ID,
+				DerivedContentID:   derivedContent.ID,
+				Relationship:       domain.ContentDerivedTHUMBNAIL480,
+				DerivationParams:   derivationParams,
+				ProcessingMetadata: processingMetadata,
+			}
+
+			result, err := repo.CreateDerivedContentRelationship(ctx, params)
+			require.NoError(t, err)
+			assert.Equal(t, parentContent.ID, result.ParentID)
+			assert.Equal(t, derivedContent.ID, result.DerivedContentID)
+			assert.Equal(t, domain.ContentDerivedTHUMBNAIL480, result.DerivationType)
+
+			// Verify derivation params
+			assert.NotNil(t, result.DerivationParams)
+			assert.Equal(t, float64(720), result.DerivationParams["width"])
+			assert.Equal(t, float64(480), result.DerivationParams["height"])
+			assert.Equal(t, "jpg", result.DerivationParams["format"])
+
+			// Verify processing metadata
+			assert.NotNil(t, result.ProcessingMetadata)
+			assert.Equal(t, "thumbnail-service", result.ProcessingMetadata["processor"])
+			assert.Equal(t, float64(1.5), result.ProcessingMetadata["processingTime"])
+			assert.Equal(t, "completed", result.ProcessingMetadata["status"])
+		})
+
+		// Test Error on duplicate relationship
+		t.Run("Error on duplicate relationship", func(t *testing.T) {
+			params := repolib.CreateDerivedContentParams{
+				ParentID:         parentContent.ID,
+				DerivedContentID: derivedContent.ID,
+				Relationship:     domain.ContentDerivedTHUMBNAIL720, // Same as first test case
+			}
+
+			_, err := repo.CreateDerivedContentRelationship(ctx, params)
+			assert.Error(t, err) // Should fail due to unique constraint
+		})
+	})
+}
+
+func TestPSQLContentRepository_DeleteDerivedContentRelationship(t *testing.T) {
+	RunTest(t, func(t *testing.T, db *TestDB) {
+		// Create a new repository
+		repo := NewPSQLContentRepository(db.Pool)
+		ctx := context.Background()
+
+		// Create a tenant
+		tenantID := uuid.New()
+
+		// Create a parent content
+		parentContent := &domain.Content{
+			TenantID:       tenantID,
+			OwnerID:        uuid.New(),
+			OwnerType:      "user",
+			Name:           "Parent Content",
+			Description:    "Parent Description",
+			DocumentType:   "receipt",
+			Status:         domain.ContentStatusCreated,
+			DerivationType: domain.ContentDerivationTypeOriginal,
+		}
+		err := repo.Create(ctx, parentContent)
+		require.NoError(t, err)
+
+		// Create a derived content
+		derivedContent := &domain.Content{
+			TenantID:       tenantID,
+			OwnerID:        uuid.New(),
+			OwnerType:      "user",
+			Name:           "Derived Content",
+			Description:    "Derived Description",
+			DocumentType:   "thumbnail",
+			Status:         domain.ContentStatusCreated,
+			DerivationType: domain.ContentDerivationTypeDerived,
+		}
+		err = repo.Create(ctx, derivedContent)
+		require.NoError(t, err)
+
+		// Create another derived content for multiple relationship tests
+		derivedContent2 := &domain.Content{
+			TenantID:       tenantID,
+			OwnerID:        uuid.New(),
+			OwnerType:      "user",
+			Name:           "Derived Content 2",
+			Description:    "Derived Description 2",
+			DocumentType:   "thumbnail",
+			Status:         domain.ContentStatusCreated,
+			DerivationType: domain.ContentDerivationTypeDerived,
+		}
+		err = repo.Create(ctx, derivedContent2)
+		require.NoError(t, err)
+
+		// Create relationships for testing deletion
+		params1 := repolib.CreateDerivedContentParams{
+			ParentID:         parentContent.ID,
+			DerivedContentID: derivedContent.ID,
+			Relationship:     domain.ContentDerivedTHUMBNAIL720,
+		}
+		_, err = repo.CreateDerivedContentRelationship(ctx, params1)
+		require.NoError(t, err)
+
+		params2 := repolib.CreateDerivedContentParams{
+			ParentID:         parentContent.ID,
+			DerivedContentID: derivedContent2.ID,
+			Relationship:     domain.ContentDerivedTHUMBNAIL480,
+		}
+		_, err = repo.CreateDerivedContentRelationship(ctx, params2)
+		require.NoError(t, err)
+
+		// Test case 1: Delete an existing relationship
+		t.Run("Delete existing relationship", func(t *testing.T) {
+			deleteParams := repolib.DeleteDerivedContentParams{
+				ParentID:         parentContent.ID,
+				DerivedContentID: derivedContent.ID,
+			}
+
+			err := repo.DeleteDerivedContentRelationship(ctx, deleteParams)
+			require.NoError(t, err)
+
+			// Verify the relationship is deleted by trying to list it
+			listParams := repolib.ListDerivedContentParams{
+				ParentIDs:    []uuid.UUID{parentContent.ID},
+				Relationship: []string{domain.ContentDerivedTHUMBNAIL720},
+			}
+			result, err := repo.ListDerivedContent(ctx, listParams)
+			require.NoError(t, err)
+			assert.Len(t, result, 0) // Should be empty since we deleted the relationship
+		})
+
+		// Test case 2: Deleting a non-existent relationship should not error
+		t.Run("Delete non-existent relationship", func(t *testing.T) {
+			deleteParams := repolib.DeleteDerivedContentParams{
+				ParentID:         parentContent.ID,
+				DerivedContentID: uuid.New(), // Random non-existent ID
+			}
+
+			err := repo.DeleteDerivedContentRelationship(ctx, deleteParams)
+			require.NoError(t, err) // Should not error, just no rows affected
+		})
+
+		// Test case 3: Verify other relationships remain after deletion
+		t.Run("Other relationships remain intact", func(t *testing.T) {
+			// Verify the second relationship is still there
+			listParams := repolib.ListDerivedContentParams{
+				ParentIDs:    []uuid.UUID{parentContent.ID},
+				Relationship: []string{domain.ContentDerivedTHUMBNAIL480},
+			}
+			result, err := repo.ListDerivedContent(ctx, listParams)
+			require.NoError(t, err)
+			assert.Len(t, result, 1)
+			assert.Equal(t, derivedContent2.ID, result[0].ID)
+		})
+	})
+}
