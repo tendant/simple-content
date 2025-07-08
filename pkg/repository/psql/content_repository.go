@@ -328,3 +328,50 @@ func (r *PSQLContentRepository) ListDerivedContent(ctx context.Context, params r
 
 	return contents, nil
 }
+
+// Create implements ContentRepository.CreateDerivedContentRelationship
+func (r *PSQLContentRepository) CreateDerivedContentRelationship(ctx context.Context, params repo.CreateDerivedContentParams) (domain.DeriverdContent, error) {
+	query := `
+		INSERT INTO content.content_derived (
+			parent_content_id, derived_content_id, derivation_type, created_at, updated_at
+		) VALUES (
+			$1, $2, $3, $4, $5
+		) RETURNING id, parent_content_id, derived_content_id, derivation_type
+	`
+
+	// Set timestamps if not provided
+	now := time.Now().UTC()
+	row := r.db.QueryRow(
+		ctx,
+		query,
+		params.ParentID,
+		params.DerivedContentID,
+		params.Relationship,
+		now,
+		now,
+	)
+	// Create a variable to hold the ID since we don't need to store it in params
+	var id uuid.UUID
+	err := row.Scan(&id, &params.ParentID, &params.DerivedContentID, &params.Relationship)
+
+	return domain.DeriverdContent{
+		ParentID:         params.ParentID,
+		DerivedContentID: params.DerivedContentID,
+		DerivationType:   params.Relationship,
+		CreatedAt:        now,
+		UpdatedAt:        now,
+	}, err
+}
+
+// Delete implements ContentRepository.DeleteDerivedContentRelationship
+func (r *PSQLContentRepository) DeleteDerivedContentRelationship(ctx context.Context, params repo.DeleteDerivedContentParams) error {
+	query := `
+		UPDATE content.content_derived
+		SET deleted_at = $3
+		WHERE parent_content_id = $1 AND derived_content_id = $2
+		AND deleted_at IS NULL
+	`
+	now := time.Now().UTC()
+	_, err := r.db.Exec(ctx, query, params.ParentID, params.DerivedContentID, now)
+	return err
+}

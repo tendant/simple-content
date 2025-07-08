@@ -123,3 +123,23 @@ func (r *ContentRepository) ListDerivedContent(ctx context.Context, params repos
 	// In a real implementation, we would query the content_derived table
 	return []*domain.Content{}, nil
 }
+
+// CreateDerivedContentRelationship creates a new derived content relationship
+func (r *ContentRepository) CreateDerivedContentRelationship(ctx context.Context, params repository.CreateDerivedContentParams) (domain.DeriverdContent, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	// This is a stub implementation since we don't have a relationship table in memory
+	// In a real implementation, we would query the content_derived table
+	return domain.DeriverdContent{}, nil
+}
+
+// DeleteDerivedContent deletes a derived content
+func (r *ContentRepository) DeleteDerivedContentRelationship(ctx context.Context, params repository.DeleteDerivedContentParams) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	// This is a stub implementation since we don't have a relationship table in memory
+	// In a real implementation, we would query the content_derived table
+	return nil
+}

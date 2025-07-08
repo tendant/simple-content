@@ -14,6 +14,21 @@ type ListDerivedContentParams struct {
 	Relationship []string
 }
 
+// CreateDerivedContentParams defines parameters for creating derived content
+type CreateDerivedContentParams struct {
+	ParentID           uuid.UUID
+	DerivedContentID   uuid.UUID
+	DerivationParams   map[string]interface{}
+	ProcessingMetadata map[string]interface{}
+	Relationship       string
+}
+
+// DeleteDerivedContentParams defines parameters for deleting derived content
+type DeleteDerivedContentParams struct {
+	ParentID         uuid.UUID
+	DerivedContentID uuid.UUID
+}
+
 // ContentRepository defines the interface for content operations
 type ContentRepository interface {
 	Create(ctx context.Context, content *domain.Content) error
@@ -22,6 +37,8 @@ type ContentRepository interface {
 	Delete(ctx context.Context, id uuid.UUID) error
 	List(ctx context.Context, ownerID, tenantID uuid.UUID) ([]*domain.Content, error)
 	ListDerivedContent(ctx context.Context, params ListDerivedContentParams) ([]*domain.Content, error)
+	CreateDerivedContentRelationship(ctx context.Context, params CreateDerivedContentParams) (domain.DeriverdContent, error)
+	DeleteDerivedContentRelationship(ctx context.Context, params DeleteDerivedContentParams) error
 }
 
 // ContentMetadataRepository defines the interface for content metadata operations
