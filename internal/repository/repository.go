@@ -14,6 +14,21 @@ type ListDerivedContentParams struct {
 	Relationship []string
 }
 
+// GetDerivedContentByLevelParams defines parameters for getting derived content by level
+type GetDerivedContentByLevelParams struct {
+	RootID   uuid.UUID // The root content ID to start from
+	Level    int       // The level of derivation (0 = root, 1 = direct children, etc.)
+	TenantID uuid.UUID // Optional tenant filter
+	MaxDepth int       // Optional max depth to search (default is 10)
+}
+
+// ContentWithParent represents a content item with its parent ID
+type ContentWithParent struct {
+	Content  *domain.Content // The content item
+	ParentID uuid.UUID       // ID of the parent content (nil for root content)
+	Level    int             // Level in the derivation hierarchy
+}
+
 // CreateDerivedContentParams defines parameters for creating derived content
 type CreateDerivedContentParams struct {
 	ParentID           uuid.UUID
@@ -37,6 +52,7 @@ type ContentRepository interface {
 	Delete(ctx context.Context, id uuid.UUID) error
 	List(ctx context.Context, ownerID, tenantID uuid.UUID) ([]*domain.Content, error)
 	ListDerivedContent(ctx context.Context, params ListDerivedContentParams) ([]*domain.Content, error)
+	GetDerivedContentByLevel(ctx context.Context, params GetDerivedContentByLevelParams) ([]ContentWithParent, error)
 	CreateDerivedContentRelationship(ctx context.Context, params CreateDerivedContentParams) (domain.DeriverdContent, error)
 	DeleteDerivedContentRelationship(ctx context.Context, params DeleteDerivedContentParams) error
 }

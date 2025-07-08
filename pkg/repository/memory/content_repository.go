@@ -136,10 +136,19 @@ func (r *ContentRepository) CreateDerivedContentRelationship(ctx context.Context
 
 // DeleteDerivedContent deletes a derived content
 func (r *ContentRepository) DeleteDerivedContentRelationship(ctx context.Context, params repository.DeleteDerivedContentParams) error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	// This is a stub implementation since we don't have a relationship table in memory
-	// In a real implementation, we would query the content_derived table
+	// This is a stub implementation for the in-memory repository
+	// In a real implementation, we would delete the relationship from the database
 	return nil
+}
+
+// GetDerivedContentByLevel retrieves derived content at a specific level with parent information
+func (r *ContentRepository) GetDerivedContentByLevel(ctx context.Context, params repository.GetDerivedContentByLevelParams) ([]repository.ContentWithParent, error) {
+	// This is a stub implementation for the in-memory repository
+	// In a real implementation, we would traverse the derivation tree to find content at the specified level
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	// For in-memory implementation, we'll just return an empty slice
+	// A proper implementation would require maintaining a graph of parent-child relationships
+	return []repository.ContentWithParent{}, nil
 }

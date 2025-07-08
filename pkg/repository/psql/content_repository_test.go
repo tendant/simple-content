@@ -512,6 +512,174 @@ func TestPSQLContentRepository_CreateDerivedContentRelationship(t *testing.T) {
 	})
 }
 
+func TestPSQLContentRepository_GetDerivedContentByLevel(t *testing.T) {
+	RunTest(t, func(t *testing.T, db *TestDB) {
+		// Create a new repository
+		repo := NewPSQLContentRepository(db.Pool)
+		ctx := context.Background()
+
+		// Create a tenant
+		tenantID := uuid.New()
+
+		// Create a root content (level 0)
+		rootContent := &domain.Content{
+			TenantID:       tenantID,
+			OwnerID:        uuid.New(),
+			OwnerType:      "user",
+			Name:           "Root Content",
+			Description:    "Root Description",
+			DocumentType:   "document",
+			Status:         domain.ContentStatusCreated,
+			DerivationType: domain.ContentDerivationTypeOriginal,
+		}
+		err := repo.Create(ctx, rootContent)
+		require.NoError(t, err)
+
+		// Create level 1 derived contents (direct children of root)
+		level1Content1 := &domain.Content{
+			TenantID:       tenantID,
+			OwnerID:        uuid.New(),
+			OwnerType:      "user",
+			Name:           "Level 1 Content 1",
+			Description:    "Level 1 Description 1",
+			DocumentType:   "thumbnail",
+			Status:         domain.ContentStatusCreated,
+			DerivationType: domain.ContentDerivationTypeDerived,
+		}
+		err = repo.Create(ctx, level1Content1)
+		require.NoError(t, err)
+
+		level1Content2 := &domain.Content{
+			TenantID:       tenantID,
+			OwnerID:        uuid.New(),
+			OwnerType:      "user",
+			Name:           "Level 1 Content 2",
+			Description:    "Level 1 Description 2",
+			DocumentType:   "thumbnail",
+			Status:         domain.ContentStatusCreated,
+			DerivationType: domain.ContentDerivationTypeDerived,
+		}
+		err = repo.Create(ctx, level1Content2)
+		require.NoError(t, err)
+
+		// Create level 2 derived content (child of level1Content1)
+		level2Content := &domain.Content{
+			TenantID:       tenantID,
+			OwnerID:        uuid.New(),
+			OwnerType:      "user",
+			Name:           "Level 2 Content",
+			Description:    "Level 2 Description",
+			DocumentType:   "thumbnail",
+			Status:         domain.ContentStatusCreated,
+			DerivationType: domain.ContentDerivationTypeDerived,
+		}
+		err = repo.Create(ctx, level2Content)
+		require.NoError(t, err)
+
+		// Create relationships
+		// Root -> Level 1 Content 1
+		_, err = repo.CreateDerivedContentRelationship(ctx, repolib.CreateDerivedContentParams{
+			ParentID:         rootContent.ID,
+			DerivedContentID: level1Content1.ID,
+			Relationship:     domain.ContentDerivedTHUMBNAIL720,
+		})
+		require.NoError(t, err)
+
+		// Root -> Level 1 Content 2
+		_, err = repo.CreateDerivedContentRelationship(ctx, repolib.CreateDerivedContentParams{
+			ParentID:         rootContent.ID,
+			DerivedContentID: level1Content2.ID,
+			Relationship:     domain.ContentDerivedTHUMBNAIL480,
+		})
+		require.NoError(t, err)
+
+		// Level 1 Content 1 -> Level 2 Content
+		_, err = repo.CreateDerivedContentRelationship(ctx, repolib.CreateDerivedContentParams{
+			ParentID:         level1Content1.ID,
+			DerivedContentID: level2Content.ID,
+			Relationship:     domain.ContentDerivedTHUMBNAIL720,
+		})
+		require.NoError(t, err)
+
+		// Test case 1: Get level 0 (root content only)
+		t.Run("Get level 0 with parent (root content only)", func(t *testing.T) {
+			params := repolib.GetDerivedContentByLevelParams{
+				RootID: rootContent.ID,
+				Level:  0,
+			}
+
+			result, err := repo.GetDerivedContentByLevel(ctx, params)
+			require.NoError(t, err)
+			assert.Len(t, result, 1)
+
+			// Root content should have nil parent ID
+			assert.Equal(t, rootContent.ID, result[0].Content.ID)
+			assert.Equal(t, uuid.Nil, result[0].ParentID)
+			assert.Equal(t, 0, result[0].Level)
+		})
+
+		// Test case 2: Get level 1 (root + direct children of root)
+		t.Run("Get level 1 with parent (root + direct children of root)", func(t *testing.T) {
+			params := repolib.GetDerivedContentByLevelParams{
+				RootID: rootContent.ID,
+				Level:  1,
+			}
+
+			result, err := repo.GetDerivedContentByLevel(ctx, params)
+			require.NoError(t, err)
+			assert.Len(t, result, 3) // Root + 2 children
+
+			// Create maps for easier verification
+			contentMap := make(map[uuid.UUID]repolib.ContentWithParent)
+			for _, item := range result {
+				contentMap[item.Content.ID] = item
+			}
+
+			// Verify root content
+			rootItem, exists := contentMap[rootContent.ID]
+			assert.True(t, exists)
+			assert.Equal(t, uuid.Nil, rootItem.ParentID)
+			assert.Equal(t, 0, rootItem.Level)
+
+			// Verify level 1 content 1
+			level1Item1, exists := contentMap[level1Content1.ID]
+			assert.True(t, exists)
+			assert.Equal(t, rootContent.ID, level1Item1.ParentID)
+			assert.Equal(t, 1, level1Item1.Level)
+
+			// Verify level 1 content 2
+			level1Item2, exists := contentMap[level1Content2.ID]
+			assert.True(t, exists)
+			assert.Equal(t, rootContent.ID, level1Item2.ParentID)
+			assert.Equal(t, 1, level1Item2.Level)
+		})
+
+		// Test case 3: Get level 2 (root + level 1 + level 2)
+		t.Run("Get level 2 with parent (root + level 1 + level 2)", func(t *testing.T) {
+			params := repolib.GetDerivedContentByLevelParams{
+				RootID: rootContent.ID,
+				Level:  2,
+			}
+
+			result, err := repo.GetDerivedContentByLevel(ctx, params)
+			require.NoError(t, err)
+			assert.Len(t, result, 4) // Root + 2 children + 1 grandchild
+
+			// Create maps for easier verification
+			contentMap := make(map[uuid.UUID]repolib.ContentWithParent)
+			for _, item := range result {
+				contentMap[item.Content.ID] = item
+			}
+
+			// Verify level 2 content
+			level2Item, exists := contentMap[level2Content.ID]
+			assert.True(t, exists)
+			assert.Equal(t, level1Content1.ID, level2Item.ParentID)
+			assert.Equal(t, 2, level2Item.Level)
+		})
+	})
+}
+
 func TestPSQLContentRepository_DeleteDerivedContentRelationship(t *testing.T) {
 	RunTest(t, func(t *testing.T, db *TestDB) {
 		// Create a new repository

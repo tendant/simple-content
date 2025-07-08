@@ -381,3 +381,106 @@ func (r *PSQLContentRepository) DeleteDerivedContentRelationship(ctx context.Con
 	_, err := r.db.Exec(ctx, query, params.ParentID, params.DerivedContentID, now)
 	return err
 }
+
+// GetDerivedContentByLevel implements ContentRepository.GetDerivedContentByLevel
+// Returns all contents up to and including the specified level in the derivation hierarchy
+// along with their parent information
+func (r *PSQLContentRepository) GetDerivedContentByLevel(ctx context.Context, params repo.GetDerivedContentByLevelParams) ([]repo.ContentWithParent, error) {
+	// Set default max depth if not provided
+	maxDepth := params.MaxDepth
+	if maxDepth <= 0 {
+		maxDepth = 10 // Default max depth
+	}
+
+	// Build recursive CTE query to traverse the derivation hierarchy
+	query := `
+		WITH RECURSIVE derivation_tree AS (
+			-- Base case: the root content
+			SELECT 
+				c.id, c.tenant_id, c.owner_id, c.owner_type, c.name, c.description, 
+				c.document_type, c.status, c.derivation_type, c.created_at, c.updated_at,
+				0 AS level, NULL::uuid AS parent_id
+			FROM content.content c
+			WHERE c.id = $1 AND c.deleted_at IS NULL
+			
+			UNION ALL
+			
+			-- Recursive case: derived content
+			SELECT 
+				c.id, c.tenant_id, c.owner_id, c.owner_type, c.name, c.description, 
+				c.document_type, c.status, c.derivation_type, c.created_at, c.updated_at,
+				dt.level + 1, cd.parent_content_id
+			FROM content.content c
+			JOIN content.content_derived cd ON c.id = cd.derived_content_id
+			JOIN derivation_tree dt ON cd.parent_content_id = dt.id
+			WHERE c.deleted_at IS NULL AND cd.deleted_at IS NULL
+			AND dt.level < $2
+		)
+		SELECT * FROM derivation_tree WHERE level <= $3
+	`
+
+	// Initialize parameters for the query
+	args := []interface{}{params.RootID, maxDepth, params.Level}
+	
+	// Add tenant filter if provided
+	if params.TenantID != uuid.Nil {
+		query += " AND tenant_id = $4"
+		args = append(args, params.TenantID)
+	}
+	
+	// Add order by
+	query += " ORDER BY level ASC, created_at DESC"
+
+	// Execute the query
+	rows, err := r.db.Query(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	// Process the results
+	contentsWithParent := []repo.ContentWithParent{}
+	for rows.Next() {
+		content := &domain.Content{}
+		var level int
+		var parentID *uuid.UUID
+		err := rows.Scan(
+			&content.ID,
+			&content.TenantID,
+			&content.OwnerID,
+			&content.OwnerType,
+			&content.Name,
+			&content.Description,
+			&content.DocumentType,
+			&content.Status,
+			&content.DerivationType,
+			&content.CreatedAt,
+			&content.UpdatedAt,
+			&level,
+			&parentID,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		// Create ContentWithParent struct
+		contentWithParent := repo.ContentWithParent{
+			Content: content,
+			Level:   level,
+		}
+
+		// Set parent ID if not null
+		if parentID != nil {
+			contentWithParent.ParentID = *parentID
+		}
+
+		contentsWithParent = append(contentsWithParent, contentWithParent)
+	}
+
+	// Check for errors from iterating over rows
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return contentsWithParent, nil
+}
