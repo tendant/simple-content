@@ -125,13 +125,13 @@ func (r *ContentRepository) ListDerivedContent(ctx context.Context, params repos
 }
 
 // CreateDerivedContentRelationship creates a new derived content relationship
-func (r *ContentRepository) CreateDerivedContentRelationship(ctx context.Context, params repository.CreateDerivedContentParams) (domain.DeriverdContent, error) {
+func (r *ContentRepository) CreateDerivedContentRelationship(ctx context.Context, params repository.CreateDerivedContentParams) (domain.DerivedContent, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
 	// This is a stub implementation since we don't have a relationship table in memory
 	// In a real implementation, we would query the content_derived table
-	return domain.DeriverdContent{}, nil
+	return domain.DerivedContent{}, nil
 }
 
 // DeleteDerivedContent deletes a derived content

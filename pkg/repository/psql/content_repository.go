@@ -331,7 +331,7 @@ func (r *PSQLContentRepository) ListDerivedContent(ctx context.Context, params r
 }
 
 // Create implements ContentRepository.CreateDerivedContentRelationship
-func (r *PSQLContentRepository) CreateDerivedContentRelationship(ctx context.Context, params repo.CreateDerivedContentParams) (domain.DeriverdContent, error) {
+func (r *PSQLContentRepository) CreateDerivedContentRelationship(ctx context.Context, params repo.CreateDerivedContentParams) (domain.DerivedContent, error) {
 	query := `
 		INSERT INTO content.content_derived (
 			parent_content_id, derived_content_id, derivation_type, derivation_params, processing_metadata, created_at, updated_at
@@ -359,7 +359,7 @@ func (r *PSQLContentRepository) CreateDerivedContentRelationship(ctx context.Con
 	var processingMetadata map[string]interface{}
 	err := row.Scan(&id, &params.ParentID, &params.DerivedContentID, &params.Relationship, &derivationParams, &processingMetadata)
 
-	return domain.DeriverdContent{
+	return domain.DerivedContent{
 		ParentID:           params.ParentID,
 		DerivedContentID:   params.DerivedContentID,
 		DerivationType:     params.Relationship,

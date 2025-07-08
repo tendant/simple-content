@@ -35,7 +35,7 @@ type Content struct {
 	UpdatedAt      time.Time `json:"updated_at"`
 }
 
-type DeriverdContent struct {
+type DerivedContent struct {
 	ParentID           uuid.UUID              `json:"parent_id"`
 	DerivedContentID   uuid.UUID              `json:"derived_content_id"`
 	DerivationType     string                 `json:"derivation_type"`
