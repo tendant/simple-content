@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/google/uuid"
@@ -421,13 +422,15 @@ func (r *PSQLContentRepository) GetDerivedContentByLevel(ctx context.Context, pa
 
 	// Initialize parameters for the query
 	args := []interface{}{params.RootID, maxDepth, params.Level}
-	
+
 	// Add tenant filter if provided
+	paramIndex := 4
 	if params.TenantID != uuid.Nil {
-		query += " AND tenant_id = $4"
+		query += " AND c.tenant_id = $" + strconv.Itoa(paramIndex)
 		args = append(args, params.TenantID)
+		paramIndex++
 	}
-	
+
 	// Add order by
 	query += " ORDER BY level ASC, created_at DESC"
 
