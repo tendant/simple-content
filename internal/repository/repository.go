@@ -9,9 +9,9 @@ import (
 
 // ListDerivedContentParams defines parameters for listing derived content
 type ListDerivedContentParams struct {
-	ParentIDs    []uuid.UUID
-	TenantID     uuid.UUID
-	Relationship []string
+	ParentIDs      []uuid.UUID
+	TenantID       uuid.UUID
+	DerivationType []string
 }
 
 // GetDerivedContentByLevelParams defines parameters for getting derived content by level
@@ -35,7 +35,7 @@ type CreateDerivedContentParams struct {
 	DerivedContentID   uuid.UUID
 	DerivationParams   map[string]interface{}
 	ProcessingMetadata map[string]interface{}
-	Relationship       string
+	DerivationType     string
 }
 
 // DeleteDerivedContentParams defines parameters for deleting derived content

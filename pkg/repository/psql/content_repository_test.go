@@ -340,8 +340,8 @@ func TestPSQLContentRepository_ListDerivedContent(t *testing.T) {
 		// Test case 1: List derived content for parent content with specific relationship type
 		t.Run("Filter by parent ID and relationship type", func(t *testing.T) {
 			params := repolib.ListDerivedContentParams{
-				ParentIDs:    []uuid.UUID{parentContent.ID},
-				Relationship: []string{domain.ContentDerivedTHUMBNAIL720},
+				ParentIDs:      []uuid.UUID{parentContent.ID},
+				DerivationType: []string{domain.ContentDerivedTHUMBNAIL720},
 			}
 
 			result, err := repo.ListDerivedContent(ctx, params)
@@ -353,8 +353,8 @@ func TestPSQLContentRepository_ListDerivedContent(t *testing.T) {
 		// Test case 2: List all derived content for parent content (multiple relationship types)
 		t.Run("Filter by parent ID with multiple relationship types", func(t *testing.T) {
 			params := repolib.ListDerivedContentParams{
-				ParentIDs:    []uuid.UUID{parentContent.ID},
-				Relationship: []string{domain.ContentDerivedTHUMBNAIL720, domain.ContentDerivedTHUMBNAIL480},
+				ParentIDs:      []uuid.UUID{parentContent.ID},
+				DerivationType: []string{domain.ContentDerivedTHUMBNAIL720, domain.ContentDerivedTHUMBNAIL480},
 			}
 
 			result, err := repo.ListDerivedContent(ctx, params)
@@ -375,8 +375,8 @@ func TestPSQLContentRepository_ListDerivedContent(t *testing.T) {
 		// Test case 3: Filter by tenant ID
 		t.Run("Filter by tenant ID", func(t *testing.T) {
 			params := repolib.ListDerivedContentParams{
-				TenantID:     tenantID,
-				Relationship: []string{domain.ContentDerivedTHUMBNAIL720},
+				TenantID:       tenantID,
+				DerivationType: []string{domain.ContentDerivedTHUMBNAIL720},
 			}
 
 			result, err := repo.ListDerivedContent(ctx, params)
@@ -388,8 +388,8 @@ func TestPSQLContentRepository_ListDerivedContent(t *testing.T) {
 		// Test case 4: Filter by multiple parent IDs
 		t.Run("Filter by multiple parent IDs", func(t *testing.T) {
 			params := repolib.ListDerivedContentParams{
-				ParentIDs:    []uuid.UUID{parentContent.ID, otherParentContent.ID},
-				Relationship: []string{domain.ContentDerivedTHUMBNAIL720, domain.ContentDerivedTHUMBNAIL480},
+				ParentIDs:      []uuid.UUID{parentContent.ID, otherParentContent.ID},
+				DerivationType: []string{domain.ContentDerivedTHUMBNAIL720, domain.ContentDerivedTHUMBNAIL480},
 			}
 
 			result, err := repo.ListDerivedContent(ctx, params)
@@ -410,8 +410,8 @@ func TestPSQLContentRepository_ListDerivedContent(t *testing.T) {
 		// Test case 5: No results when filtering by non-existent parent ID
 		t.Run("No results for non-existent parent ID", func(t *testing.T) {
 			params := repolib.ListDerivedContentParams{
-				ParentIDs:    []uuid.UUID{uuid.New()}, // Random non-existent ID
-				Relationship: []string{domain.ContentDerivedTHUMBNAIL720},
+				ParentIDs:      []uuid.UUID{uuid.New()}, // Random non-existent ID
+				DerivationType: []string{domain.ContentDerivedTHUMBNAIL720},
 			}
 
 			result, err := repo.ListDerivedContent(ctx, params)
@@ -474,7 +474,7 @@ func TestPSQLContentRepository_CreateDerivedContentRelationship(t *testing.T) {
 			params := repolib.CreateDerivedContentParams{
 				ParentID:           parentContent.ID,
 				DerivedContentID:   derivedContent.ID,
-				Relationship:       domain.ContentDerivedTHUMBNAIL480,
+				DerivationType:     domain.ContentDerivedTHUMBNAIL480,
 				DerivationParams:   derivationParams,
 				ProcessingMetadata: processingMetadata,
 			}
@@ -503,7 +503,7 @@ func TestPSQLContentRepository_CreateDerivedContentRelationship(t *testing.T) {
 			params := repolib.CreateDerivedContentParams{
 				ParentID:         parentContent.ID,
 				DerivedContentID: derivedContent.ID,
-				Relationship:     domain.ContentDerivedTHUMBNAIL720, // Same as first test case
+				DerivationType:   domain.ContentDerivedTHUMBNAIL720, // Same as first test case
 			}
 
 			_, err := repo.CreateDerivedContentRelationship(ctx, params)
@@ -581,7 +581,7 @@ func TestPSQLContentRepository_GetDerivedContentByLevel(t *testing.T) {
 		_, err = repo.CreateDerivedContentRelationship(ctx, repolib.CreateDerivedContentParams{
 			ParentID:         rootContent.ID,
 			DerivedContentID: level1Content1.ID,
-			Relationship:     domain.ContentDerivedTHUMBNAIL720,
+			DerivationType:   domain.ContentDerivedTHUMBNAIL720,
 		})
 		require.NoError(t, err)
 
@@ -589,7 +589,7 @@ func TestPSQLContentRepository_GetDerivedContentByLevel(t *testing.T) {
 		_, err = repo.CreateDerivedContentRelationship(ctx, repolib.CreateDerivedContentParams{
 			ParentID:         rootContent.ID,
 			DerivedContentID: level1Content2.ID,
-			Relationship:     domain.ContentDerivedTHUMBNAIL480,
+			DerivationType:   domain.ContentDerivedTHUMBNAIL480,
 		})
 		require.NoError(t, err)
 
@@ -597,7 +597,7 @@ func TestPSQLContentRepository_GetDerivedContentByLevel(t *testing.T) {
 		_, err = repo.CreateDerivedContentRelationship(ctx, repolib.CreateDerivedContentParams{
 			ParentID:         level1Content1.ID,
 			DerivedContentID: level2Content.ID,
-			Relationship:     domain.ContentDerivedTHUMBNAIL720,
+			DerivationType:   domain.ContentDerivedTHUMBNAIL720,
 		})
 		require.NoError(t, err)
 
@@ -735,7 +735,7 @@ func TestPSQLContentRepository_DeleteDerivedContentRelationship(t *testing.T) {
 		params1 := repolib.CreateDerivedContentParams{
 			ParentID:         parentContent.ID,
 			DerivedContentID: derivedContent.ID,
-			Relationship:     domain.ContentDerivedTHUMBNAIL720,
+			DerivationType:   domain.ContentDerivedTHUMBNAIL720,
 		}
 		_, err = repo.CreateDerivedContentRelationship(ctx, params1)
 		require.NoError(t, err)
@@ -743,7 +743,7 @@ func TestPSQLContentRepository_DeleteDerivedContentRelationship(t *testing.T) {
 		params2 := repolib.CreateDerivedContentParams{
 			ParentID:         parentContent.ID,
 			DerivedContentID: derivedContent2.ID,
-			Relationship:     domain.ContentDerivedTHUMBNAIL480,
+			DerivationType:   domain.ContentDerivedTHUMBNAIL480,
 		}
 		_, err = repo.CreateDerivedContentRelationship(ctx, params2)
 		require.NoError(t, err)
@@ -760,8 +760,8 @@ func TestPSQLContentRepository_DeleteDerivedContentRelationship(t *testing.T) {
 
 			// Verify the relationship is deleted by trying to list it
 			listParams := repolib.ListDerivedContentParams{
-				ParentIDs:    []uuid.UUID{parentContent.ID},
-				Relationship: []string{domain.ContentDerivedTHUMBNAIL720},
+				ParentIDs:      []uuid.UUID{parentContent.ID},
+				DerivationType: []string{domain.ContentDerivedTHUMBNAIL720},
 			}
 			result, err := repo.ListDerivedContent(ctx, listParams)
 			require.NoError(t, err)
@@ -783,8 +783,8 @@ func TestPSQLContentRepository_DeleteDerivedContentRelationship(t *testing.T) {
 		t.Run("Other relationships remain intact", func(t *testing.T) {
 			// Verify the second relationship is still there
 			listParams := repolib.ListDerivedContentParams{
-				ParentIDs:    []uuid.UUID{parentContent.ID},
-				Relationship: []string{domain.ContentDerivedTHUMBNAIL480},
+				ParentIDs:      []uuid.UUID{parentContent.ID},
+				DerivationType: []string{domain.ContentDerivedTHUMBNAIL480},
 			}
 			result, err := repo.ListDerivedContent(ctx, listParams)
 			require.NoError(t, err)

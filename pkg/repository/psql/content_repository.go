@@ -262,7 +262,7 @@ func (r *PSQLContentRepository) ListDerivedContent(ctx context.Context, params r
 	`
 
 	// Initialize parameters for the query
-	args := []interface{}{params.Relationship}
+	args := []interface{}{params.DerivationType}
 	paramCount := 2
 
 	// Initialize where clause
@@ -347,7 +347,7 @@ func (r *PSQLContentRepository) CreateDerivedContentRelationship(ctx context.Con
 		query,
 		params.ParentID,
 		params.DerivedContentID,
-		params.Relationship,
+		params.DerivationType,
 		params.DerivationParams,
 		params.ProcessingMetadata,
 		now,
@@ -357,12 +357,12 @@ func (r *PSQLContentRepository) CreateDerivedContentRelationship(ctx context.Con
 	var id uuid.UUID
 	var derivationParams map[string]interface{}
 	var processingMetadata map[string]interface{}
-	err := row.Scan(&id, &params.ParentID, &params.DerivedContentID, &params.Relationship, &derivationParams, &processingMetadata)
+	err := row.Scan(&id, &params.ParentID, &params.DerivedContentID, &params.DerivationType, &derivationParams, &processingMetadata)
 
 	return domain.DerivedContent{
 		ParentID:           params.ParentID,
 		DerivedContentID:   params.DerivedContentID,
-		DerivationType:     params.Relationship,
+		DerivationType:     params.DerivationType,
 		DerivationParams:   derivationParams,
 		ProcessingMetadata: processingMetadata,
 		CreatedAt:          now,
