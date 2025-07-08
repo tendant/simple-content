@@ -162,7 +162,7 @@ func (r *PSQLContentRepository) Delete(ctx context.Context, id uuid.UUID) error 
 		WHERE id = $1 AND deleted_at IS NULL
 	`
 
-	result, err := r.db.Exec(ctx, query, id, time.Now())
+	result, err := r.db.Exec(ctx, query, id, time.Now().UTC())
 	if err != nil {
 		return err
 	}
