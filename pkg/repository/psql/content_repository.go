@@ -432,13 +432,10 @@ func (r *PSQLContentRepository) GetDerivedContentByLevel(ctx context.Context, pa
 	// Add tenant filter if provided
 	paramIndex := 4
 	if params.TenantID != uuid.Nil {
-		query += " AND c.tenant_id = $" + strconv.Itoa(paramIndex)
+		query += " AND tenant_id = $" + strconv.Itoa(paramIndex)
 		args = append(args, params.TenantID)
 		paramIndex++
 	}
-
-	// Add order by
-	query += " ORDER BY level ASC, created_at DESC"
 
 	// Execute the query
 	rows, err := r.db.Query(ctx, query, args...)
