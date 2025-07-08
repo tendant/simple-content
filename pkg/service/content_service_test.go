@@ -190,6 +190,213 @@ func TestContentService_SetContentMetadata(t *testing.T) {
 	assert.Equal(t, "00:01:30", metadata.Metadata["duration"])
 }
 
+func TestContentService_GetContent(t *testing.T) {
+	svc := setupContentService()
+	ctx := context.Background()
+
+	// Create a content to get
+	ownerID := uuid.New()
+	tenantID := uuid.New()
+	title := "Test Document"
+	description := "This is a test document"
+	documentType := "pdf"
+
+	params := service.CreateContentParams{
+		OwnerID:      ownerID,
+		TenantID:     tenantID,
+		Title:        title,
+		Description:  description,
+		DocumentType: documentType,
+	}
+
+	created, err := svc.CreateContent(ctx, params)
+	assert.NoError(t, err)
+	assert.NotNil(t, created)
+
+	// Get the content
+	retrieved, err := svc.GetContent(ctx, created.ID)
+	assert.NoError(t, err)
+	assert.NotNil(t, retrieved)
+
+	// Verify the retrieved content matches the created one
+	assert.Equal(t, created.ID, retrieved.ID)
+	assert.Equal(t, ownerID, retrieved.OwnerID)
+	assert.Equal(t, tenantID, retrieved.TenantID)
+	assert.Equal(t, title, retrieved.Name)
+	assert.Equal(t, description, retrieved.Description)
+	assert.Equal(t, documentType, retrieved.DocumentType)
+}
+
+func TestContentService_GetContent_NotFound(t *testing.T) {
+	svc := setupContentService()
+	ctx := context.Background()
+
+	// Try to get a non-existent content
+	nonExistentID := uuid.New()
+	content, err := svc.GetContent(ctx, nonExistentID)
+
+	// Should return an error and nil content
+	assert.Error(t, err)
+	assert.Nil(t, content)
+}
+
+func TestContentService_UpdateContent(t *testing.T) {
+	svc := setupContentService()
+	ctx := context.Background()
+
+	// Create a content to update
+	ownerID := uuid.New()
+	tenantID := uuid.New()
+	createParams := service.CreateContentParams{
+		OwnerID:      ownerID,
+		TenantID:     tenantID,
+		Title:        "Original Title",
+		Description:  "Original Description",
+		DocumentType: "pdf",
+	}
+
+	content, err := svc.CreateContent(ctx, createParams)
+	assert.NoError(t, err)
+	assert.NotNil(t, content)
+
+	// Update the content
+	updatedTitle := "Updated Title"
+	updatedDescription := "Updated Description"
+	updatedDocumentType := "docx"
+
+	content.Name = updatedTitle
+	content.Description = updatedDescription
+	content.DocumentType = updatedDocumentType
+
+	updateParams := service.UpdateContentParams{
+		Content: content,
+	}
+
+	err = svc.UpdateContent(ctx, updateParams)
+	assert.NoError(t, err)
+
+	// Get the updated content
+	updated, err := svc.GetContent(ctx, content.ID)
+	assert.NoError(t, err)
+	assert.NotNil(t, updated)
+
+	// Verify the content was updated
+	assert.Equal(t, updatedTitle, updated.Name)
+	assert.Equal(t, updatedDescription, updated.Description)
+	assert.Equal(t, updatedDocumentType, updated.DocumentType)
+
+	// Verify the updated timestamp is newer than the created timestamp
+	assert.True(t, updated.UpdatedAt.After(updated.CreatedAt) || updated.UpdatedAt.Equal(updated.CreatedAt))
+}
+
+func TestContentService_DeleteContent(t *testing.T) {
+	svc := setupContentService()
+	ctx := context.Background()
+
+	// Create a content to delete
+	ownerID := uuid.New()
+	tenantID := uuid.New()
+	createParams := service.CreateContentParams{
+		OwnerID:      ownerID,
+		TenantID:     tenantID,
+		Title:        "Content to Delete",
+		Description:  "This content will be deleted",
+		DocumentType: "pdf",
+	}
+
+	content, err := svc.CreateContent(ctx, createParams)
+	assert.NoError(t, err)
+	assert.NotNil(t, content)
+
+	// Verify the content exists
+	retrieved, err := svc.GetContent(ctx, content.ID)
+	assert.NoError(t, err)
+	assert.NotNil(t, retrieved)
+
+	// Delete the content
+	deleteParams := service.DeleteContentParams{
+		ID: content.ID,
+	}
+
+	err = svc.DeleteContent(ctx, deleteParams)
+	assert.NoError(t, err)
+
+	// Try to get the deleted content
+	deleted, err := svc.GetContent(ctx, content.ID)
+	assert.Error(t, err)
+	assert.Nil(t, deleted)
+}
+
+func TestContentService_ListContent(t *testing.T) {
+	svc := setupContentService()
+	ctx := context.Background()
+
+	// Create owner and tenant IDs
+	ownerID := uuid.New()
+	tenantID := uuid.New()
+
+	// Initially, there should be no content
+	listParams := service.ListContentParams{
+		OwnerID:  ownerID,
+		TenantID: tenantID,
+	}
+
+	initialList, err := svc.ListContent(ctx, listParams)
+	assert.NoError(t, err)
+	assert.Empty(t, initialList)
+
+	// Create multiple content items
+	titles := []string{"Document 1", "Document 2", "Document 3"}
+	documentTypes := []string{"pdf", "docx", "txt"}
+
+	for i, title := range titles {
+		createParams := service.CreateContentParams{
+			OwnerID:      ownerID,
+			TenantID:     tenantID,
+			Title:        title,
+			Description:  "Description for " + title,
+			DocumentType: documentTypes[i],
+		}
+
+		_, err := svc.CreateContent(ctx, createParams)
+		assert.NoError(t, err)
+	}
+
+	// List content for the owner and tenant
+	contentList, err := svc.ListContent(ctx, listParams)
+	assert.NoError(t, err)
+	assert.NotEmpty(t, contentList)
+	assert.Equal(t, len(titles), len(contentList))
+
+	// Create content for a different owner
+	differentOwnerID := uuid.New()
+	differentCreateParams := service.CreateContentParams{
+		OwnerID:      differentOwnerID,
+		TenantID:     tenantID,
+		Title:        "Different Owner Document",
+		Description:  "This document has a different owner",
+		DocumentType: "pdf",
+	}
+
+	_, err = svc.CreateContent(ctx, differentCreateParams)
+	assert.NoError(t, err)
+
+	// List content for the original owner should still return the same count
+	contentList, err = svc.ListContent(ctx, listParams)
+	assert.NoError(t, err)
+	assert.Equal(t, len(titles), len(contentList))
+
+	// List content for the different owner
+	differentListParams := service.ListContentParams{
+		OwnerID:  differentOwnerID,
+		TenantID: tenantID,
+	}
+
+	differentContentList, err := svc.ListContent(ctx, differentListParams)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(differentContentList))
+}
+
 func TestContentService_IndependentMetadata(t *testing.T) {
 	svc := setupContentService()
 	ctx := context.Background()
