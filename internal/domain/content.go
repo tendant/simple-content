@@ -35,6 +35,16 @@ type Content struct {
 	UpdatedAt      time.Time `json:"updated_at"`
 }
 
+type DerivedContent struct {
+	ParentID           uuid.UUID              `json:"parent_id"`
+	DerivedContentID   uuid.UUID              `json:"derived_content_id"`
+	DerivationType     string                 `json:"derivation_type"`
+	DerivationParams   map[string]interface{} `json:"derivation_params"`
+	ProcessingMetadata map[string]interface{} `json:"processing_metadata"`
+	CreatedAt          time.Time              `json:"created_at"`
+	UpdatedAt          time.Time              `json:"updated_at"`
+}
+
 // ContentMetadata represents metadata for a content
 type ContentMetadata struct {
 	ContentID         uuid.UUID              `json:"content_id"`
