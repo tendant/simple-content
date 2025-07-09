@@ -53,7 +53,7 @@ func (s *ContentService) CreateContent(
 		Description:    params.Description,
 		DocumentType:   params.DocumentType,
 		Status:         model.ContentStatusCreated,
-		DerivationType: model.ContentDerivationTypeOriginal,
+		DerivationType: model.ContentCategoryOriginal,
 	}
 
 	if err := s.contentRepo.Create(ctx, content); err != nil {
@@ -65,9 +65,11 @@ func (s *ContentService) CreateContent(
 
 // CreateDerivedContentParams contains parameters for creating derived content
 type CreateDerivedContentParams struct {
-	ParentID uuid.UUID
-	OwnerID  uuid.UUID
-	TenantID uuid.UUID
+	ParentID       uuid.UUID
+	OwnerID        uuid.UUID
+	TenantID       uuid.UUID
+	Category       string
+	DerivationType string
 }
 
 // CreateDerivedContent creates a new content derived from an existing content
@@ -90,7 +92,7 @@ func (s *ContentService) CreateDerivedContent(
 		OwnerID:        params.OwnerID,
 		TenantID:       params.TenantID,
 		Status:         model.ContentStatusCreated,
-		DerivationType: model.ContentDerivationTypeDerived,
+		DerivationType: params.Category,
 	}
 
 	if err := s.contentRepo.Create(ctx, content); err != nil {
@@ -101,7 +103,7 @@ func (s *ContentService) CreateDerivedContent(
 	_, err = s.contentRepo.CreateDerivedContentRelationship(ctx, repository.CreateDerivedContentParams{
 		ParentID:           params.ParentID,
 		DerivedContentID:   content.ID,
-		DerivationType:     model.ContentDerivationTypeDerived,
+		DerivationType:     params.DerivationType,
 		DerivationParams:   nil,
 		ProcessingMetadata: nil,
 	})

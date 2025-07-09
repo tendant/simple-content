@@ -38,12 +38,12 @@ const (
 
 // Content derivation type constants
 const (
-	ContentDerivationTypeOriginal = domain.ContentDerivationTypeOriginal
-	ContentDerivationTypeDerived  = domain.ContentDerivationTypeDerived
-	ContentDerivedTHUMBNAIL720    = domain.ContentDerivedTHUMBNAIL720
-	ContentDerivedTHUMBNAIL480    = domain.ContentDerivedTHUMBNAIL480
-	ContentDerivedTHUMBNAIL256    = domain.ContentDerivedTHUMBNAIL256
-	ContentDerivedTHUMBNAIL128    = domain.ContentDerivedTHUMBNAIL128
+	ContentCategoryOriginal                  = "original"
+	ContentCategoryThumbnail                 = "thumbnail"
+	ContentDerivedDerivationTypeTHUMBNAIL720 = "THUMBNAIL_720"
+	ContentDerivedDerivationTypeTHUMBNAIL480 = "THUMBNAIL_480"
+	ContentDerivedDerivationTypeTHUMBNAIL256 = "THUMBNAIL_256"
+	ContentDerivedDerivationTypeTHUMBNAIL128 = "THUMBNAIL_128"
 )
 
 // Object status constants
