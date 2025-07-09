@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/tendant/simple-content/internal/domain"
 	"github.com/tendant/simple-content/internal/repository"
 	"github.com/tendant/simple-content/pkg/model"
 )
@@ -234,4 +235,21 @@ func (s *ContentService) SetContentMetadata(
 // GetContentMetadata retrieves metadata for a content
 func (s *ContentService) GetContentMetadata(ctx context.Context, contentID uuid.UUID) (*model.ContentMetadata, error) {
 	return s.metadataRepo.Get(ctx, contentID)
+}
+
+// ListDerivedContent retrieves derived content based on the provided parameters
+func (s *ContentService) ListDerivedContent(
+	ctx context.Context,
+	params repository.ListDerivedContentParams,
+) ([]*domain.DerivedContent, error) {
+	// Call the repository implementation to get the derived content
+	return s.contentRepo.ListDerivedContent(ctx, params)
+}
+
+func (s *ContentService) CreateDerivedContentRelationship(ctx context.Context, params repository.CreateDerivedContentParams) (domain.DerivedContent, error) {
+	return s.contentRepo.CreateDerivedContentRelationship(ctx, params)
+}
+
+func (s *ContentService) DeleteDerivedContentRelationship(ctx context.Context, params repository.DeleteDerivedContentParams) error {
+	return s.contentRepo.DeleteDerivedContentRelationship(ctx, params)
 }
