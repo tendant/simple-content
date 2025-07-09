@@ -97,8 +97,17 @@ func (s *ContentService) CreateDerivedContent(
 		return nil, fmt.Errorf("failed to create derived content: %w", err)
 	}
 
-	// Note: Content derivation relationships will be handled by the ContentDerivedRepository
-	// which will be implemented separately
+	// Create derived content relationship
+	_, err = s.contentRepo.CreateDerivedContentRelationship(ctx, repository.CreateDerivedContentParams{
+		ParentID:           params.ParentID,
+		DerivedContentID:   content.ID,
+		DerivationType:     model.ContentDerivationTypeDerived,
+		DerivationParams:   nil,
+		ProcessingMetadata: nil,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create derived content relationship: %w", err)
+	}
 
 	return content, nil
 }
@@ -244,12 +253,4 @@ func (s *ContentService) ListDerivedContent(
 ) ([]*domain.DerivedContent, error) {
 	// Call the repository implementation to get the derived content
 	return s.contentRepo.ListDerivedContent(ctx, params)
-}
-
-func (s *ContentService) CreateDerivedContentRelationship(ctx context.Context, params repository.CreateDerivedContentParams) (domain.DerivedContent, error) {
-	return s.contentRepo.CreateDerivedContentRelationship(ctx, params)
-}
-
-func (s *ContentService) DeleteDerivedContentRelationship(ctx context.Context, params repository.DeleteDerivedContentParams) error {
-	return s.contentRepo.DeleteDerivedContentRelationship(ctx, params)
 }
