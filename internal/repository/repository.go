@@ -51,7 +51,7 @@ type ContentRepository interface {
 	Update(ctx context.Context, content *domain.Content) error
 	Delete(ctx context.Context, id uuid.UUID) error
 	List(ctx context.Context, ownerID, tenantID uuid.UUID) ([]*domain.Content, error)
-	ListDerivedContent(ctx context.Context, params ListDerivedContentParams) ([]*domain.Content, error)
+	ListDerivedContent(ctx context.Context, params ListDerivedContentParams) ([]*domain.DerivedContent, error)
 	GetDerivedContentByLevel(ctx context.Context, params GetDerivedContentByLevelParams) ([]ContentWithParent, error)
 	CreateDerivedContentRelationship(ctx context.Context, params CreateDerivedContentParams) (domain.DerivedContent, error)
 	DeleteDerivedContentRelationship(ctx context.Context, params DeleteDerivedContentParams) error

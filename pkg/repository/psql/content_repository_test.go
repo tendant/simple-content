@@ -482,7 +482,7 @@ func TestPSQLContentRepository_CreateDerivedContentRelationship(t *testing.T) {
 			result, err := repo.CreateDerivedContentRelationship(ctx, params)
 			require.NoError(t, err)
 			assert.Equal(t, parentContent.ID, result.ParentID)
-			assert.Equal(t, derivedContent.ID, result.DerivedContentID)
+			assert.Equal(t, derivedContent.ID, result.ID)
 			assert.Equal(t, domain.ContentDerivedTHUMBNAIL480, result.DerivationType)
 
 			// Verify derivation params

@@ -115,13 +115,13 @@ func (r *ContentRepository) GetDerivedContentTree(ctx context.Context, rootID uu
 
 // ListDerivedContent retrieves derived content based on the provided parameters
 // Note: This is a stub implementation for the in-memory repository
-func (r *ContentRepository) ListDerivedContent(ctx context.Context, params repository.ListDerivedContentParams) ([]*domain.Content, error) {
+func (r *ContentRepository) ListDerivedContent(ctx context.Context, params repository.ListDerivedContentParams) ([]*domain.DerivedContent, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
 	// This is a stub implementation since we don't have a relationship table in memory
 	// In a real implementation, we would query the content_derived table
-	return []*domain.Content{}, nil
+	return []*domain.DerivedContent{}, nil
 }
 
 // CreateDerivedContentRelationship creates a new derived content relationship

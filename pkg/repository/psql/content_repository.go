@@ -249,12 +249,11 @@ func (r *PSQLContentRepository) List(ctx context.Context, ownerID, tenantID uuid
 }
 
 // ListDerivedContent implements ContentRepository.ListDerivedContent
-func (r *PSQLContentRepository) ListDerivedContent(ctx context.Context, params repo.ListDerivedContentParams) ([]*domain.Content, error) {
+func (r *PSQLContentRepository) ListDerivedContent(ctx context.Context, params repo.ListDerivedContentParams) ([]*domain.DerivedContent, error) {
 	// Build the base query to join content_derived with content tables
 	baseQuery := `
 		SELECT 
-			c.id, c.tenant_id, c.owner_id, c.owner_type, c.name, c.description, c.document_type,
-			c.status, c.derivation_type, c.created_at, c.updated_at
+			cd.parent_content_id, cd.derived_content_id, cd.derivation_type, cd.derivation_params, cd.processing_metadata, c.created_at, c.updated_at, c.document_type, c.status
 		FROM content.content_derived cd
 		JOIN content.content c ON cd.derived_content_id = c.id
 		WHERE c.deleted_at IS NULL AND cd.deleted_at IS NULL
@@ -300,21 +299,19 @@ func (r *PSQLContentRepository) ListDerivedContent(ctx context.Context, params r
 	defer rows.Close()
 
 	// Process the results
-	contents := []*domain.Content{}
+	contents := []*domain.DerivedContent{}
 	for rows.Next() {
-		content := &domain.Content{}
+		content := &domain.DerivedContent{}
 		err := rows.Scan(
+			&content.ParentID,
 			&content.ID,
-			&content.TenantID,
-			&content.OwnerID,
-			&content.OwnerType,
-			&content.Name,
-			&content.Description,
-			&content.DocumentType,
-			&content.Status,
 			&content.DerivationType,
+			&content.DerivationParams,
+			&content.ProcessingMetadata,
 			&content.CreatedAt,
 			&content.UpdatedAt,
+			&content.DocumentType,
+			&content.Status,
 		)
 		if err != nil {
 			return nil, err
@@ -367,7 +364,7 @@ func (r *PSQLContentRepository) CreateDerivedContentRelationship(ctx context.Con
 
 	return domain.DerivedContent{
 		ParentID:           params.ParentID,
-		DerivedContentID:   params.DerivedContentID,
+		ID:                 params.DerivedContentID,
 		DerivationType:     params.DerivationType,
 		DerivationParams:   derivationParams,
 		ProcessingMetadata: processingMetadata,
