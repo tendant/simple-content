@@ -148,7 +148,7 @@ func (r *ContentRepository) ListDerivedContent(ctx context.Context, params repos
 
 					// Filter by tenant ID if provided
 					if params.TenantID != uuid.Nil {
-						content, exists := r.contents[relation.ID]
+						content, exists := r.contents[relation.ContentID]
 						if !exists || content.TenantID != params.TenantID {
 							continue
 						}
@@ -179,7 +179,7 @@ func (r *ContentRepository) ListDerivedContent(ctx context.Context, params repos
 				}
 
 				if params.TenantID != uuid.Nil {
-					content, exists := r.contents[relation.ID]
+					content, exists := r.contents[relation.ContentID]
 					if !exists || content.TenantID != params.TenantID {
 						continue
 					}
@@ -212,7 +212,7 @@ func (r *ContentRepository) CreateDerivedContentRelationship(ctx context.Context
 	// Create the derived content relationship
 	relationship := domain.DerivedContent{
 		ParentID:           params.ParentID,
-		ID:                 params.DerivedContentID,
+		ContentID:          params.DerivedContentID,
 		DerivationType:     params.DerivationType,
 		DerivationParams:   params.DerivationParams,
 		ProcessingMetadata: params.ProcessingMetadata,

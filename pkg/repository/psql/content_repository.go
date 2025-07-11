@@ -304,7 +304,7 @@ func (r *PSQLContentRepository) ListDerivedContent(ctx context.Context, params r
 		content := &domain.DerivedContent{}
 		err := rows.Scan(
 			&content.ParentID,
-			&content.ID,
+			&content.ContentID,
 			&content.DerivationType,
 			&content.DerivationParams,
 			&content.ProcessingMetadata,
@@ -364,7 +364,7 @@ func (r *PSQLContentRepository) CreateDerivedContentRelationship(ctx context.Con
 
 	return domain.DerivedContent{
 		ParentID:           params.ParentID,
-		ID:                 params.DerivedContentID,
+		ContentID:          params.DerivedContentID,
 		DerivationType:     params.DerivationType,
 		DerivationParams:   derivationParams,
 		ProcessingMetadata: processingMetadata,

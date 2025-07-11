@@ -37,7 +37,7 @@ type Content struct {
 
 type DerivedContent struct {
 	ParentID           uuid.UUID              `json:"parent_id"`
-	ID                 uuid.UUID              `json:"derived_content_id"`
+	ContentID          uuid.UUID              `json:"content_id"`
 	DerivationType     string                 `json:"derivation_type"`
 	DerivationParams   map[string]interface{} `json:"derivation_params"`
 	ProcessingMetadata map[string]interface{} `json:"processing_metadata"`

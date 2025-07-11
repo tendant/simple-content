@@ -514,5 +514,5 @@ func TestContentService_ListDerivedContent(t *testing.T) {
 	})
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(derivedList))
-	assert.Equal(t, derived.ID, derivedList[0].ID)
+	assert.Equal(t, derived.ID, derivedList[0].ContentID)
 }
