@@ -316,7 +316,19 @@ func (r *PSQLContentRepository) ListDerivedContent(ctx context.Context, params r
 		if err != nil {
 			return nil, err
 		}
-		contents = append(contents, content)
+
+		// Create ContentWithParent struct
+		contentWithParent := repo.ContentWithParent{
+			Content: content,
+			Level:   level,
+		}
+
+		// Set parent ID if not null
+		if parentID != nil {
+			contentWithParent.ParentID = *parentID
+		}
+
+		contentsWithParent = append(contentsWithParent, contentWithParent)
 	}
 
 	// Check for errors from iterating over rows
@@ -324,7 +336,7 @@ func (r *PSQLContentRepository) ListDerivedContent(ctx context.Context, params r
 		return nil, err
 	}
 
-	return contents, nil
+	return contentsWithParent, nil
 }
 
 // Create implements ContentRepository.CreateDerivedContentRelationship
@@ -488,65 +500,6 @@ func (r *PSQLContentRepository) GetDerivedContentByLevel(ctx context.Context, pa
 	return contentsWithParent, nil
 }
 
-// Create implements ContentRepository.CreateDerivedContentRelationship
-func (r *PSQLContentRepository) CreateDerivedContentRelationship(ctx context.Context, params repo.CreateDerivedContentParams) (domain.DerivedContent, error) {
-
-	// Check if the parent and derived content IDs are the same
-	if params.ParentID == params.DerivedContentID {
-		return domain.DerivedContent{}, errors.New("invalid content ID")
-	}
-
-	query := `
-		INSERT INTO content.content_derived (
-			parent_content_id, derived_content_id, derivation_type, derivation_params, processing_metadata, created_at, updated_at
-		) VALUES (
-			$1, $2, $3, $4, $5, $6, $7
-		) RETURNING id, parent_content_id, derived_content_id, derivation_type, derivation_params, processing_metadata
-	`
-
-	// Set timestamps if not provided
-	now := time.Now().UTC()
-	row := r.db.QueryRow(
-		ctx,
-		query,
-		params.ParentID,
-		params.DerivedContentID,
-		params.DerivationType,
-		params.DerivationParams,
-		params.ProcessingMetadata,
-		now,
-		now,
-	)
-	// Create a variable to hold the ID since we don't need to store it in params
-	var id uuid.UUID
-	var derivationParams map[string]interface{}
-	var processingMetadata map[string]interface{}
-	err := row.Scan(&id, &params.ParentID, &params.DerivedContentID, &params.DerivationType, &derivationParams, &processingMetadata)
-
-	return domain.DerivedContent{
-		ParentID:           params.ParentID,
-		DerivedContentID:   params.DerivedContentID,
-		DerivationType:     params.DerivationType,
-		DerivationParams:   derivationParams,
-		ProcessingMetadata: processingMetadata,
-		CreatedAt:          now,
-		UpdatedAt:          now,
-	}, err
-}
-
-// Delete implements ContentRepository.DeleteDerivedContentRelationship
-func (r *PSQLContentRepository) DeleteDerivedContentRelationship(ctx context.Context, params repo.DeleteDerivedContentParams) error {
-	query := `
-		UPDATE content.content_derived
-		SET deleted_at = $3
-		WHERE parent_content_id = $1 AND derived_content_id = $2
-		AND deleted_at IS NULL
-	`
-	now := time.Now().UTC()
-	_, err := r.db.Exec(ctx, query, params.ParentID, params.DerivedContentID, now)
-	return err
-}
-
 // GetDerivedContentByLevel implements ContentRepository.GetDerivedContentByLevel
 // Returns all contents up to and including the specified level in the derivation hierarchy
 // along with their parent information
@@ -648,3 +601,6 @@ func (r *PSQLContentRepository) GetDerivedContentByLevel(ctx context.Context, pa
 
 	return contentsWithParent, nil
 }
+
+
+
