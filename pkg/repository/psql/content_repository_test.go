@@ -790,6 +790,7 @@ func TestPSQLContentRepository_DeleteDerivedContentRelationship(t *testing.T) {
 			require.NoError(t, err)
 			assert.Len(t, result, 1)
 			assert.Equal(t, derivedContent2.ID, result[0].ContentID)
+
 		})
 	})
 }
