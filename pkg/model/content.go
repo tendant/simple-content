@@ -30,6 +30,8 @@ type ObjectMeta = storage.ObjectMeta
 // ListDerivedContentParams represents parameters for listing derived content
 type ListDerivedContentParams = repository.ListDerivedContentParams
 
+type UploadS3ObjectParams = storage.UploadParams
+
 // Content status constants
 const (
 	ContentStatusCreated  = domain.ContentStatusCreated
@@ -38,12 +40,12 @@ const (
 
 // Content derivation type constants
 const (
-	ContentDerivationTypeOriginal = domain.ContentDerivationTypeOriginal
-	ContentDerivationTypeDerived  = domain.ContentDerivationTypeDerived
-	ContentDerivedTHUMBNAIL720    = domain.ContentDerivedTHUMBNAIL720
-	ContentDerivedTHUMBNAIL480    = domain.ContentDerivedTHUMBNAIL480
-	ContentDerivedTHUMBNAIL256    = domain.ContentDerivedTHUMBNAIL256
-	ContentDerivedTHUMBNAIL128    = domain.ContentDerivedTHUMBNAIL128
+	ContentCategoryOriginal                  = "original"
+	ContentCategoryThumbnail                 = "thumbnail"
+	ContentDerivedDerivationTypeTHUMBNAIL720 = "THUMBNAIL_720"
+	ContentDerivedDerivationTypeTHUMBNAIL480 = "THUMBNAIL_480"
+	ContentDerivedDerivationTypeTHUMBNAIL256 = "THUMBNAIL_256"
+	ContentDerivedDerivationTypeTHUMBNAIL128 = "THUMBNAIL_128"
 )
 
 // Object status constants
@@ -55,4 +57,9 @@ const (
 	ObjectStatusProcessed  = domain.ObjectStatusProcessed
 	ObjectStatusFailed     = domain.ObjectStatusFailed
 	ObjectStatusDeleted    = domain.ObjectStatusDeleted
+)
+
+const (
+	ContentStorageTypeS3    = "s3"
+	ContentStorageTypeMinio = "minio"
 )

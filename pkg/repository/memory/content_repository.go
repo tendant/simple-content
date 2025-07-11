@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"sync"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/tendant/simple-content/internal/domain"
@@ -12,14 +13,16 @@ import (
 
 // ContentRepository is an in-memory implementation of the ContentRepository interface
 type ContentRepository struct {
-	mu       sync.RWMutex
-	contents map[uuid.UUID]*domain.Content
+	mu               sync.RWMutex
+	contents         map[uuid.UUID]*domain.Content
+	derivedRelations map[uuid.UUID][]domain.DerivedContent // Map of parent ID to derived content relationships
 }
 
 // NewContentRepository creates a new in-memory content repository
 func NewContentRepository() repository.ContentRepository {
 	return &ContentRepository{
-		contents: make(map[uuid.UUID]*domain.Content),
+		contents:         make(map[uuid.UUID]*domain.Content),
+		derivedRelations: make(map[uuid.UUID][]domain.DerivedContent),
 	}
 }
 
@@ -114,14 +117,134 @@ func (r *ContentRepository) GetDerivedContentTree(ctx context.Context, rootID uu
 }
 
 // ListDerivedContent retrieves derived content based on the provided parameters
-// Note: This is a stub implementation for the in-memory repository
-func (r *ContentRepository) ListDerivedContent(ctx context.Context, params repository.ListDerivedContentParams) ([]*domain.Content, error) {
+func (r *ContentRepository) ListDerivedContent(ctx context.Context, params repository.ListDerivedContentParams) ([]*domain.DerivedContent, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	// This is a stub implementation since we don't have a relationship table in memory
-	// In a real implementation, we would query the content_derived table
-	return []*domain.Content{}, nil
+	var result []*domain.DerivedContent
+
+	// If parent IDs are provided, filter by them
+	if len(params.ParentIDs) > 0 {
+		for _, parentID := range params.ParentIDs {
+			relations, exists := r.derivedRelations[parentID]
+			if exists {
+				for i := range relations {
+					// Make a copy to avoid modifying the stored data
+					relation := relations[i]
+
+					// Filter by derivation type if provided
+					if len(params.DerivationType) > 0 {
+						typeMatch := false
+						for _, dt := range params.DerivationType {
+							if relation.DerivationType == dt {
+								typeMatch = true
+								break
+							}
+						}
+						if !typeMatch {
+							continue
+						}
+					}
+
+					// Filter by tenant ID if provided
+					if params.TenantID != uuid.Nil {
+						content, exists := r.contents[relation.ContentID]
+						if !exists || content.TenantID != params.TenantID {
+							continue
+						}
+					}
+
+					result = append(result, &relation)
+				}
+			}
+		}
+	} else {
+		// If no parent IDs provided, collect all derived content
+		for _, relations := range r.derivedRelations {
+			for i := range relations {
+				relation := relations[i]
+
+				// Apply the same filters as above
+				if len(params.DerivationType) > 0 {
+					typeMatch := false
+					for _, dt := range params.DerivationType {
+						if relation.DerivationType == dt {
+							typeMatch = true
+							break
+						}
+					}
+					if !typeMatch {
+						continue
+					}
+				}
+
+				if params.TenantID != uuid.Nil {
+					content, exists := r.contents[relation.ContentID]
+					if !exists || content.TenantID != params.TenantID {
+						continue
+					}
+				}
+
+				result = append(result, &relation)
+			}
+		}
+	}
+
+	return result, nil
+}
+
+// CreateDerivedContentRelationship creates a new derived content relationship
+func (r *ContentRepository) CreateDerivedContentRelationship(ctx context.Context, params repository.CreateDerivedContentParams) (domain.DerivedContent, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	// Check if both parent and derived content exist
+	_, exists := r.contents[params.ParentID]
+	if !exists {
+		return domain.DerivedContent{}, errors.New("parent content not found")
+	}
+
+	derivedContent, exists := r.contents[params.DerivedContentID]
+	if !exists {
+		return domain.DerivedContent{}, errors.New("derived content not found")
+	}
+
+	// Create the derived content relationship
+	relationship := domain.DerivedContent{
+		ParentID:           params.ParentID,
+		ContentID:          params.DerivedContentID,
+		DerivationType:     params.DerivationType,
+		DerivationParams:   params.DerivationParams,
+		ProcessingMetadata: params.ProcessingMetadata,
+		CreatedAt:          time.Now(),
+		UpdatedAt:          time.Now(),
+		DocumentType:       derivedContent.DocumentType,
+		Status:             derivedContent.Status,
+	}
+
+	// Store the relationship in our in-memory map
+	r.derivedRelations[params.ParentID] = append(r.derivedRelations[params.ParentID], relationship)
+
+	return relationship, nil
+}
+
+// DeleteDerivedContent deletes a derived content
+func (r *ContentRepository) DeleteDerivedContentRelationship(ctx context.Context, params repository.DeleteDerivedContentParams) error {
+	// This is a stub implementation for the in-memory repository
+	// In a real implementation, we would delete the relationship from the database
+	return nil
+}
+
+// GetDerivedContentByLevel retrieves derived content at a specific level with parent information
+func (r *ContentRepository) GetDerivedContentByLevel(ctx context.Context, params repository.GetDerivedContentByLevelParams) ([]repository.ContentWithParent, error) {
+	// This is a stub implementation for the in-memory repository
+	// In a real implementation, we would traverse the derivation tree to find content at the specified level
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	// For in-memory implementation, we'll just return an empty slice
+	// A proper implementation would require maintaining a graph of parent-child relationships
+	return []repository.ContentWithParent{}, nil
 }
 
 // CreateDerivedContentRelationship creates a new derived content relationship

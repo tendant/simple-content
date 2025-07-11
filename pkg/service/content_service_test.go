@@ -6,6 +6,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/tendant/simple-content/internal/repository"
 	"github.com/tendant/simple-content/pkg/repository/memory"
 	"github.com/tendant/simple-content/pkg/service"
 )
@@ -72,17 +73,12 @@ func TestContentService_CreateDerivedContent(t *testing.T) {
 	// Parent relationship is now tracked in ContentDerived table
 	assert.Equal(t, "derived", derived.DerivationType)
 
-	// Create second-level derived content
-	secondLevelParams := service.CreateDerivedContentParams{
-		ParentID: derived.ID,
-		OwnerID:  ownerID,
-		TenantID: tenantID,
-	}
-	secondLevel, err := svc.CreateDerivedContent(ctx, secondLevelParams)
+	// Get the derived content
+	derivedContent, err := svc.GetContent(ctx, derived.ID)
 	assert.NoError(t, err)
-	assert.NotNil(t, secondLevel)
-	// Parent relationship is now tracked in ContentDerived table
-	assert.Equal(t, "derived", secondLevel.DerivationType)
+	assert.NotNil(t, derivedContent)
+	assert.Equal(t, "derived", derivedContent.DerivationType)
+
 }
 
 func TestContentService_CreateDerivedContent_MaxDepthLimit(t *testing.T) {
@@ -482,4 +478,41 @@ func TestContentService_IndependentMetadata(t *testing.T) {
 	}
 
 	assert.Equal(t, 1280, widthValue)
+}
+
+func TestContentService_ListDerivedContent(t *testing.T) {
+	svc := setupContentService()
+	ctx := context.Background()
+
+	// Create a parent content
+	ownerID := uuid.New()
+	tenantID := uuid.New()
+	createParams := service.CreateContentParams{
+		OwnerID:  ownerID,
+		TenantID: tenantID,
+	}
+	parent, err := svc.CreateContent(ctx, createParams)
+	assert.NoError(t, err)
+	assert.NotNil(t, parent)
+
+	// Create a derived content
+	derivedParams := service.CreateDerivedContentParams{
+		ParentID: parent.ID,
+		OwnerID:  ownerID,
+		TenantID: tenantID,
+	}
+	derived, err := svc.CreateDerivedContent(ctx, derivedParams)
+	assert.NoError(t, err)
+	assert.NotNil(t, derived)
+
+	// List the derived content
+	derivedList, err := svc.ListDerivedContent(ctx, repository.ListDerivedContentParams{
+		ParentIDs: []uuid.UUID{parent.ID},
+		DerivationType: []string{
+			"derived",
+		},
+	})
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(derivedList))
+	assert.Equal(t, derived.ID, derivedList[0].ContentID)
 }

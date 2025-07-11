@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/tendant/simple-content/internal/domain"
 	"github.com/tendant/simple-content/internal/repository"
 	"github.com/tendant/simple-content/pkg/model"
 )
@@ -52,7 +53,7 @@ func (s *ContentService) CreateContent(
 		Description:    params.Description,
 		DocumentType:   params.DocumentType,
 		Status:         model.ContentStatusCreated,
-		DerivationType: model.ContentDerivationTypeOriginal,
+		DerivationType: model.ContentCategoryOriginal,
 	}
 
 	if err := s.contentRepo.Create(ctx, content); err != nil {
@@ -64,9 +65,19 @@ func (s *ContentService) CreateContent(
 
 // CreateDerivedContentParams contains parameters for creating derived content
 type CreateDerivedContentParams struct {
-	ParentID uuid.UUID
-	OwnerID  uuid.UUID
-	TenantID uuid.UUID
+	ParentID       uuid.UUID
+	OwnerID        uuid.UUID
+	TenantID       uuid.UUID
+	Category       string
+	DerivationType string
+	Metadata       map[string]interface{}
+}
+type CreateDerivedRelationshipParams struct {
+	ParentID           uuid.UUID
+	DerivedContentID   uuid.UUID
+	DerivationType     string
+	DerivationParams   map[string]interface{}
+	ProcessingMetadata map[string]interface{}
 }
 
 // CreateDerivedContent creates a new content derived from an existing content
@@ -89,15 +100,33 @@ func (s *ContentService) CreateDerivedContent(
 		OwnerID:        params.OwnerID,
 		TenantID:       params.TenantID,
 		Status:         model.ContentStatusCreated,
-		DerivationType: model.ContentDerivationTypeDerived,
+		DerivationType: params.Category,
 	}
 
 	if err := s.contentRepo.Create(ctx, content); err != nil {
 		return nil, fmt.Errorf("failed to create derived content: %w", err)
 	}
 
-	// Note: Content derivation relationships will be handled by the ContentDerivedRepository
-	// which will be implemented separately
+	// Create derived content metadata
+	if err := s.metadataRepo.Set(ctx, &domain.ContentMetadata{
+		ContentID: content.ID,
+		Tags:      nil,
+		Metadata:  params.Metadata,
+	}); err != nil {
+		return nil, fmt.Errorf("failed to create derived content metadata: %w", err)
+	}
+
+	// Create derived content relationship
+	_, err = s.contentRepo.CreateDerivedContentRelationship(ctx, repository.CreateDerivedContentParams{
+		ParentID:           params.ParentID,
+		DerivedContentID:   content.ID,
+		DerivationType:     params.DerivationType,
+		DerivationParams:   params.Metadata,
+		ProcessingMetadata: nil,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create derived content relationship: %w", err)
+	}
 
 	return content, nil
 }
@@ -234,4 +263,24 @@ func (s *ContentService) SetContentMetadata(
 // GetContentMetadata retrieves metadata for a content
 func (s *ContentService) GetContentMetadata(ctx context.Context, contentID uuid.UUID) (*model.ContentMetadata, error) {
 	return s.metadataRepo.Get(ctx, contentID)
+}
+
+// ListDerivedContent retrieves derived content based on the provided parameters
+func (s *ContentService) ListDerivedContent(
+	ctx context.Context,
+	params repository.ListDerivedContentParams,
+) ([]*domain.DerivedContent, error) {
+	// Call the repository implementation to get the derived content
+	return s.contentRepo.ListDerivedContent(ctx, params)
+}
+
+func (s *ContentService) CreateDerivedContentRelationship(ctx context.Context, params CreateDerivedRelationshipParams) error {
+	_, err := s.contentRepo.CreateDerivedContentRelationship(ctx, repository.CreateDerivedContentParams{
+		ParentID:           params.ParentID,
+		DerivedContentID:   params.DerivedContentID,
+		DerivationType:     params.DerivationType,
+		DerivationParams:   params.DerivationParams,
+		ProcessingMetadata: params.ProcessingMetadata,
+	})
+	return err
 }

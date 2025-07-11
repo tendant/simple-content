@@ -347,7 +347,7 @@ func TestPSQLContentRepository_ListDerivedContent(t *testing.T) {
 			result, err := repo.ListDerivedContent(ctx, params)
 			require.NoError(t, err)
 			assert.Len(t, result, 1)
-			assert.Equal(t, derivedContent1.ID, result[0].ID)
+			assert.Equal(t, derivedContent1.ID, result[0].ContentID)
 		})
 
 		// Test case 2: List all derived content for parent content (multiple relationship types)
@@ -364,7 +364,7 @@ func TestPSQLContentRepository_ListDerivedContent(t *testing.T) {
 			// Create a map of IDs for easier verification
 			idsMap := make(map[uuid.UUID]bool)
 			for _, content := range result {
-				idsMap[content.ID] = true
+				idsMap[content.ContentID] = true
 			}
 
 			// Verify both derived contents are in the result
@@ -382,7 +382,7 @@ func TestPSQLContentRepository_ListDerivedContent(t *testing.T) {
 			result, err := repo.ListDerivedContent(ctx, params)
 			require.NoError(t, err)
 			assert.Len(t, result, 1)
-			assert.Equal(t, derivedContent1.ID, result[0].ID)
+			assert.Equal(t, derivedContent1.ID, result[0].ContentID)
 		})
 
 		// Test case 4: Filter by multiple parent IDs
@@ -399,7 +399,7 @@ func TestPSQLContentRepository_ListDerivedContent(t *testing.T) {
 			// Create a map of IDs for easier verification
 			idsMap := make(map[uuid.UUID]bool)
 			for _, content := range result {
-				idsMap[content.ID] = true
+				idsMap[content.ContentID] = true
 			}
 
 			// Verify both derived contents are in the result
@@ -482,7 +482,7 @@ func TestPSQLContentRepository_CreateDerivedContentRelationship(t *testing.T) {
 			result, err := repo.CreateDerivedContentRelationship(ctx, params)
 			require.NoError(t, err)
 			assert.Equal(t, parentContent.ID, result.ParentID)
-			assert.Equal(t, derivedContent.ID, result.DerivedContentID)
+			assert.Equal(t, derivedContent.ID, result.ContentID)
 			assert.Equal(t, domain.ContentDerivedTHUMBNAIL480, result.DerivationType)
 
 			// Verify derivation params
@@ -789,7 +789,8 @@ func TestPSQLContentRepository_DeleteDerivedContentRelationship(t *testing.T) {
 			result, err := repo.ListDerivedContent(ctx, listParams)
 			require.NoError(t, err)
 			assert.Len(t, result, 1)
-			assert.Equal(t, derivedContent2.ID, result[0].ID)
+			assert.Equal(t, derivedContent2.ID, result[0].ContentID)
+
 		})
 	})
 }
