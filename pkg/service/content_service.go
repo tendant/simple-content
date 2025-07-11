@@ -70,6 +70,14 @@ type CreateDerivedContentParams struct {
 	TenantID       uuid.UUID
 	Category       string
 	DerivationType string
+	Metadata       map[string]interface{}
+}
+type CreateDerivedRelationshipParams struct {
+	ParentID           uuid.UUID
+	DerivedContentID   uuid.UUID
+	DerivationType     string
+	DerivationParams   map[string]interface{}
+	ProcessingMetadata map[string]interface{}
 }
 
 // CreateDerivedContent creates a new content derived from an existing content
@@ -99,12 +107,21 @@ func (s *ContentService) CreateDerivedContent(
 		return nil, fmt.Errorf("failed to create derived content: %w", err)
 	}
 
+	// Create derived content metadata
+	if err := s.metadataRepo.Set(ctx, &domain.ContentMetadata{
+		ContentID: content.ID,
+		Tags:      nil,
+		Metadata:  params.Metadata,
+	}); err != nil {
+		return nil, fmt.Errorf("failed to create derived content metadata: %w", err)
+	}
+
 	// Create derived content relationship
 	_, err = s.contentRepo.CreateDerivedContentRelationship(ctx, repository.CreateDerivedContentParams{
 		ParentID:           params.ParentID,
 		DerivedContentID:   content.ID,
 		DerivationType:     params.DerivationType,
-		DerivationParams:   nil,
+		DerivationParams:   params.Metadata,
 		ProcessingMetadata: nil,
 	})
 	if err != nil {
@@ -255,4 +272,15 @@ func (s *ContentService) ListDerivedContent(
 ) ([]*domain.DerivedContent, error) {
 	// Call the repository implementation to get the derived content
 	return s.contentRepo.ListDerivedContent(ctx, params)
+}
+
+func (s *ContentService) CreateDerivedContentRelationship(ctx context.Context, params CreateDerivedRelationshipParams) error {
+	_, err := s.contentRepo.CreateDerivedContentRelationship(ctx, repository.CreateDerivedContentParams{
+		ParentID:           params.ParentID,
+		DerivedContentID:   params.DerivedContentID,
+		DerivationType:     params.DerivationType,
+		DerivationParams:   params.DerivationParams,
+		ProcessingMetadata: params.ProcessingMetadata,
+	})
+	return err
 }
