@@ -133,7 +133,7 @@ func executeContentFlow(ctx context.Context, contentService *service.ContentServ
 	ownerType := "user"
 	tenantID := uuid.New()
 	ownerID := uuid.New()
-	fileName := "filename.jpg"
+	fileName := "filename.pdf"
 	slog.Info("Using tenant ID", "tenantID", tenantID)
 	slog.Info("Using owner ID", "ownerID", ownerID)
 
@@ -176,6 +176,7 @@ func executeContentFlow(ctx context.Context, contentService *service.ContentServ
 		CustomMetadata: map[string]interface{}{
 			"source": "example-app",
 		},
+		FileName: fileName,
 	}
 	err = contentService.SetContentMetadata(ctx, metadataParams)
 	if err != nil {
