@@ -18,6 +18,10 @@ import (
 	"github.com/tendant/simple-content/internal/storage"
 )
 
+const (
+	LOCAL_S3_ENDPOINT = "http://localhost:9000"
+)
+
 // Config options for the S3 backend
 type Config struct {
 	Region          string // AWS region
@@ -316,7 +320,7 @@ func NewS3Backend(config Config) (storage.Backend, error) {
 	}
 
 	// Add custom endpoint resolver if endpoint is specified
-	if config.Endpoint != "" {
+	if config.Endpoint == LOCAL_S3_ENDPOINT {
 		s3ClientOptions = append(s3ClientOptions, func(o *s3.Options) {
 			o.EndpointResolverV2 = &resolverV2{
 				s3Endpoint: config.Endpoint,
