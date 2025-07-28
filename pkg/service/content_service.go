@@ -30,11 +30,12 @@ func NewContentService(
 
 // CreateContentParams contains parameters for creating new content
 type CreateContentParams struct {
-	OwnerID      uuid.UUID
-	TenantID     uuid.UUID
-	Title        string
-	Description  string
-	DocumentType string
+	OwnerID        uuid.UUID
+	TenantID       uuid.UUID
+	Title          string
+	Description    string
+	DocumentType   string
+	DerivationType string
 }
 
 // CreateContent creates a new content
@@ -53,7 +54,7 @@ func (s *ContentService) CreateContent(
 		Description:    params.Description,
 		DocumentType:   params.DocumentType,
 		Status:         model.ContentStatusCreated,
-		DerivationType: model.ContentCategoryOriginal,
+		DerivationType: params.DerivationType,
 	}
 
 	if err := s.contentRepo.Create(ctx, content); err != nil {
