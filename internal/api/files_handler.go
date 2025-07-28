@@ -9,6 +9,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/google/uuid"
+	"github.com/tendant/simple-content/internal/domain"
 	"github.com/tendant/simple-content/pkg/model"
 	"github.com/tendant/simple-content/pkg/service"
 )
@@ -121,10 +122,11 @@ func (h *FilesHandler) CreateFile(w http.ResponseWriter, r *http.Request) {
 
 	// Create content
 	createParams := service.CreateContentParams{
-		OwnerID:      ownerID,
-		TenantID:     tenantID,
-		Title:        req.FileName,
-		DocumentType: req.DocumentType,
+		OwnerID:        ownerID,
+		TenantID:       tenantID,
+		Title:          req.FileName,
+		DocumentType:   req.DocumentType,
+		DerivationType: domain.ContentDerivationTypeOriginal,
 	}
 	content, err := h.contentService.CreateContent(r.Context(), createParams)
 	if err != nil {
