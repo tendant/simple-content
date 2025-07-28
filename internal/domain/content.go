@@ -11,13 +11,19 @@ const (
 	ContentStatusUploaded = "uploaded"
 )
 
+// content derivation_type
 const (
 	ContentDerivationTypeOriginal = "original"
 	ContentDerivationTypeDerived  = "derived"
-	ContentDerivedTHUMBNAIL720    = "THUMBNAIL_720"
-	ContentDerivedTHUMBNAIL480    = "THUMBNAIL_480"
-	ContentDerivedTHUMBNAIL256    = "THUMBNAIL_256"
-	ContentDerivedTHUMBNAIL128    = "THUMBNAIL_128"
+)
+
+// content_derived derivation_typ
+const (
+	ContentDerivedTHUMBNAIL720 = "THUMBNAIL_720"
+	ContentDerivedTHUMBNAIL480 = "THUMBNAIL_480"
+	ContentDerivedTHUMBNAIL256 = "THUMBNAIL_256"
+	ContentDerivedTHUMBNAIL128 = "THUMBNAIL_128"
+	ContentDerivedConversion   = "CONVERSION"
 )
 
 // Content represents a logical content entity
