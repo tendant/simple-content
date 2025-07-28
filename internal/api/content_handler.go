@@ -57,8 +57,14 @@ func (h *ContentHandler) Routes() chi.Router {
 
 // CreateContentRequest is the request body for creating a content
 type CreateContentRequest struct {
-	OwnerID  string `json:"owner_id"`
-	TenantID string `json:"tenant_id"`
+	OwnerID        string `json:"owner_id"`
+	TenantID       string `json:"tenant_id"`
+	DocumentType   string `json:"document_type"`
+	DerivationType string `json:"derivation_type"`
+	FileName       string `json:"file_name"`
+	OwnerType      string `json:"owner_type"`
+	MimeType       string `json:"mime_type"`
+	FileSize       int64  `json:"file_size"`
 }
 
 const MAX_CONTENTS_PER_REQUEST = 50
@@ -99,15 +105,50 @@ func (h *ContentHandler) CreateContent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Create content
 	createParams := service.CreateContentParams{
-		OwnerID:  ownerID,
-		TenantID: tenantID,
+		OwnerID:        ownerID,
+		TenantID:       tenantID,
+		Title:          req.FileName,
+		DocumentType:   req.DocumentType,
+		DerivationType: req.DerivationType,
+		Description:    "",
+	}
+	if req.DerivationType == "" {
+		createParams.DerivationType = "original"
 	}
 	content, err := h.contentService.CreateContent(r.Context(), createParams)
 	if err != nil {
 		slog.Error("Fail to create content", "error", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
+	}
+
+	// Update content for missing fields
+	content.OwnerType = req.OwnerType
+	updateParams := service.UpdateContentParams{
+		Content: content,
+	}
+	err = h.contentService.UpdateContent(r.Context(), updateParams)
+	if err != nil {
+		slog.Warn("Failed to update content", "err", err)
+	}
+
+	// Set content metadata
+	slog.Info("Setting content metadata...")
+	metadataParams := service.SetContentMetadataParams{
+		ContentID:   content.ID,
+		ContentType: req.MimeType,
+		FileName:    req.FileName,
+		Title:       req.FileName,
+		Description: "description",
+		Tags:        nil,
+		FileSize:    req.FileSize,
+		CreatedBy:   ownerID.String(),
+	}
+	err = h.contentService.SetContentMetadata(r.Context(), metadataParams)
+	if err != nil {
+		slog.Warn("Failed to set content metadata", "err", err)
 	}
 
 	resp := ContentResponse{
@@ -474,6 +515,10 @@ func (h *ContentHandler) GetMetadata(w http.ResponseWriter, r *http.Request) {
 type CreateObjectRequest struct {
 	StorageBackendName string `json:"storage_backend_name"`
 	Version            int    `json:"version"`
+	ObjectKey          string `json:"object_key"`
+	MimeType           string `json:"mime_type"`
+	FileSize           int64  `json:"file_size"`
+	FileName           string `json:"file_name"`
 }
 
 // ObjectResponse is the response body for an object
@@ -486,6 +531,7 @@ type ObjectResponse struct {
 	Status             string    `json:"status"`
 	CreatedAt          time.Time `json:"created_at"`
 	UpdatedAt          time.Time `json:"updated_at"`
+	UploadURL          string    `json:"upload_url"`
 }
 
 // CreateObject creates a new object for a content
@@ -505,6 +551,7 @@ func (h *ContentHandler) CreateObject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Create object
 	createObjectParams := service.CreateObjectParams{
 		ContentID:          contentID,
 		StorageBackendName: req.StorageBackendName,
@@ -513,6 +560,32 @@ func (h *ContentHandler) CreateObject(w http.ResponseWriter, r *http.Request) {
 	object, err := h.objectService.CreateObject(r.Context(), createObjectParams)
 	if err != nil {
 		slog.Error("Fail to create object", "error", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Update object for missing fields
+	object.FileName = req.FileName
+	object.ObjectType = req.MimeType
+	err = h.objectService.UpdateObject(r.Context(), object)
+	if err != nil {
+		slog.Warn("Failed to update object", "err", err)
+	}
+
+	// Update object metadata for missing fields
+	object_metadata := make(map[string]interface{})
+	object_metadata["mime_type"] = req.MimeType
+	object_metadata["size_bytes"] = req.FileSize
+	object_metadata["file_name"] = req.FileName
+	err = h.objectService.SetObjectMetadata(r.Context(), object.ID, object_metadata)
+	if err != nil {
+		slog.Warn("Failed to update object metadata", "err", err)
+	}
+
+	// Get upload URL
+	uploadURL, err := h.objectService.GetUploadURL(r.Context(), object.ID)
+	if err != nil {
+		slog.Error("Failed to get upload URL", "err", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -526,6 +599,7 @@ func (h *ContentHandler) CreateObject(w http.ResponseWriter, r *http.Request) {
 		Status:             object.Status,
 		CreatedAt:          object.CreatedAt,
 		UpdatedAt:          object.UpdatedAt,
+		UploadURL:          uploadURL,
 	}
 
 	slog.Info("Object created", "object_id", resp.ID)
