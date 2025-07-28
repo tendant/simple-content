@@ -48,7 +48,7 @@ func (h *ContentHandler) Routes() chi.Router {
 	r.Get("/{id}/download", h.GetDownload)
 
 	// Routes for derived content
-	r.Post("/{id}/derive", h.CreateDerivedContent)
+	r.Post("/{id}/derived", h.CreateDerivedContent)
 	r.Get("/{id}/derived", h.GetDerivedContent)
 	r.Get("/{id}/derived-tree", h.GetDerivedContentTree)
 
@@ -352,8 +352,17 @@ func (h *ContentHandler) ListContents(w http.ResponseWriter, r *http.Request) {
 
 // CreateDerivedContentRequest is the request body for creating derived content
 type CreateDerivedContentRequest struct {
-	OwnerID  string `json:"owner_id"`
-	TenantID string `json:"tenant_id"`
+	ParentContentID    uuid.UUID              `json:"parent_content_id"`
+	DerivedContentID   uuid.UUID              `json:"derived_content_id"`
+	DerivationType     string                 `json:"derivation_type"`
+	DerivationParams   map[string]interface{} `json:"derivation_params"`
+	ProcessingMetadata map[string]interface{} `json:"processing_metadata"`
+}
+
+type CreateDerivedContentResponse struct {
+	ParentContentID  string `json:"parent_content_id"`
+	DerivedContentID string `json:"derived_content_id"`
+	DerivationType   string `json:"derivation_type"`
 }
 
 // CreateDerivedContent creates a new derived content from a parent content
@@ -365,43 +374,31 @@ func (h *ContentHandler) CreateDerivedContent(w http.ResponseWriter, r *http.Req
 		return
 	}
 
+	slog.Info("Creating derived content", "parent_id", parentIDStr)
 	var req CreateDerivedContentRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	ownerID, err := uuid.Parse(req.OwnerID)
-	if err != nil {
-		http.Error(w, "Invalid owner ID", http.StatusBadRequest)
-		return
+	slog.Info("Creating derived content", "derived_content_id", req)
+	deriveParams := service.CreateDerivedRelationshipParams{
+		ParentID:           parentID,
+		DerivedContentID:   req.DerivedContentID,
+		DerivationType:     req.DerivationType,
+		DerivationParams:   req.DerivationParams,
+		ProcessingMetadata: req.ProcessingMetadata,
 	}
-
-	tenantID, err := uuid.Parse(req.TenantID)
-	if err != nil {
-		http.Error(w, "Invalid tenant ID", http.StatusBadRequest)
-		return
-	}
-
-	deriveParams := service.CreateDerivedContentParams{
-		ParentID: parentID,
-		OwnerID:  ownerID,
-		TenantID: tenantID,
-	}
-	content, err := h.contentService.CreateDerivedContent(r.Context(), deriveParams)
-	if err != nil {
+	if err := h.contentService.CreateDerivedContentRelationship(r.Context(), deriveParams); err != nil {
+		slog.Error("Failed to create derived content relationship", "error", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	resp := ContentResponse{
-		ID:             content.ID.String(),
-		CreatedAt:      content.CreatedAt,
-		UpdatedAt:      content.UpdatedAt,
-		OwnerID:        content.OwnerID.String(),
-		TenantID:       content.TenantID.String(),
-		Status:         content.Status,
-		DerivationType: content.DerivationType,
+	resp := CreateDerivedContentResponse{
+		ParentContentID:  parentIDStr,
+		DerivedContentID: req.DerivedContentID.String(),
+		DerivationType:   req.DerivationType,
 	}
 
 	render.Status(r, http.StatusCreated)
@@ -554,8 +551,8 @@ func (h *ContentHandler) CreateObject(w http.ResponseWriter, r *http.Request) {
 	// Create object
 	createObjectParams := service.CreateObjectParams{
 		ContentID:          contentID,
-		StorageBackendName: req.StorageBackendName,
-		Version:            req.Version,
+		StorageBackendName: "s3-default",
+		Version:            1,
 	}
 	object, err := h.objectService.CreateObject(r.Context(), createObjectParams)
 	if err != nil {
