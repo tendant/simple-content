@@ -214,7 +214,7 @@ func (s *ContentService) SetContentMetadata(
 	// Set mime type if provided in content type
 	if params.ContentType != "" {
 		contentMetadata.MimeType = params.ContentType
-		contentMetadata.Metadata["content_type"] = params.ContentType
+		contentMetadata.Metadata["mime_type"] = params.ContentType
 	}
 
 	// Set file name if provided
