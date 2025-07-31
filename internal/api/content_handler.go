@@ -553,6 +553,7 @@ func (h *ContentHandler) CreateObject(w http.ResponseWriter, r *http.Request) {
 		ContentID:          contentID,
 		StorageBackendName: "s3-default",
 		Version:            1,
+		ObjectKey:          req.ObjectKey,
 	}
 	object, err := h.objectService.CreateObject(r.Context(), createObjectParams)
 	if err != nil {
