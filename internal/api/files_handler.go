@@ -120,6 +120,10 @@ func (h *FilesHandler) CreateFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if _, ok := model.MicrosoftMimeTypeMap[req.MimeType]; ok {
+		req.MimeType = model.MicrosoftMimeTypeMap[req.MimeType]
+	}
+
 	// Create content
 	createParams := service.CreateContentParams{
 		OwnerID:        ownerID,
