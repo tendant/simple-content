@@ -63,3 +63,35 @@ const (
 	ContentStorageTypeS3    = "s3"
 	ContentStorageTypeMinio = "minio"
 )
+
+const (
+	MimeTypeWordDocx = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+	MimeTypeWordDoc  = "application/msword"
+	MimeTypeWordDotx = "application/vnd.openxmlformats-officedocument.wordprocessingml.template"
+	MimeTypeWordDot  = "application/vnd.ms-word.document.macroEnabled.12"
+	MimeTypeWordXLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+	MimeTypeWordXLS  = "application/vnd.ms-excel"
+	MimeTypeWordXLSM = "application/vnd.ms-excel.sheet.macroEnabled.12"
+	MimeTypeWordXLTX = "application/vnd.openxmlformats-officedocument.spreadsheetml.template"
+	MimeTypeWordPPT  = "application/vnd.ms-powerpoint"
+	MimeTypeWordPPTX = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+	MimeTypeWordPPTM = "application/vnd.ms-powerpoint.presentation.macroEnabled.12"
+	MimeTypeWordPOTX = "application/vnd.openxmlformats-officedocument.presentationml.template"
+	MimeTypeWordPPSX = "application/vnd.openxmlformats-officedocument.presentationml.slideshow"
+)
+
+var MicrosoftMimeTypeMap = map[string]string{
+	MimeTypeWordDocx: "docx",
+	MimeTypeWordDoc:  "doc",
+	MimeTypeWordDotx: "dotx",
+	MimeTypeWordDot:  "dot",
+	MimeTypeWordPPTX: "pptx",
+	MimeTypeWordXLSX: "xlsx",
+	MimeTypeWordXLS:  "xls",
+	MimeTypeWordXLSM: "xlsm",
+	MimeTypeWordXLTX: "xltx",
+	MimeTypeWordPPT:  "ppt",
+	MimeTypeWordPPTM: "pptm",
+	MimeTypeWordPOTX: "potx",
+	MimeTypeWordPPSX: "ppsx",
+}
