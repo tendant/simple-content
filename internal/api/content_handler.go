@@ -10,7 +10,6 @@ import (
 	"github.com/go-chi/render"
 	"github.com/google/uuid"
 	"github.com/tendant/simple-content/internal/domain"
-	"github.com/tendant/simple-content/pkg/model"
 	"github.com/tendant/simple-content/pkg/service"
 )
 
@@ -104,10 +103,6 @@ func (h *ContentHandler) CreateContent(w http.ResponseWriter, r *http.Request) {
 		slog.Error("Invalid tenant ID", "tenant_id", req.TenantID, "error", err)
 		http.Error(w, "Invalid tenant ID", http.StatusBadRequest)
 		return
-	}
-
-	if _, ok := model.MicrosoftMimeTypeMap[req.MimeType]; ok {
-		req.MimeType = model.MicrosoftMimeTypeMap[req.MimeType]
 	}
 
 	// Create content
@@ -551,10 +546,6 @@ func (h *ContentHandler) CreateObject(w http.ResponseWriter, r *http.Request) {
 		slog.Error("Invalid request body", "error", err)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
-	}
-
-	if _, ok := model.MicrosoftMimeTypeMap[req.MimeType]; ok {
-		req.MimeType = model.MicrosoftMimeTypeMap[req.MimeType]
 	}
 
 	// Create object
