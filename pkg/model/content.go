@@ -32,6 +32,10 @@ type ListDerivedContentParams = repository.ListDerivedContentParams
 
 type UploadS3ObjectParams = storage.UploadParams
 
+type Backend = storage.Backend
+
+type UploadObjectParams = storage.UploadParams
+
 // Content status constants
 const (
 	ContentStatusCreated  = domain.ContentStatusCreated
