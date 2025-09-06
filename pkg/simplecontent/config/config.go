@@ -5,13 +5,11 @@ import (
 	"fmt"
 	"os"
 	"strconv"
-	"strings"
 
 	"github.com/tendant/simple-content/pkg/simplecontent"
 	"github.com/tendant/simple-content/pkg/simplecontent/repo/memory"
-	"github.com/tendant/simple-content/pkg/simplecontent/repo/postgres"
-	memorystorage "github.com/tendant/simple-content/pkg/simplecontent/storage/memory"
 	fsstorage "github.com/tendant/simple-content/pkg/simplecontent/storage/fs"
+	memorystorage "github.com/tendant/simple-content/pkg/simplecontent/storage/memory"
 	s3storage "github.com/tendant/simple-content/pkg/simplecontent/storage/s3"
 )
 
@@ -19,15 +17,15 @@ import (
 type ServerConfig struct {
 	Port        string
 	Environment string // development, production, testing
-	
+
 	// Database configuration
 	DatabaseURL  string
 	DatabaseType string // "memory", "postgres"
-	
+
 	// Storage configuration
 	DefaultStorageBackend string
 	StorageBackends       []StorageBackendConfig
-	
+
 	// Server options
 	EnableEventLogging bool
 	EnablePreviews     bool
@@ -150,14 +148,14 @@ func (c *ServerConfig) buildStorageBackend(config StorageBackendConfig) (simplec
 	switch config.Type {
 	case "memory":
 		return memorystorage.New(), nil
-		
+
 	case "fs":
 		fsConfig := fsstorage.Config{
 			BaseDir:   getString(config.Config, "base_dir", "./data/storage"),
 			URLPrefix: getString(config.Config, "url_prefix", ""),
 		}
 		return fsstorage.New(fsConfig)
-		
+
 	case "s3":
 		s3Config := s3storage.Config{
 			Region:                 getString(config.Config, "region", "us-east-1"),
@@ -174,7 +172,7 @@ func (c *ServerConfig) buildStorageBackend(config StorageBackendConfig) (simplec
 			CreateBucketIfNotExist: getBool(config.Config, "create_bucket_if_not_exist", false),
 		}
 		return s3storage.New(s3Config)
-		
+
 	default:
 		return nil, fmt.Errorf("unsupported storage backend type: %s", config.Type)
 	}
@@ -193,8 +191,8 @@ func loadStorageBackendConfigs() ([]StorageBackendConfig, error) {
 
 	// Provide default configurations based on environment variables
 	configs = append(configs, StorageBackendConfig{
-		Name: "memory",
-		Type: "memory",
+		Name:   "memory",
+		Type:   "memory",
 		Config: map[string]interface{}{},
 	})
 
@@ -218,17 +216,17 @@ func loadStorageBackendConfigs() ([]StorageBackendConfig, error) {
 			Name: "s3",
 			Type: "s3",
 			Config: map[string]interface{}{
-				"region":                    os.Getenv("S3_REGION"),
-				"bucket":                    s3Bucket,
-				"access_key_id":             os.Getenv("S3_ACCESS_KEY_ID"),
-				"secret_access_key":         os.Getenv("S3_SECRET_ACCESS_KEY"),
-				"endpoint":                  os.Getenv("S3_ENDPOINT"),
-				"use_ssl":                   getBoolEnv("S3_USE_SSL", true),
-				"use_path_style":            getBoolEnv("S3_USE_PATH_STYLE", false),
-				"presign_duration":          getIntEnv("S3_PRESIGN_DURATION", 3600),
-				"enable_sse":                getBoolEnv("S3_ENABLE_SSE", false),
-				"sse_algorithm":             os.Getenv("S3_SSE_ALGORITHM"),
-				"sse_kms_key_id":            os.Getenv("S3_SSE_KMS_KEY_ID"),
+				"region":                     os.Getenv("S3_REGION"),
+				"bucket":                     s3Bucket,
+				"access_key_id":              os.Getenv("S3_ACCESS_KEY_ID"),
+				"secret_access_key":          os.Getenv("S3_SECRET_ACCESS_KEY"),
+				"endpoint":                   os.Getenv("S3_ENDPOINT"),
+				"use_ssl":                    getBoolEnv("S3_USE_SSL", true),
+				"use_path_style":             getBoolEnv("S3_USE_PATH_STYLE", false),
+				"presign_duration":           getIntEnv("S3_PRESIGN_DURATION", 3600),
+				"enable_sse":                 getBoolEnv("S3_ENABLE_SSE", false),
+				"sse_algorithm":              os.Getenv("S3_SSE_ALGORITHM"),
+				"sse_kms_key_id":             os.Getenv("S3_SSE_KMS_KEY_ID"),
 				"create_bucket_if_not_exist": getBoolEnv("S3_CREATE_BUCKET_IF_NOT_EXIST", false),
 			},
 		})

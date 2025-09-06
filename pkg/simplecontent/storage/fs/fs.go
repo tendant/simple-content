@@ -9,7 +9,6 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
-	"time"
 
 	"github.com/tendant/simple-content/pkg/simplecontent"
 )
@@ -125,7 +124,7 @@ func (b *Backend) GetDownloadURL(ctx context.Context, objectKey string, download
 	if b.urlPrefix == "" {
 		return "", errors.New("direct download required for filesystem backend")
 	}
-	
+
 	// Include the download filename in the URL if provided
 	if downloadFilename != "" {
 		return fmt.Sprintf("%s/download/%s?filename=%s", b.urlPrefix, objectKey, downloadFilename), nil
