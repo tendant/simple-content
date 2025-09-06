@@ -3,11 +3,14 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/tendant/simple-content/pkg/simplecontent"
 )
 
@@ -28,6 +31,43 @@ func New(db DBTX) simplecontent.Repository {
 	return &Repository{db: db}
 }
 
+// NewWithPool creates a new PostgreSQL repository with connection pool
+func NewWithPool(pool *pgxpool.Pool) simplecontent.Repository {
+	return &Repository{db: pool}
+}
+
+// Error handling helper
+func (r *Repository) handlePostgresError(operation string, err error) error {
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) {
+		switch pgErr.Code {
+		case "23505": // unique_violation
+			if strings.Contains(pgErr.ConstraintName, "content") {
+				return fmt.Errorf("content already exists")
+			}
+			if strings.Contains(pgErr.ConstraintName, "object") {
+				return fmt.Errorf("object already exists")
+			}
+			return fmt.Errorf("duplicate entry")
+		case "23503": // foreign_key_violation
+			return fmt.Errorf("referenced record not found")
+		case "23502": // not_null_violation
+			return fmt.Errorf("required field %s is missing", pgErr.ColumnName)
+		case "42P01": // undefined_table
+			return fmt.Errorf("table does not exist - database migration required")
+		default:
+			return fmt.Errorf("database error in %s: %s (code: %s)", operation, pgErr.Message, pgErr.Code)
+		}
+	}
+	
+	// Handle other common errors
+	if errors.Is(err, sql.ErrNoRows) {
+		return fmt.Errorf("record not found")
+	}
+	
+	return fmt.Errorf("database error in %s: %w", operation, err)
+}
+
 // Content operations
 
 func (r *Repository) CreateContent(ctx context.Context, content *simplecontent.Content) error {
@@ -42,7 +82,11 @@ func (r *Repository) CreateContent(ctx context.Context, content *simplecontent.C
 		content.Name, content.Description, content.DocumentType,
 		content.Status, content.DerivationType, content.CreatedAt, content.UpdatedAt)
 	
-	return err
+	if err != nil {
+		return r.handlePostgresError("create content", err)
+	}
+	
+	return nil
 }
 
 func (r *Repository) GetContent(ctx context.Context, id uuid.UUID) (*simplecontent.Content, error) {
