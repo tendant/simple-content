@@ -345,16 +345,16 @@ func (r *Repository) CreateDerivedContentRelationship(ctx context.Context, param
 	}
 	
 	now := time.Now()
-	derived := &simplecontent.DerivedContent{
-		ParentID:           params.ParentID,
-		ContentID:          params.DerivedContentID,
-		DerivationType:     params.DerivationType,
-		DerivationParams:   params.DerivationParams,
-		ProcessingMetadata: params.ProcessingMetadata,
-		CreatedAt:          now,
-		UpdatedAt:          now,
-		Status:             simplecontent.ContentStatusCreated,
-	}
+    derived := &simplecontent.DerivedContent{
+        ParentID:           params.ParentID,
+        ContentID:          params.DerivedContentID,
+        DerivationType:     params.DerivationType,
+        DerivationParams:   params.DerivationParams,
+        ProcessingMetadata: params.ProcessingMetadata,
+        CreatedAt:          now,
+        UpdatedAt:          now,
+        Status:             string(simplecontent.ContentStatusCreated),
+    }
 	
 	r.derivedContents[params.DerivedContentID] = derived
 	

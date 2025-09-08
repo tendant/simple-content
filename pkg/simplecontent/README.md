@@ -142,6 +142,23 @@ The library uses a hybrid metadata approach:
 - DerivationType: specific variant within the category (e.g., `thumbnail_256`, `thumbnail_720`, `conversion`). Stored in the derived-content relationship to precisely identify the derivation.
 - All keyword values use lowercase to minimize typos and normalization overhead.
 
+### Typed constants
+
+For clarity and IDE hints, typed string constants are provided:
+
+- Content statuses: `simplecontent.ContentStatus` with constants like `ContentStatusCreated`.
+- Object statuses: `simplecontent.ObjectStatus` with constants like `ObjectStatusUploaded`.
+- Derivation:
+  - Category: `simplecontent.DerivationCategory`
+  - Variant: `simplecontent.DerivationVariant` (e.g., `VariantThumbnail256`).
+
+Struct fields remain `string` for compatibility. You can extend by declaring your own typed constants:
+
+```go
+const VariantThumbnail1024 simplecontent.DerivationVariant = "thumbnail_1024"
+```
+
+
 
 
 ## Use Cases

@@ -4,10 +4,9 @@ import (
     "context"
     "fmt"
     "io"
-    "strings"
     "time"
 
-	"github.com/google/uuid"
+    "github.com/google/uuid"
 )
 
 // service implements the Service interface
@@ -80,8 +79,8 @@ func (s *service) CreateContent(ctx context.Context, req CreateContentRequest) (
 		Name:           req.Name,
 		Description:    req.Description,
 		DocumentType:   req.DocumentType,
-		DerivationType: req.DerivationType,
-		Status:         ContentStatusCreated,
+        DerivationType: req.DerivationType,
+        Status:         string(ContentStatusCreated),
 		CreatedAt:      now,
 		UpdatedAt:      now,
 	}
@@ -118,8 +117,8 @@ func (s *service) CreateDerivedContent(ctx context.Context, req CreateDerivedCon
         ID:             uuid.New(),
         TenantID:       req.TenantID,
         OwnerID:        req.OwnerID,
-        Status:         ContentStatusCreated,
-        DerivationType: strings.ToLower(req.Category),
+        Status:         string(ContentStatusCreated),
+        DerivationType: string(NormalizeCategory(req.Category)),
         CreatedAt:      now,
         UpdatedAt:      now,
     }
@@ -149,7 +148,7 @@ func (s *service) CreateDerivedContent(ctx context.Context, req CreateDerivedCon
     _, err = s.repository.CreateDerivedContentRelationship(ctx, CreateDerivedContentParams{
         ParentID:           req.ParentID,
         DerivedContentID:   content.ID,
-        DerivationType:     strings.ToLower(req.DerivationType),
+        DerivationType:     string(NormalizeVariant(req.DerivationType)),
         DerivationParams:   req.Metadata,
         ProcessingMetadata: nil,
     })
@@ -301,16 +300,16 @@ func (s *service) CreateObject(ctx context.Context, req CreateObjectRequest) (*O
 		objectKey = s.generateObjectKey(req.ContentID, objectID, contentMetadata)
 	}
 
-	object := &Object{
-		ID:                 objectID,
-		ContentID:          req.ContentID,
-		StorageBackendName: req.StorageBackendName,
-		ObjectKey:          objectKey,
-		Version:            req.Version,
-		Status:             ObjectStatusCreated,
-		CreatedAt:          now,
-		UpdatedAt:          now,
-	}
+    object := &Object{
+        ID:                 objectID,
+        ContentID:          req.ContentID,
+        StorageBackendName: req.StorageBackendName,
+        ObjectKey:          objectKey,
+        Version:            req.Version,
+        Status:             string(ObjectStatusCreated),
+        CreatedAt:          now,
+        UpdatedAt:          now,
+    }
 
 	// Add metadata-derived fields if available
 	if contentMetadata != nil {
@@ -650,7 +649,7 @@ func (s *service) UpdateObjectMetaFromStorage(ctx context.Context, objectID uuid
 	}
 
 	// Update object status
-	object.Status = ObjectStatusUploaded
+    object.Status = string(ObjectStatusUploaded)
 	object.UpdatedAt = updatedTime
 	if err := s.repository.UpdateObject(ctx, object); err != nil {
 		return nil, &ObjectError{ObjectID: objectID, Op: "update_meta_from_storage", Err: err}

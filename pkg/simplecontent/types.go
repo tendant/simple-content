@@ -1,41 +1,53 @@
 package simplecontent
 
 import (
-	"time"
+    "time"
 
-	"github.com/google/uuid"
+    "github.com/google/uuid"
 )
 
-// Content status constants
+// ContentStatus is the domain type for content lifecycle states.
+type ContentStatus string
+
+// Content status constants (typed).
 const (
-	ContentStatusCreated  = "created"
-	ContentStatusUploaded = "uploaded"
+    ContentStatusCreated  ContentStatus = "created"
+    ContentStatusUploaded ContentStatus = "uploaded"
 )
 
 // Content derivation type constants
 const (
-	ContentDerivationTypeOriginal = "original"
-	ContentDerivationTypeDerived  = "derived"
+    ContentDerivationTypeOriginal = "original"
+    ContentDerivationTypeDerived  = "derived"
 )
 
-// Content derived derivation type constants
+// DerivationCategory is the user-facing category for derived content (e.g., "thumbnail").
+type DerivationCategory string
+
+// DerivationVariant is the specific variant within a category (e.g., "thumbnail_256").
+type DerivationVariant string
+
+// Derivation variant constants (typed).
 const (
-    ContentDerivedTHUMBNAIL720 = "thumbnail_720"
-    ContentDerivedTHUMBNAIL480 = "thumbnail_480"
-    ContentDerivedTHUMBNAIL256 = "thumbnail_256"
-    ContentDerivedTHUMBNAIL128 = "thumbnail_128"
-    ContentDerivedConversion   = "conversion"
+    VariantThumbnail720 DerivationVariant = "thumbnail_720"
+    VariantThumbnail480 DerivationVariant = "thumbnail_480"
+    VariantThumbnail256 DerivationVariant = "thumbnail_256"
+    VariantThumbnail128 DerivationVariant = "thumbnail_128"
+    VariantConversion   DerivationVariant = "conversion"
 )
 
-// Object status constants
+// ObjectStatus is the domain type for object lifecycle states.
+type ObjectStatus string
+
+// Object status constants (typed).
 const (
-	ObjectStatusCreated    = "created"
-	ObjectStatusUploading  = "uploading"
-	ObjectStatusUploaded   = "uploaded"
-	ObjectStatusProcessing = "processing"
-	ObjectStatusProcessed  = "processed"
-	ObjectStatusFailed     = "failed"
-	ObjectStatusDeleted    = "deleted"
+    ObjectStatusCreated    ObjectStatus = "created"
+    ObjectStatusUploading  ObjectStatus = "uploading"
+    ObjectStatusUploaded   ObjectStatus = "uploaded"
+    ObjectStatusProcessing ObjectStatus = "processing"
+    ObjectStatusProcessed  ObjectStatus = "processed"
+    ObjectStatusFailed     ObjectStatus = "failed"
+    ObjectStatusDeleted    ObjectStatus = "deleted"
 )
 
 // Content represents a logical content entity.
@@ -45,17 +57,17 @@ const (
 // identification (e.g., "thumbnail_256") is tracked in the derived-content
 // relationship (see DerivedContent).
 type Content struct {
-	ID             uuid.UUID `json:"id"`
-	TenantID       uuid.UUID `json:"tenant_id"`
-	OwnerID        uuid.UUID `json:"owner_id"`
-	OwnerType      string    `json:"owner_type,omitempty"`
-	Name           string    `json:"name,omitempty"`
-	Description    string    `json:"description,omitempty"`
-	DocumentType   string    `json:"document_type,omitempty"`
-	Status         string    `json:"status"`
-	DerivationType string    `json:"derivation_type,omitempty"`
-	CreatedAt      time.Time `json:"created_at"`
-	UpdatedAt      time.Time `json:"updated_at"`
+    ID             uuid.UUID `json:"id"`
+    TenantID       uuid.UUID `json:"tenant_id"`
+    OwnerID        uuid.UUID `json:"owner_id"`
+    OwnerType      string    `json:"owner_type,omitempty"`
+    Name           string    `json:"name,omitempty"`
+    Description    string    `json:"description,omitempty"`
+    DocumentType   string    `json:"document_type,omitempty"`
+    Status         string    `json:"status"`
+    DerivationType string    `json:"derivation_type,omitempty"`
+    CreatedAt      time.Time `json:"created_at"`
+    UpdatedAt      time.Time `json:"updated_at"`
 }
 
 // DerivedContent represents content derived from a parent content.

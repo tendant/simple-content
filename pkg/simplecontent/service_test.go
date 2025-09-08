@@ -95,7 +95,7 @@ func TestContentOperations(t *testing.T) {
 		assert.Equal(t, req.Name, content.Name)
 		assert.Equal(t, req.Description, content.Description)
 		assert.Equal(t, req.DocumentType, content.DocumentType)
-		assert.Equal(t, simplecontent.ContentStatusCreated, content.Status)
+        assert.Equal(t, string(simplecontent.ContentStatusCreated), content.Status)
 		assert.False(t, content.CreatedAt.IsZero())
 		assert.False(t, content.UpdatedAt.IsZero())
 	})
@@ -281,7 +281,7 @@ func TestObjectOperations(t *testing.T) {
 		assert.Equal(t, content.ID, object.ContentID)
 		assert.Equal(t, "memory", object.StorageBackendName)
 		assert.Equal(t, 1, object.Version)
-		assert.Equal(t, simplecontent.ObjectStatusCreated, object.Status)
+        assert.Equal(t, string(simplecontent.ObjectStatusCreated), object.Status)
 		assert.NotEmpty(t, object.ObjectKey)
 	})
 
@@ -353,7 +353,7 @@ func TestObjectUploadDownload(t *testing.T) {
 		// Verify object status was updated
 		updated, err := svc.GetObject(ctx, object.ID)
 		assert.NoError(t, err)
-		assert.Equal(t, simplecontent.ObjectStatusUploaded, updated.Status)
+        assert.Equal(t, string(simplecontent.ObjectStatusUploaded), updated.Status)
 	})
 
 	t.Run("DownloadObject", func(t *testing.T) {
@@ -462,7 +462,7 @@ func TestDerivedContent(t *testing.T) {
         assert.Equal(t, parent.OwnerID, derived.OwnerID)
         assert.Equal(t, parent.TenantID, derived.TenantID)
         assert.Equal(t, "thumbnail", derived.DerivationType)
-        assert.Equal(t, simplecontent.ContentStatusCreated, derived.Status)
+        assert.Equal(t, string(simplecontent.ContentStatusCreated), derived.Status)
     })
 
     t.Run("CreateDerivedContentWithInvalidParent", func(t *testing.T) {
