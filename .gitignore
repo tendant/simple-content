@@ -29,6 +29,9 @@ dist
 main
 s3test
 bin
+build/
 
 # service test
 tests/data/
+
+
