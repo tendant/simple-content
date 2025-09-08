@@ -1,20 +1,24 @@
 package main
 
 import (
-	"context"
-	"fmt"
-	"log"
-	"net/http"
-	"os"
-	"os/signal"
-	"syscall"
-	"time"
+    "context"
+    "encoding/json"
+    "errors"
+    "fmt"
+    "io"
+    "log"
+    "net/http"
+    "os"
+    "os/signal"
+    "strings"
+    "syscall"
+    "time"
 
-	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/chi/v5/middleware"
-	"github.com/google/uuid"
-	"github.com/tendant/simple-content/pkg/simplecontent"
-	"github.com/tendant/simple-content/pkg/simplecontent/config"
+    "github.com/go-chi/chi/v5"
+    "github.com/go-chi/chi/v5/middleware"
+    "github.com/google/uuid"
+    "github.com/tendant/simple-content/pkg/simplecontent"
+    "github.com/tendant/simple-content/pkg/simplecontent/config"
 )
 
 func main() {
@@ -229,65 +233,412 @@ func (s *HTTPServer) handleGetConfig(w http.ResponseWriter, r *http.Request) {
 // Placeholder handlers - in a real implementation these would be fully implemented
 
 func (s *HTTPServer) handleCreateContent(w http.ResponseWriter, r *http.Request) {
-	http.Error(w, "Not implemented yet", http.StatusNotImplemented)
+    var req struct {
+        OwnerID        string                 `json:"owner_id"`
+        TenantID       string                 `json:"tenant_id"`
+        Name           string                 `json:"name"`
+        Description    string                 `json:"description"`
+        DocumentType   string                 `json:"document_type"`
+        DerivationType string                 `json:"derivation_type"`
+        Metadata       map[string]interface{} `json:"metadata"`
+    }
+    if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+        writeError(w, http.StatusBadRequest, "invalid_json", err.Error(), nil)
+        return
+    }
+    ownerID, err := uuid.Parse(req.OwnerID)
+    if err != nil {
+        writeError(w, http.StatusBadRequest, "invalid_owner_id", "owner_id must be a UUID", nil)
+        return
+    }
+    tenantID, err := uuid.Parse(req.TenantID)
+    if err != nil {
+        writeError(w, http.StatusBadRequest, "invalid_tenant_id", "tenant_id must be a UUID", nil)
+        return
+    }
+
+    content, err := s.service.CreateContent(r.Context(), simplecontent.CreateContentRequest{
+        OwnerID:        ownerID,
+        TenantID:       tenantID,
+        Name:           req.Name,
+        Description:    req.Description,
+        DocumentType:   req.DocumentType,
+        DerivationType: req.DerivationType,
+    })
+    if err != nil {
+        writeServiceError(w, err)
+        return
+    }
+    writeJSON(w, http.StatusCreated, content)
 }
 
 func (s *HTTPServer) handleGetContent(w http.ResponseWriter, r *http.Request) {
-	http.Error(w, "Not implemented yet", http.StatusNotImplemented)
+    idStr := chi.URLParam(r, "contentID")
+    id, err := uuid.Parse(idStr)
+    if err != nil {
+        writeError(w, http.StatusBadRequest, "invalid_content_id", "contentID must be a UUID", nil)
+        return
+    }
+    content, err := s.service.GetContent(r.Context(), id)
+    if err != nil {
+        writeServiceError(w, err)
+        return
+    }
+    writeJSON(w, http.StatusOK, content)
 }
 
 func (s *HTTPServer) handleUpdateContent(w http.ResponseWriter, r *http.Request) {
-	http.Error(w, "Not implemented yet", http.StatusNotImplemented)
+    idStr := chi.URLParam(r, "contentID")
+    id, err := uuid.Parse(idStr)
+    if err != nil {
+        writeError(w, http.StatusBadRequest, "invalid_content_id", "contentID must be a UUID", nil)
+        return
+    }
+    existing, err := s.service.GetContent(r.Context(), id)
+    if err != nil {
+        writeServiceError(w, err)
+        return
+    }
+    var req struct {
+        Name         *string `json:"name"`
+        Description  *string `json:"description"`
+        DocumentType *string `json:"document_type"`
+    }
+    if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+        writeError(w, http.StatusBadRequest, "invalid_json", err.Error(), nil)
+        return
+    }
+    if req.Name != nil {
+        existing.Name = *req.Name
+    }
+    if req.Description != nil {
+        existing.Description = *req.Description
+    }
+    if req.DocumentType != nil {
+        existing.DocumentType = *req.DocumentType
+    }
+    if err := s.service.UpdateContent(r.Context(), simplecontent.UpdateContentRequest{Content: existing}); err != nil {
+        writeServiceError(w, err)
+        return
+    }
+    writeJSON(w, http.StatusOK, existing)
 }
 
 func (s *HTTPServer) handleDeleteContent(w http.ResponseWriter, r *http.Request) {
-	http.Error(w, "Not implemented yet", http.StatusNotImplemented)
+    idStr := chi.URLParam(r, "contentID")
+    id, err := uuid.Parse(idStr)
+    if err != nil {
+        writeError(w, http.StatusBadRequest, "invalid_content_id", "contentID must be a UUID", nil)
+        return
+    }
+    if err := s.service.DeleteContent(r.Context(), id); err != nil {
+        writeServiceError(w, err)
+        return
+    }
+    w.WriteHeader(http.StatusNoContent)
 }
 
 func (s *HTTPServer) handleListContents(w http.ResponseWriter, r *http.Request) {
-	http.Error(w, "Not implemented yet", http.StatusNotImplemented)
+    ownerStr := r.URL.Query().Get("owner_id")
+    tenantStr := r.URL.Query().Get("tenant_id")
+    if ownerStr == "" || tenantStr == "" {
+        writeError(w, http.StatusBadRequest, "missing_params", "owner_id and tenant_id are required", nil)
+        return
+    }
+    ownerID, err := uuid.Parse(ownerStr)
+    if err != nil {
+        writeError(w, http.StatusBadRequest, "invalid_owner_id", "owner_id must be a UUID", nil)
+        return
+    }
+    tenantID, err := uuid.Parse(tenantStr)
+    if err != nil {
+        writeError(w, http.StatusBadRequest, "invalid_tenant_id", "tenant_id must be a UUID", nil)
+        return
+    }
+    contents, err := s.service.ListContent(r.Context(), simplecontent.ListContentRequest{OwnerID: ownerID, TenantID: tenantID})
+    if err != nil {
+        writeServiceError(w, err)
+        return
+    }
+    writeJSON(w, http.StatusOK, contents)
 }
 
 func (s *HTTPServer) handleSetContentMetadata(w http.ResponseWriter, r *http.Request) {
-	http.Error(w, "Not implemented yet", http.StatusNotImplemented)
+    idStr := chi.URLParam(r, "contentID")
+    contentID, err := uuid.Parse(idStr)
+    if err != nil {
+        writeError(w, http.StatusBadRequest, "invalid_content_id", "contentID must be a UUID", nil)
+        return
+    }
+    var req struct {
+        ContentType    string                 `json:"content_type"`
+        Title          string                 `json:"title"`
+        Description    string                 `json:"description"`
+        Tags           []string               `json:"tags"`
+        FileName       string                 `json:"file_name"`
+        FileSize       int64                  `json:"file_size"`
+        CreatedBy      string                 `json:"created_by"`
+        CustomMetadata map[string]interface{} `json:"custom_metadata"`
+    }
+    if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+        writeError(w, http.StatusBadRequest, "invalid_json", err.Error(), nil)
+        return
+    }
+    if err := s.service.SetContentMetadata(r.Context(), simplecontent.SetContentMetadataRequest{
+        ContentID:      contentID,
+        ContentType:    req.ContentType,
+        Title:          req.Title,
+        Description:    req.Description,
+        Tags:           req.Tags,
+        FileName:       req.FileName,
+        FileSize:       req.FileSize,
+        CreatedBy:      req.CreatedBy,
+        CustomMetadata: req.CustomMetadata,
+    }); err != nil {
+        writeServiceError(w, err)
+        return
+    }
+    w.WriteHeader(http.StatusNoContent)
 }
 
 func (s *HTTPServer) handleGetContentMetadata(w http.ResponseWriter, r *http.Request) {
-	http.Error(w, "Not implemented yet", http.StatusNotImplemented)
+    idStr := chi.URLParam(r, "contentID")
+    contentID, err := uuid.Parse(idStr)
+    if err != nil {
+        writeError(w, http.StatusBadRequest, "invalid_content_id", "contentID must be a UUID", nil)
+        return
+    }
+    md, err := s.service.GetContentMetadata(r.Context(), contentID)
+    if err != nil {
+        writeServiceError(w, err)
+        return
+    }
+    writeJSON(w, http.StatusOK, md)
 }
 
 func (s *HTTPServer) handleCreateObject(w http.ResponseWriter, r *http.Request) {
-	http.Error(w, "Not implemented yet", http.StatusNotImplemented)
+    // Support both styles: path param contentID or JSON body field
+    pathContentID := chi.URLParam(r, "contentID")
+    var req struct {
+        ContentID          string `json:"content_id"`
+        StorageBackendName string `json:"storage_backend_name"`
+        Version            int    `json:"version"`
+        ObjectKey          string `json:"object_key"`
+    }
+    if err := json.NewDecoder(r.Body).Decode(&req); err != nil && err != io.EOF {
+        writeError(w, http.StatusBadRequest, "invalid_json", err.Error(), nil)
+        return
+    }
+    cid := req.ContentID
+    if cid == "" && pathContentID != "" {
+        cid = pathContentID
+    }
+    contentID, err := uuid.Parse(cid)
+    if err != nil {
+        writeError(w, http.StatusBadRequest, "invalid_content_id", "content_id must be a UUID", nil)
+        return
+    }
+    backend := req.StorageBackendName
+    if backend == "" {
+        backend = s.config.DefaultStorageBackend
+    }
+    obj, err := s.service.CreateObject(r.Context(), simplecontent.CreateObjectRequest{
+        ContentID:          contentID,
+        StorageBackendName: backend,
+        Version:            req.Version,
+        ObjectKey:          req.ObjectKey,
+    })
+    if err != nil {
+        writeServiceError(w, err)
+        return
+    }
+    writeJSON(w, http.StatusCreated, obj)
 }
 
 func (s *HTTPServer) handleGetObject(w http.ResponseWriter, r *http.Request) {
-	http.Error(w, "Not implemented yet", http.StatusNotImplemented)
+    idStr := chi.URLParam(r, "objectID")
+    id, err := uuid.Parse(idStr)
+    if err != nil {
+        writeError(w, http.StatusBadRequest, "invalid_object_id", "objectID must be a UUID", nil)
+        return
+    }
+    obj, err := s.service.GetObject(r.Context(), id)
+    if err != nil {
+        writeServiceError(w, err)
+        return
+    }
+    writeJSON(w, http.StatusOK, obj)
 }
 
 func (s *HTTPServer) handleDeleteObject(w http.ResponseWriter, r *http.Request) {
-	http.Error(w, "Not implemented yet", http.StatusNotImplemented)
+    idStr := chi.URLParam(r, "objectID")
+    id, err := uuid.Parse(idStr)
+    if err != nil {
+        writeError(w, http.StatusBadRequest, "invalid_object_id", "objectID must be a UUID", nil)
+        return
+    }
+    if err := s.service.DeleteObject(r.Context(), id); err != nil {
+        writeServiceError(w, err)
+        return
+    }
+    w.WriteHeader(http.StatusNoContent)
 }
 
 func (s *HTTPServer) handleListObjects(w http.ResponseWriter, r *http.Request) {
-	http.Error(w, "Not implemented yet", http.StatusNotImplemented)
+    contentStr := chi.URLParam(r, "contentID")
+    contentID, err := uuid.Parse(contentStr)
+    if err != nil {
+        writeError(w, http.StatusBadRequest, "invalid_content_id", "contentID must be a UUID", nil)
+        return
+    }
+    objs, err := s.service.GetObjectsByContentID(r.Context(), contentID)
+    if err != nil {
+        writeServiceError(w, err)
+        return
+    }
+    writeJSON(w, http.StatusOK, objs)
 }
 
 func (s *HTTPServer) handleUploadObject(w http.ResponseWriter, r *http.Request) {
-	http.Error(w, "Not implemented yet", http.StatusNotImplemented)
+    idStr := chi.URLParam(r, "objectID")
+    id, err := uuid.Parse(idStr)
+    if err != nil {
+        writeError(w, http.StatusBadRequest, "invalid_object_id", "objectID must be a UUID", nil)
+        return
+    }
+    mimeType := r.Header.Get("Content-Type")
+    if mimeType != "" && !strings.HasPrefix(mimeType, "multipart/") {
+        if err := s.service.UploadObjectWithMetadata(r.Context(), r.Body, simplecontent.UploadObjectWithMetadataRequest{ObjectID: id, MimeType: mimeType}); err != nil {
+            writeServiceError(w, err)
+            return
+        }
+    } else {
+        if err := s.service.UploadObject(r.Context(), id, r.Body); err != nil {
+            writeServiceError(w, err)
+            return
+        }
+    }
+    w.WriteHeader(http.StatusNoContent)
 }
 
 func (s *HTTPServer) handleDownloadObject(w http.ResponseWriter, r *http.Request) {
-	http.Error(w, "Not implemented yet", http.StatusNotImplemented)
+    idStr := chi.URLParam(r, "objectID")
+    id, err := uuid.Parse(idStr)
+    if err != nil {
+        writeError(w, http.StatusBadRequest, "invalid_object_id", "objectID must be a UUID", nil)
+        return
+    }
+    rc, err := s.service.DownloadObject(r.Context(), id)
+    if err != nil {
+        writeServiceError(w, err)
+        return
+    }
+    defer rc.Close()
+    if md, mdErr := s.service.GetObjectMetadata(r.Context(), id); mdErr == nil {
+        if mt, ok := md["mime_type"].(string); ok && mt != "" {
+            w.Header().Set("Content-Type", mt)
+        }
+        if fn, ok := md["file_name"].(string); ok && fn != "" {
+            w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", fn))
+        }
+    }
+    if _, err := io.Copy(w, rc); err != nil {
+        log.Printf("download copy error: %v", err)
+    }
 }
 
 func (s *HTTPServer) handleGetUploadURL(w http.ResponseWriter, r *http.Request) {
-	http.Error(w, "Not implemented yet", http.StatusNotImplemented)
+    idStr := chi.URLParam(r, "objectID")
+    id, err := uuid.Parse(idStr)
+    if err != nil {
+        writeError(w, http.StatusBadRequest, "invalid_object_id", "objectID must be a UUID", nil)
+        return
+    }
+    url, err := s.service.GetUploadURL(r.Context(), id)
+    if err != nil {
+        writeServiceError(w, err)
+        return
+    }
+    writeJSON(w, http.StatusOK, map[string]string{"url": url})
 }
 
 func (s *HTTPServer) handleGetDownloadURL(w http.ResponseWriter, r *http.Request) {
-	http.Error(w, "Not implemented yet", http.StatusNotImplemented)
+    idStr := chi.URLParam(r, "objectID")
+    id, err := uuid.Parse(idStr)
+    if err != nil {
+        writeError(w, http.StatusBadRequest, "invalid_object_id", "objectID must be a UUID", nil)
+        return
+    }
+    url, err := s.service.GetDownloadURL(r.Context(), id)
+    if err != nil {
+        writeServiceError(w, err)
+        return
+    }
+    writeJSON(w, http.StatusOK, map[string]string{"url": url})
 }
 
 func (s *HTTPServer) handleGetPreviewURL(w http.ResponseWriter, r *http.Request) {
-	http.Error(w, "Not implemented yet", http.StatusNotImplemented)
+    idStr := chi.URLParam(r, "objectID")
+    id, err := uuid.Parse(idStr)
+    if err != nil {
+        writeError(w, http.StatusBadRequest, "invalid_object_id", "objectID must be a UUID", nil)
+        return
+    }
+    url, err := s.service.GetPreviewURL(r.Context(), id)
+    if err != nil {
+        writeServiceError(w, err)
+        return
+    }
+    writeJSON(w, http.StatusOK, map[string]string{"url": url})
+}
+
+// --- Helpers ---
+
+type errorBody struct {
+    Error struct {
+        Code    string      `json:"code"`
+        Message string      `json:"message"`
+        Details interface{} `json:"details,omitempty"`
+    } `json:"error"`
+}
+
+func writeJSON(w http.ResponseWriter, status int, v interface{}) {
+    w.Header().Set("Content-Type", "application/json")
+    w.WriteHeader(status)
+    _ = json.NewEncoder(w).Encode(v)
+}
+
+func writeError(w http.ResponseWriter, status int, code, message string, details interface{}) {
+    w.Header().Set("Content-Type", "application/json")
+    w.WriteHeader(status)
+    var eb errorBody
+    eb.Error.Code = code
+    eb.Error.Message = message
+    eb.Error.Details = details
+    _ = json.NewEncoder(w).Encode(eb)
+}
+
+func writeServiceError(w http.ResponseWriter, err error) {
+    status := http.StatusInternalServerError
+    code := "internal_error"
+    msg := err.Error()
+
+    if errors.Is(err, simplecontent.ErrContentNotFound) || errors.Is(err, simplecontent.ErrObjectNotFound) {
+        status = http.StatusNotFound
+        code = "not_found"
+    }
+    if errors.Is(err, simplecontent.ErrInvalidContentStatus) || errors.Is(err, simplecontent.ErrInvalidObjectStatus) {
+        status = http.StatusBadRequest
+        code = "invalid_status"
+    }
+    if errors.Is(err, simplecontent.ErrUploadFailed) || errors.Is(err, simplecontent.ErrDownloadFailed) {
+        status = http.StatusBadGateway
+        code = "storage_error"
+    }
+    if errors.Is(err, simplecontent.ErrStorageBackendNotFound) {
+        status = http.StatusBadRequest
+        code = "storage_backend_not_found"
+    }
+
+    writeError(w, status, code, msg, nil)
 }
