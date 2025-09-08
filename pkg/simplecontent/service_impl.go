@@ -1,10 +1,11 @@
 package simplecontent
 
 import (
-	"context"
-	"fmt"
-	"io"
-	"time"
+    "context"
+    "fmt"
+    "io"
+    "strings"
+    "time"
 
 	"github.com/google/uuid"
 )
@@ -111,17 +112,17 @@ func (s *service) CreateDerivedContent(ctx context.Context, req CreateDerivedCon
 		return nil, fmt.Errorf("parent content not found: %w", err)
 	}
 
-	// Create derived content
-	now := time.Now().UTC()
-	content := &Content{
-		ID:             uuid.New(),
-		TenantID:       req.TenantID,
-		OwnerID:        req.OwnerID,
-		Status:         ContentStatusCreated,
-		DerivationType: req.Category,
-		CreatedAt:      now,
-		UpdatedAt:      now,
-	}
+    // Create derived content
+    now := time.Now().UTC()
+    content := &Content{
+        ID:             uuid.New(),
+        TenantID:       req.TenantID,
+        OwnerID:        req.OwnerID,
+        Status:         ContentStatusCreated,
+        DerivationType: strings.ToLower(req.Category),
+        CreatedAt:      now,
+        UpdatedAt:      now,
+    }
 
 	if err := s.repository.CreateContent(ctx, content); err != nil {
 		return nil, &ContentError{
@@ -145,13 +146,13 @@ func (s *service) CreateDerivedContent(ctx context.Context, req CreateDerivedCon
 	}
 
 	// Create derived content relationship
-	_, err = s.repository.CreateDerivedContentRelationship(ctx, CreateDerivedContentParams{
-		ParentID:           req.ParentID,
-		DerivedContentID:   content.ID,
-		DerivationType:     req.DerivationType,
-		DerivationParams:   req.Metadata,
-		ProcessingMetadata: nil,
-	})
+    _, err = s.repository.CreateDerivedContentRelationship(ctx, CreateDerivedContentParams{
+        ParentID:           req.ParentID,
+        DerivedContentID:   content.ID,
+        DerivationType:     strings.ToLower(req.DerivationType),
+        DerivationParams:   req.Metadata,
+        ProcessingMetadata: nil,
+    })
 	if err != nil {
 		return nil, fmt.Errorf("failed to create derived content relationship: %w", err)
 	}

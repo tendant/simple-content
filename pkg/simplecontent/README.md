@@ -127,6 +127,23 @@ svc, err := simplecontent.New(
 - **Preview generation**: Extensible preview system
 - **Error handling**: Typed errors for better error handling
 
+## Metadata Strategy
+
+The library uses a hybrid metadata approach:
+
+- First-class fields capture common, structured attributes directly on domain types (e.g., `Content.Name`, `Content.Description`, `Object.ObjectType`, `ContentMetadata.FileName`, `ContentMetadata.MimeType`). These fields are authoritative for their respective values.
+- Flexible JSON maps (`ContentMetadata.Metadata`, `ObjectMetadata.Metadata`) accommodate extensible, application-specific attributes. Prefer namespaced keys as needed to avoid collisions.
+- Avoid duplicating authoritative values in the JSON map. If mirroring is desired for compatibility, treat first-class fields as the source of truth and ensure the JSON copy is consistent.
+- Standard keys when present in metadata JSON: `mime_type`, `file_name`, `file_size`, `etag`, plus additional backend-provided attributes. Applications can add custom keys (e.g., `category`, `priority`).
+
+## Derived Content Typing
+
+- Category: user-facing, coarse-grained type (e.g., `thumbnail`, `preview`). Stored on the derived `Content.DerivationType` for easy filtering and UX.
+- DerivationType: specific variant within the category (e.g., `thumbnail_256`, `thumbnail_720`, `conversion`). Stored in the derived-content relationship to precisely identify the derivation.
+- All keyword values use lowercase to minimize typos and normalization overhead.
+
+
+
 ## Use Cases
 
 - Document management systems

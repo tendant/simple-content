@@ -30,9 +30,9 @@ Track completion of the refactor centered on `pkg/simplecontent`, finishing the 
 
 1) Fix DTO and API inconsistencies
 
-- [ ] Unify `CreateDerivedContentRequest` to a single field (prefer `DerivationType`) and update service logic accordingly
-- [ ] Add GoDoc comments to exported types/methods in `pkg/simplecontent`
-- [ ] Document metadata strategy (first-class fields vs. JSON duplication)
+- [x] Keep both fields; clarify semantics: `Category` (user-facing) vs `DerivationType` (specific variant). Use `Category` on derived Content, `DerivationType` in relationship
+- [x] Add GoDoc comments to exported types/methods in `pkg/simplecontent` (package doc, DTOs, Content/DerivedContent notes)
+- [x] Document metadata strategy (first-class fields vs. JSON duplication) in README and package docs
 
 2) Implement HTTP handlers (cmd/server-configured)
 
@@ -81,4 +81,3 @@ Track completion of the refactor centered on `pkg/simplecontent`, finishing the 
 - Unit tests cover memory/fs/s3 paths; integration tests pass locally via compose
 - README and refactoring docs updated; CI enforces quality gates
 - Legacy packages clearly deprecated or removed
-

@@ -491,7 +491,7 @@ func TestMemoryRepository_DerivedContentOperations(t *testing.T) {
 		params := simplecontent.CreateDerivedContentParams{
 			ParentID:         parent.ID,
 			DerivedContentID: derived.ID,
-			DerivationType:   "THUMBNAIL_256",
+			DerivationType:   "thumbnail_256",
 			DerivationParams: map[string]interface{}{
 				"width":  256,
 				"height": 256,
@@ -506,7 +506,7 @@ func TestMemoryRepository_DerivedContentOperations(t *testing.T) {
 		assert.NotNil(t, result)
 		assert.Equal(t, parent.ID, result.ParentID)
 		assert.Equal(t, derived.ID, result.ContentID)
-		assert.Equal(t, "THUMBNAIL_256", result.DerivationType)
+		assert.Equal(t, "thumbnail_256", result.DerivationType)
 	})
 
 	t.Run("ListDerivedContent", func(t *testing.T) {
@@ -523,7 +523,7 @@ func TestMemoryRepository_DerivedContentOperations(t *testing.T) {
 	})
 
 	t.Run("ListDerivedContent_WithFilters", func(t *testing.T) {
-		derivationType := "THUMBNAIL_256"
+		derivationType := "thumbnail_256"
 		limit := 10
 		offset := 0
 

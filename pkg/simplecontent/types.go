@@ -20,11 +20,11 @@ const (
 
 // Content derived derivation type constants
 const (
-	ContentDerivedTHUMBNAIL720 = "THUMBNAIL_720"
-	ContentDerivedTHUMBNAIL480 = "THUMBNAIL_480"
-	ContentDerivedTHUMBNAIL256 = "THUMBNAIL_256"
-	ContentDerivedTHUMBNAIL128 = "THUMBNAIL_128"
-	ContentDerivedConversion   = "CONVERSION"
+    ContentDerivedTHUMBNAIL720 = "thumbnail_720"
+    ContentDerivedTHUMBNAIL480 = "thumbnail_480"
+    ContentDerivedTHUMBNAIL256 = "thumbnail_256"
+    ContentDerivedTHUMBNAIL128 = "thumbnail_128"
+    ContentDerivedConversion   = "conversion"
 )
 
 // Object status constants
@@ -38,7 +38,12 @@ const (
 	ObjectStatusDeleted    = "deleted"
 )
 
-// Content represents a logical content entity
+// Content represents a logical content entity.
+//
+// For derived content, the DerivationType field holds the user-facing,
+// coarse-grained category (e.g., "thumbnail", "preview"). Specific variant
+// identification (e.g., "thumbnail_256") is tracked in the derived-content
+// relationship (see DerivedContent).
 type Content struct {
 	ID             uuid.UUID `json:"id"`
 	TenantID       uuid.UUID `json:"tenant_id"`
@@ -53,7 +58,10 @@ type Content struct {
 	UpdatedAt      time.Time `json:"updated_at"`
 }
 
-// DerivedContent represents content derived from a parent content
+// DerivedContent represents content derived from a parent content.
+//
+// DerivationType captures the specific variant within a category
+// (e.g., "thumbnail_256").
 type DerivedContent struct {
 	ParentID           uuid.UUID              `json:"parent_id"`
 	ContentID          uuid.UUID              `json:"content_id"`
