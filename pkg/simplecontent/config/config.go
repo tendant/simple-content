@@ -6,7 +6,9 @@ import (
     "fmt"
     "os"
     "strconv"
+    "time"
 
+    "github.com/jackc/pgx/v5"
     "github.com/jackc/pgx/v5/pgxpool"
     "github.com/tendant/simple-content/pkg/simplecontent"
     repopg "github.com/tendant/simple-content/pkg/simplecontent/repo/postgres"
@@ -149,7 +151,7 @@ func (c *ServerConfig) buildRepository() (simplecontent.Repository, error) {
         }
         // Optionally set search_path for the connection
         schema := c.DBSchema
-        cfg.AfterConnect = func(ctx context.Context, conn *pgxpool.Conn) error {
+        cfg.AfterConnect = func(ctx context.Context, conn *pgx.Conn) error {
             if schema == "" {
                 return nil
             }
@@ -178,7 +180,7 @@ func PingPostgres(databaseURL, schema string) error {
         return fmt.Errorf("failed to parse DATABASE_URL: %w", err)
     }
     if schema != "" {
-        cfg.AfterConnect = func(ctx context.Context, conn *pgxpool.Conn) error {
+        cfg.AfterConnect = func(ctx context.Context, conn *pgx.Conn) error {
             _, err := conn.Exec(ctx, fmt.Sprintf("SET search_path TO %s", schema))
             return err
         }
@@ -188,7 +190,7 @@ func PingPostgres(databaseURL, schema string) error {
         return fmt.Errorf("failed to create pgx pool: %w", err)
     }
     defer pool.Close()
-    ctx, cancel := context.WithTimeout(context.Background(), 5*1e9) // 5s
+    ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
     defer cancel()
     if err := pool.Ping(ctx); err != nil {
         return fmt.Errorf("database ping failed: %w", err)
