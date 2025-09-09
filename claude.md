@@ -87,6 +87,30 @@ Base path: `/api/v1`
 - Example: `go run ./examples/basic`
 - Docker compose (Postgres/MinIO) may be extended; see `REFACTORING_NEXT_STEPS.md`.
 
+### Database migrations (Goose)
+
+- Multi‑DB layout using timestamped filenames:
+  - `migrations/postgres/202509090001_schema.sql`
+  - `migrations/postgres/202509090002_core_tables.sql`
+  - `migrations/mysql/…` (placeholder)
+  - `migrations/sqlite/…` (placeholder)
+- Postgres uses a dedicated schema named `content` by default (customizable via `search_path`).
+
+Run with goose (examples):
+
+```
+# Postgres
+goose -dir ./migrations/postgres postgres "$DATABASE_URL" up
+
+# Custom schema: create your schema and set search_path in your session/connection
+# or edit the migration to set search_path.
+```
+
+Notes:
+
+- The legacy `migrations/*.sql` files are superseded by `migrations/postgres/*` and can be ignored.
+- MySQL/SQLite directories are placeholders for future support.
+
 ## Coding Guidelines
 
 - Keep changes minimal and scoped; respect existing structure and naming.
