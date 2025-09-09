@@ -167,6 +167,35 @@ func (c *ServerConfig) buildRepository() (simplecontent.Repository, error) {
     }
 }
 
+// PingPostgres verifies connectivity to Postgres and optionally sets search_path for the session.
+// It fails if the schema (when provided) does not exist.
+func PingPostgres(databaseURL, schema string) error {
+    if databaseURL == "" {
+        return errors.New("database_url is required")
+    }
+    cfg, err := pgxpool.ParseConfig(databaseURL)
+    if err != nil {
+        return fmt.Errorf("failed to parse DATABASE_URL: %w", err)
+    }
+    if schema != "" {
+        cfg.AfterConnect = func(ctx context.Context, conn *pgxpool.Conn) error {
+            _, err := conn.Exec(ctx, fmt.Sprintf("SET search_path TO %s", schema))
+            return err
+        }
+    }
+    pool, err := pgxpool.NewWithConfig(context.Background(), cfg)
+    if err != nil {
+        return fmt.Errorf("failed to create pgx pool: %w", err)
+    }
+    defer pool.Close()
+    ctx, cancel := context.WithTimeout(context.Background(), 5*1e9) // 5s
+    defer cancel()
+    if err := pool.Ping(ctx); err != nil {
+        return fmt.Errorf("database ping failed: %w", err)
+    }
+    return nil
+}
+
 // buildStorageBackend creates a BlobStore based on the backend configuration
 func (c *ServerConfig) buildStorageBackend(config StorageBackendConfig) (simplecontent.BlobStore, error) {
 	switch config.Type {

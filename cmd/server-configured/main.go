@@ -22,17 +22,25 @@ import (
 )
 
 func main() {
-	// Load configuration from environment
-	serverConfig, err := config.LoadServerConfig()
-	if err != nil {
-		log.Fatalf("Failed to load server configuration: %v", err)
-	}
+    // Load configuration from environment
+    serverConfig, err := config.LoadServerConfig()
+    if err != nil {
+        log.Fatalf("Failed to load server configuration: %v", err)
+    }
 
-	// Build service from configuration
-	svc, err := serverConfig.BuildService()
-	if err != nil {
-		log.Fatalf("Failed to build service: %v", err)
-	}
+    // Verify database connectivity (for postgres) before building the service
+    if serverConfig.DatabaseType == "postgres" {
+        if err := config.PingPostgres(serverConfig.DatabaseURL, serverConfig.DBSchema); err != nil {
+            log.Fatalf("Database connectivity check failed: %v", err)
+        }
+        log.Printf("Database connectivity OK (schema: %s)", serverConfig.DBSchema)
+    }
+
+    // Build service from configuration
+    svc, err := serverConfig.BuildService()
+    if err != nil {
+        log.Fatalf("Failed to build service: %v", err)
+    }
 
 	// Create HTTP server
 	server := NewHTTPServer(svc, serverConfig)
