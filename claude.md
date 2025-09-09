@@ -111,6 +111,11 @@ Notes:
 - The legacy `migrations/*.sql` files are superseded by `migrations/postgres/*` and can be ignored.
 - MySQL/SQLite directories are placeholders for future support.
 
+Server config:
+
+- `DATABASE_TYPE=postgres` and `DATABASE_URL` (standard Postgres URI) selects Postgres repository.
+- `CONTENT_DB_SCHEMA` (default `content`) controls the schema used; the server sets `search_path` for each connection.
+
 ## Coding Guidelines
 
 - Keep changes minimal and scoped; respect existing structure and naming.

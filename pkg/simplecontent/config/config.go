@@ -1,26 +1,30 @@
 package config
 
 import (
-	"errors"
-	"fmt"
-	"os"
-	"strconv"
+    "context"
+    "errors"
+    "fmt"
+    "os"
+    "strconv"
 
-	"github.com/tendant/simple-content/pkg/simplecontent"
-	"github.com/tendant/simple-content/pkg/simplecontent/repo/memory"
-	fsstorage "github.com/tendant/simple-content/pkg/simplecontent/storage/fs"
-	memorystorage "github.com/tendant/simple-content/pkg/simplecontent/storage/memory"
-	s3storage "github.com/tendant/simple-content/pkg/simplecontent/storage/s3"
+    "github.com/jackc/pgx/v5/pgxpool"
+    "github.com/tendant/simple-content/pkg/simplecontent"
+    repopg "github.com/tendant/simple-content/pkg/simplecontent/repo/postgres"
+    "github.com/tendant/simple-content/pkg/simplecontent/repo/memory"
+    fsstorage "github.com/tendant/simple-content/pkg/simplecontent/storage/fs"
+    memorystorage "github.com/tendant/simple-content/pkg/simplecontent/storage/memory"
+    s3storage "github.com/tendant/simple-content/pkg/simplecontent/storage/s3"
 )
 
 // ServerConfig represents server configuration loaded from environment variables
 type ServerConfig struct {
-	Port        string
-	Environment string // development, production, testing
+    Port        string
+    Environment string // development, production, testing
 
-	// Database configuration
-	DatabaseURL  string
-	DatabaseType string // "memory", "postgres"
+    // Database configuration
+    DatabaseURL  string
+    DatabaseType string // "memory", "postgres"
+    DBSchema     string // Postgres schema to use (default: content)
 
 	// Storage configuration
 	DefaultStorageBackend string
@@ -40,15 +44,16 @@ type StorageBackendConfig struct {
 
 // LoadServerConfig loads server configuration from environment variables
 func LoadServerConfig() (*ServerConfig, error) {
-	config := &ServerConfig{
-		Port:                  getEnv("PORT", "8080"),
-		Environment:           getEnv("ENVIRONMENT", "development"),
-		DatabaseURL:           getEnv("DATABASE_URL", ""),
-		DatabaseType:          getEnv("DATABASE_TYPE", "memory"),
-		DefaultStorageBackend: getEnv("DEFAULT_STORAGE_BACKEND", "memory"),
-		EnableEventLogging:    getBoolEnv("ENABLE_EVENT_LOGGING", true),
-		EnablePreviews:        getBoolEnv("ENABLE_PREVIEWS", true),
-	}
+    config := &ServerConfig{
+        Port:                  getEnv("PORT", "8080"),
+        Environment:           getEnv("ENVIRONMENT", "development"),
+        DatabaseURL:           getEnv("DATABASE_URL", ""),
+        DatabaseType:          getEnv("DATABASE_TYPE", "memory"),
+        DBSchema:              getEnv("CONTENT_DB_SCHEMA", "content"),
+        DefaultStorageBackend: getEnv("DEFAULT_STORAGE_BACKEND", "memory"),
+        EnableEventLogging:    getBoolEnv("ENABLE_EVENT_LOGGING", true),
+        EnablePreviews:        getBoolEnv("ENABLE_PREVIEWS", true),
+    }
 
 	// Load storage backends configuration
 	backendConfigs, err := loadStorageBackendConfigs()
@@ -131,16 +136,35 @@ func (c *ServerConfig) BuildService() (simplecontent.Service, error) {
 
 // buildRepository creates a Repository based on the configuration
 func (c *ServerConfig) buildRepository() (simplecontent.Repository, error) {
-	switch c.DatabaseType {
-	case "memory":
-		return memory.New(), nil
-	case "postgres":
-		// In a real implementation, you'd parse the DATABASE_URL and create a pgx connection
-		// For now, we'll return an error indicating this needs implementation
-		return nil, errors.New("postgres repository not yet implemented in this example")
-	default:
-		return nil, fmt.Errorf("unsupported database type: %s", c.DatabaseType)
-	}
+    switch c.DatabaseType {
+    case "memory":
+        return memory.New(), nil
+    case "postgres":
+        if c.DatabaseURL == "" {
+            return nil, errors.New("database_url is required for postgres")
+        }
+        cfg, err := pgxpool.ParseConfig(c.DatabaseURL)
+        if err != nil {
+            return nil, fmt.Errorf("failed to parse DATABASE_URL: %w", err)
+        }
+        // Optionally set search_path for the connection
+        schema := c.DBSchema
+        cfg.AfterConnect = func(ctx context.Context, conn *pgxpool.Conn) error {
+            if schema == "" {
+                return nil
+            }
+            // set search_path for this session
+            _, err := conn.Exec(ctx, fmt.Sprintf("SET search_path TO %s", schema))
+            return err
+        }
+        pool, err := pgxpool.NewWithConfig(context.Background(), cfg)
+        if err != nil {
+            return nil, fmt.Errorf("failed to create pgx pool: %w", err)
+        }
+        return repopg.NewWithPool(pool), nil
+    default:
+        return nil, fmt.Errorf("unsupported database type: %s", c.DatabaseType)
+    }
 }
 
 // buildStorageBackend creates a BlobStore based on the backend configuration
