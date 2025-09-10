@@ -110,6 +110,41 @@ The Docker Compose setup uses the following environment variables:
 
 ## API Usage
 
+### New HTTP API (configured server)
+
+The configured server under `cmd/server-configured` exposes a library-first API under `/api/v1`:
+
+- Contents
+  - `POST /api/v1/contents` — create content
+  - `GET /api/v1/contents/{contentID}` — get content (includes `derivation_type` for derived, and `variant` when available)
+  - `PUT /api/v1/contents/{contentID}` — update content
+  - `DELETE /api/v1/contents/{contentID}` — delete content
+  - `GET /api/v1/contents?owner_id=&tenant_id=` — list contents
+  - `POST /api/v1/contents/{parentID}/derived` — create derived content (body: `owner_id`, `tenant_id`, `derivation_type`, `variant`, `metadata`)
+  - `GET /api/v1/contents/{contentID}/derived` — list all derived contents for a parent (each item includes `derivation_type` and `variant`)
+
+- Content metadata
+  - `POST /api/v1/contents/{contentID}/metadata` — set metadata
+  - `GET /api/v1/contents/{contentID}/metadata` — get metadata
+
+- Objects
+  - `POST /api/v1/contents/{contentID}/objects` — create object
+  - `GET /api/v1/objects/{objectID}` — get object
+  - `DELETE /api/v1/objects/{objectID}` — delete object
+  - `GET /api/v1/contents/{contentID}/objects` — list objects by content
+
+- Upload/Download
+  - `POST /api/v1/objects/{objectID}/upload` — direct upload (uses `Content-Type` when present)
+  - `GET /api/v1/objects/{objectID}/download` — stream download
+  - `GET /api/v1/objects/{objectID}/upload-url` — presigned upload URL
+  - `GET /api/v1/objects/{objectID}/download-url` — presigned download URL
+  - `GET /api/v1/objects/{objectID}/preview-url` — preview URL
+
+Derivation semantics:
+
+- `derivation_type` on Content is a user-facing type for derived items (e.g., `thumbnail`, `preview`, `transcode`) and is omitted for originals.
+- `variant` (specific) is stored on the derived relationship (e.g., `thumbnail_256`, `mp4_1080p`). If only `variant` is provided at creation time, the server infers `derivation_type` from its prefix.
+
 ### Storage Backends
 
 Before uploading content, you need to create a storage backend:

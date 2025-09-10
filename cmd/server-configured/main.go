@@ -132,6 +132,7 @@ func (s *HTTPServer) Routes() http.Handler {
 		r.Post("/contents", s.handleCreateContent)
 		r.Post("/contents/{parentID}/derived", s.handleCreateDerivedContent)
 		r.Get("/contents/{contentID}", s.handleGetContent)
+		r.Get("/contents/{contentID}/derived", s.handleListDerivedForParent)
 		r.Put("/contents/{contentID}", s.handleUpdateContent)
 		r.Delete("/contents/{contentID}", s.handleDeleteContent)
 		r.Get("/contents", s.handleListContents)
@@ -430,6 +431,38 @@ func (s *HTTPServer) handleListContents(w http.ResponseWriter, r *http.Request) 
         }
         out = append(out, contentResponse(c, v))
     }
+    writeJSON(w, http.StatusOK, out)
+}
+
+// handleListDerivedForParent lists all derived contents for a given parent content ID.
+// Response items include the child content (with derivation_type) and its variant.
+func (s *HTTPServer) handleListDerivedForParent(w http.ResponseWriter, r *http.Request) {
+    parentStr := chi.URLParam(r, "contentID")
+    parentID, err := uuid.Parse(parentStr)
+    if err != nil {
+        writeError(w, http.StatusBadRequest, "invalid_content_id", "contentID must be a UUID", nil)
+        return
+    }
+
+    // List derived relationships filtered by parent via service
+    rels, err := s.service.ListDerivedByParent(r.Context(), parentID)
+    if err != nil {
+        writeServiceError(w, err)
+        return
+    }
+
+    // For each relationship, fetch the child content and build the response
+    out := make([]map[string]interface{}, 0, len(rels))
+    for _, rel := range rels {
+        child, err := s.service.GetContent(r.Context(), rel.ContentID)
+        if err != nil {
+            // Skip if child content not found
+            continue
+        }
+        // rel.DerivationType is the specific variant (COALESCE handled in repo)
+        out = append(out, contentResponse(child, rel.DerivationType))
+    }
+
     writeJSON(w, http.StatusOK, out)
 }
 

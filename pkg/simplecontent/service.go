@@ -47,4 +47,5 @@ type Service interface {
 
     // Derived content relationship helpers
     GetDerivedRelationshipByContentID(ctx context.Context, contentID uuid.UUID) (*DerivedContent, error)
+    ListDerivedByParent(ctx context.Context, parentID uuid.UUID) ([]*DerivedContent, error)
 }

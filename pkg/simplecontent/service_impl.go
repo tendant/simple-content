@@ -701,3 +701,10 @@ func (s *service) updateObjectFromStorage(ctx context.Context, objectID uuid.UUI
 func (s *service) GetDerivedRelationshipByContentID(ctx context.Context, contentID uuid.UUID) (*DerivedContent, error) {
     return s.repository.GetDerivedRelationshipByContentID(ctx, contentID)
 }
+
+func (s *service) ListDerivedByParent(ctx context.Context, parentID uuid.UUID) ([]*DerivedContent, error) {
+    params := ListDerivedContentParams{
+        ParentID: &parentID,
+    }
+    return s.repository.ListDerivedContent(ctx, params)
+}
