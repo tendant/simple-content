@@ -20,7 +20,7 @@ This document gives AI coding assistants (Claude, ChatGPT, etc.) the context and
   - Service interface and implementation (`service.go`, `service_impl.go`)
   - Domain types and typed enums (`types.go`)
     - ContentStatus, ObjectStatus (typed string enums)
-    - DerivationCategory (user-facing), DerivationVariant (specific)
+    - DerivationVariant (specific)
   - Requests/DTOs (`requests.go`)
   - Interfaces (`interfaces.go`): Repository, BlobStore, EventSink, Previewer
   - Errors (`errors.go`): typed sentinel errors for mapping

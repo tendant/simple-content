@@ -663,9 +663,9 @@ func writeServiceError(w http.ResponseWriter, err error) {
     writeError(w, status, code, msg, nil)
 }
 
-// contentResponse augments a Content with explicit category and variant fields
-// for clients. Category mirrors Content.DerivationType (user-facing). Variant
-// is optional and should be supplied by callers when known.
+// contentResponse augments a Content with explicit variant for clients.
+// DerivationType on Content is the user-facing derivation type for derived items.
+// Variant is optional and included when available (resolved from relationship).
 func contentResponse(c *simplecontent.Content, variant string) map[string]interface{} {
     m := map[string]interface{}{
         "id":              c.ID,
@@ -677,7 +677,6 @@ func contentResponse(c *simplecontent.Content, variant string) map[string]interf
         "document_type":   c.DocumentType,
         "status":          c.Status,
         "derivation_type": c.DerivationType,
-        "category":        c.DerivationType,
         "created_at":      c.CreatedAt,
         "updated_at":      c.UpdatedAt,
     }

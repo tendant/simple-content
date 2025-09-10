@@ -16,19 +16,17 @@ type CreateContentRequest struct {
 
 // CreateDerivedContentRequest contains parameters for creating derived content.
 //
-// Category is the user-facing, coarse-grained type for the derived content
-// (e.g., "thumbnail", "preview"). This value is stored on the derived
-// Content's DerivationType field for easy filtering.
-//
-// DerivationType is the specific derivation within the category (e.g.,
-// "thumbnail_256", "thumbnail_720"). This value is stored in the derived
-// content relationship record to precisely identify the derivation variant.
+// DerivationType is the user-facing derivation type stored on the derived
+// Content (e.g., "thumbnail", "preview", "transcode").
+// Variant is the specific derivation (e.g., "thumbnail_256"). If Variant is
+// provided and DerivationType is empty, the service infers DerivationType from
+// the prefix before the first underscore in Variant.
 type CreateDerivedContentRequest struct {
     ParentID       uuid.UUID
     OwnerID        uuid.UUID
     TenantID       uuid.UUID
-    Category       string
     DerivationType string
+    Variant        string
     Metadata       map[string]interface{}
 }
 

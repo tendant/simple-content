@@ -105,15 +105,15 @@ func (s *service) CreateContent(ctx context.Context, req CreateContentRequest) (
 }
 
 func (s *service) CreateDerivedContent(ctx context.Context, req CreateDerivedContentRequest) (*Content, error) {
-	// Verify parent content exists
-	_, err := s.repository.GetContent(ctx, req.ParentID)
-	if err != nil {
-		return nil, fmt.Errorf("parent content not found: %w", err)
-	}
+    // Verify parent content exists
+    _, err := s.repository.GetContent(ctx, req.ParentID)
+    if err != nil {
+        return nil, fmt.Errorf("parent content not found: %w", err)
+    }
 
-    // Infer category from variant if missing (backward compatibility)
-    if req.Category == "" && req.DerivationType != "" {
-        req.Category = string(ExtractCategoryFromVariant(req.DerivationType))
+    // Infer derivation_type from variant if missing
+    if req.DerivationType == "" && req.Variant != "" {
+        req.DerivationType = DerivationTypeFromVariant(req.Variant)
     }
 
     // Create derived content
@@ -123,7 +123,7 @@ func (s *service) CreateDerivedContent(ctx context.Context, req CreateDerivedCon
         TenantID:       req.TenantID,
         OwnerID:        req.OwnerID,
         Status:         string(ContentStatusCreated),
-        DerivationType: string(NormalizeCategory(req.Category)),
+        DerivationType: NormalizeDerivationType(req.DerivationType),
         CreatedAt:      now,
         UpdatedAt:      now,
     }
@@ -149,11 +149,17 @@ func (s *service) CreateDerivedContent(ctx context.Context, req CreateDerivedCon
 		}
 	}
 
-	// Create derived content relationship
+    // Create derived content relationship
+    // Determine variant to persist in relationship
+    variant := req.Variant
+    if variant == "" {
+        variant = req.DerivationType
+    }
+
     _, err = s.repository.CreateDerivedContentRelationship(ctx, CreateDerivedContentParams{
         ParentID:           req.ParentID,
         DerivedContentID:   content.ID,
-        DerivationType:     string(NormalizeVariant(req.DerivationType)),
+        DerivationType:     string(NormalizeVariant(variant)),
         DerivationParams:   req.Metadata,
         ProcessingMetadata: nil,
     })

@@ -19,7 +19,7 @@ Track completion of the refactor centered on `pkg/simplecontent`, finishing the 
 
 ## Gaps / Issues
 
-- DTO inconsistency: `CreateDerivedContentRequest` has both `Category` and `DerivationType`; service uses both inconsistently.
+- DTO cleanup: Unified on `DerivationType` (user-facing) and `Variant` (specific). Removed `Category` field.
 - `pkg/simplecontent/config` does not wire Postgres (returns error); migrations are not integrated.
 - `cmd/server-configured` handlers are stubbed (`Not implemented yet`).
 - Legacy packages (`pkg/service`, `pkg/repository`, `pkg/storage`) still present alongside new code.
@@ -30,7 +30,7 @@ Track completion of the refactor centered on `pkg/simplecontent`, finishing the 
 
 1) Fix DTO and API inconsistencies
 
-- [x] Keep both fields; clarify semantics: `Category` (user-facing) vs `DerivationType` (specific variant). Use `Category` on derived Content, `DerivationType` in relationship
+- [x] Remove `Category` from code; keep `DerivationType` (user-facing) on Content and `Variant` via relationship
 - [x] Add GoDoc comments to exported types/methods in `pkg/simplecontent` (package doc, DTOs, Content/DerivedContent notes)
 - [x] Document metadata strategy (first-class fields vs. JSON duplication) in README and package docs
 

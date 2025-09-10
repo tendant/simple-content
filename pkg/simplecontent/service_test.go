@@ -447,8 +447,8 @@ func TestDerivedContent(t *testing.T) {
             ParentID:       parent.ID,
             OwnerID:        parent.OwnerID,
             TenantID:       parent.TenantID,
-            Category:       "thumbnail",
-            DerivationType: "thumbnail_256",
+            DerivationType: "thumbnail",
+            Variant:        "thumbnail_256",
             Metadata: map[string]interface{}{
                 "width":  256,
                 "height": 256,
@@ -470,8 +470,8 @@ func TestDerivedContent(t *testing.T) {
             ParentID:       uuid.New(), // Non-existent parent
             OwnerID:        uuid.New(),
             TenantID:       uuid.New(),
-            Category:       "thumbnail",
-            DerivationType: "thumbnail_256",
+            DerivationType: "thumbnail",
+            Variant:        "thumbnail_256",
         }
 
         derived, err := svc.CreateDerivedContent(ctx, derivedReq)

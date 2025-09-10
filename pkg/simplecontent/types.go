@@ -21,9 +21,6 @@ const (
     ContentDerivationTypeDerived  = "derived"
 )
 
-// DerivationCategory is the user-facing category for derived content (e.g., "thumbnail").
-type DerivationCategory string
-
 // DerivationVariant is the specific variant within a category (e.g., "thumbnail_256").
 type DerivationVariant string
 
@@ -52,10 +49,9 @@ const (
 
 // Content represents a logical content entity.
 //
-// For derived content, the DerivationType field holds the user-facing,
-// coarse-grained category (e.g., "thumbnail", "preview"). Specific variant
-// identification (e.g., "thumbnail_256") is tracked in the derived-content
-// relationship (see DerivedContent).
+// For derived content, the DerivationType field holds the user-facing
+// derivation type (e.g., "thumbnail", "preview"). Specific variant (e.g.,
+// "thumbnail_256") is tracked in the derived-content relationship.
 type Content struct {
     ID             uuid.UUID `json:"id"`
     TenantID       uuid.UUID `json:"tenant_id"`
@@ -71,9 +67,7 @@ type Content struct {
 }
 
 // DerivedContent represents content derived from a parent content.
-//
-// DerivationType captures the specific variant within a category
-// (e.g., "thumbnail_256").
+// DerivationType here represents the specific variant (e.g., "thumbnail_256").
 type DerivedContent struct {
 	ParentID           uuid.UUID              `json:"parent_id"`
 	ContentID          uuid.UUID              `json:"content_id"`
