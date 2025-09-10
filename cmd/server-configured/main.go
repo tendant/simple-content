@@ -130,6 +130,7 @@ func (s *HTTPServer) Routes() http.Handler {
 	r.Route("/api/v1", func(r chi.Router) {
 		// Content management
 		r.Post("/contents", s.handleCreateContent)
+		r.Post("/contents/{parentID}/derived", s.handleCreateDerivedContent)
 		r.Get("/contents/{contentID}", s.handleGetContent)
 		r.Put("/contents/{contentID}", s.handleUpdateContent)
 		r.Delete("/contents/{contentID}", s.handleDeleteContent)
@@ -297,6 +298,55 @@ func (s *HTTPServer) handleGetContent(w http.ResponseWriter, r *http.Request) {
         variant = rel.DerivationType
     }
     writeJSON(w, http.StatusOK, contentResponse(content, variant))
+}
+
+// handleCreateDerivedContent creates a derived Content linked to a parent content.
+// Request body: { owner_id, tenant_id, derivation_type, variant, metadata }
+func (s *HTTPServer) handleCreateDerivedContent(w http.ResponseWriter, r *http.Request) {
+    parentStr := chi.URLParam(r, "parentID")
+    parentID, err := uuid.Parse(parentStr)
+    if err != nil {
+        writeError(w, http.StatusBadRequest, "invalid_parent_id", "parentID must be a UUID", nil)
+        return
+    }
+    var req struct {
+        OwnerID        string                 `json:"owner_id"`
+        TenantID       string                 `json:"tenant_id"`
+        DerivationType string                 `json:"derivation_type"`
+        Variant        string                 `json:"variant"`
+        Metadata       map[string]interface{} `json:"metadata"`
+    }
+    if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+        writeError(w, http.StatusBadRequest, "invalid_json", err.Error(), nil)
+        return
+    }
+    ownerID, err := uuid.Parse(req.OwnerID)
+    if err != nil {
+        writeError(w, http.StatusBadRequest, "invalid_owner_id", "owner_id must be a UUID", nil)
+        return
+    }
+    tenantID, err := uuid.Parse(req.TenantID)
+    if err != nil {
+        writeError(w, http.StatusBadRequest, "invalid_tenant_id", "tenant_id must be a UUID", nil)
+        return
+    }
+    derived, err := s.service.CreateDerivedContent(r.Context(), simplecontent.CreateDerivedContentRequest{
+        ParentID:       parentID,
+        OwnerID:        ownerID,
+        TenantID:       tenantID,
+        DerivationType: req.DerivationType,
+        Variant:        req.Variant,
+        Metadata:       req.Metadata,
+    })
+    if err != nil {
+        writeServiceError(w, err)
+        return
+    }
+    variant := ""
+    if rel, err := s.service.GetDerivedRelationshipByContentID(r.Context(), derived.ID); err == nil && rel != nil {
+        variant = rel.DerivationType
+    }
+    writeJSON(w, http.StatusCreated, contentResponse(derived, variant))
 }
 
 func (s *HTTPServer) handleUpdateContent(w http.ResponseWriter, r *http.Request) {

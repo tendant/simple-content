@@ -119,6 +119,42 @@ func TestObjectUploadDownload(t *testing.T) {
     }
 }
 
+func TestCreateDerivedContentEndpoint(t *testing.T) {
+    ts := newTestServer(t)
+    ownerID := uuid.New().String()
+    tenantID := uuid.New().String()
+
+    // Create parent content
+    rr := doJSON(t, ts, http.MethodPost, "/api/v1/contents", map[string]any{
+        "owner_id": ownerID,
+        "tenant_id": tenantID,
+        "name": "parent",
+    })
+    if rr.Code != http.StatusCreated {
+        t.Fatalf("expected 201, got %d: %s", rr.Code, rr.Body.String())
+    }
+    var parent struct{ ID string `json:"id"` }
+    _ = json.Unmarshal(rr.Body.Bytes(), &parent)
+
+    // Create derived content
+    body := map[string]any{
+        "owner_id": ownerID,
+        "tenant_id": tenantID,
+        "derivation_type": "thumbnail",
+        "variant": "thumbnail_256",
+        "metadata": map[string]any{"width": 256},
+    }
+    rr = doJSON(t, ts, http.MethodPost, "/api/v1/contents/"+parent.ID+"/derived", body)
+    if rr.Code != http.StatusCreated {
+        t.Fatalf("expected 201, got %d: %s", rr.Code, rr.Body.String())
+    }
+    var resp struct{ DerivationType string `json:"derivation_type"`; Variant string `json:"variant"` }
+    _ = json.Unmarshal(rr.Body.Bytes(), &resp)
+    if resp.DerivationType != "thumbnail" || resp.Variant != "thumbnail_256" {
+        t.Fatalf("unexpected response: %s", rr.Body.String())
+    }
+}
+
 func doRaw(t *testing.T, ts *HTTPServer, method, path, contentType string, body io.Reader) *httptest.ResponseRecorder {
     t.Helper()
     req := httptest.NewRequest(method, path, body)

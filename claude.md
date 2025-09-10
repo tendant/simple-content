@@ -48,6 +48,7 @@ Base path: `/api/v1`
 
 - Content
   - `POST /contents` create
+  - `POST /contents/{parentID}/derived` create derived (body: owner_id, tenant_id, derivation_type, variant, metadata)
   - `GET /contents/{contentID}` get
   - `PUT /contents/{contentID}` update (partial)
   - `DELETE /contents/{contentID}` delete
