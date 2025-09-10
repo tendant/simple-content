@@ -670,11 +670,11 @@ func (s *service) RegisterBackend(name string, backend BlobStore) {
 }
 
 func (s *service) GetBackend(name string) (BlobStore, error) {
-	backend, exists := s.blobStores[name]
-	if !exists {
-		return nil, fmt.Errorf("%w: %s", ErrStorageBackendNotFound, name)
-	}
-	return backend, nil
+    backend, exists := s.blobStores[name]
+    if !exists {
+        return nil, fmt.Errorf("%w: %s", ErrStorageBackendNotFound, name)
+    }
+    return backend, nil
 }
 
 // Helper methods
@@ -687,6 +687,11 @@ func (s *service) generateObjectKey(contentID, objectID uuid.UUID, contentMetada
 }
 
 func (s *service) updateObjectFromStorage(ctx context.Context, objectID uuid.UUID) error {
-	_, err := s.UpdateObjectMetaFromStorage(ctx, objectID)
-	return err
+    _, err := s.UpdateObjectMetaFromStorage(ctx, objectID)
+    return err
+}
+
+// Derived content helpers
+func (s *service) GetDerivedRelationshipByContentID(ctx context.Context, contentID uuid.UUID) (*DerivedContent, error) {
+    return s.repository.GetDerivedRelationshipByContentID(ctx, contentID)
 }

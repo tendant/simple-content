@@ -23,7 +23,7 @@ type DBTX interface {
 
 // Repository implements simplecontent.Repository using PostgreSQL
 type Repository struct {
-	db DBTX
+    db DBTX
 }
 
 // New creates a new PostgreSQL repository
@@ -443,4 +443,22 @@ func (r *Repository) ListDerivedContent(ctx context.Context, params simpleconten
 	}
 	
 	return derivedContents, nil
+}
+
+func (r *Repository) GetDerivedRelationshipByContentID(ctx context.Context, contentID uuid.UUID) (*simplecontent.DerivedContent, error) {
+    query := `
+        SELECT parent_id, content_id, derivation_type, derivation_params,
+               processing_metadata, created_at, updated_at, document_type, status
+        FROM derived_content WHERE content_id = $1`
+
+    var derived simplecontent.DerivedContent
+    err := r.db.QueryRow(ctx, query, contentID).Scan(
+        &derived.ParentID, &derived.ContentID, &derived.DerivationType,
+        &derived.DerivationParams, &derived.ProcessingMetadata,
+        &derived.CreatedAt, &derived.UpdatedAt, &derived.DocumentType, &derived.Status,
+    )
+    if err != nil {
+        return nil, r.handlePostgresError("get derived relationship by content id", err)
+    }
+    return &derived, nil
 }

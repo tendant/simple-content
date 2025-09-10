@@ -39,9 +39,12 @@ type Service interface {
 	// Object metadata operations
 	SetObjectMetadata(ctx context.Context, objectID uuid.UUID, metadata map[string]interface{}) error
 	GetObjectMetadata(ctx context.Context, objectID uuid.UUID) (map[string]interface{}, error)
-	UpdateObjectMetaFromStorage(ctx context.Context, objectID uuid.UUID) (*ObjectMetadata, error)
+    UpdateObjectMetaFromStorage(ctx context.Context, objectID uuid.UUID) (*ObjectMetadata, error)
 	
 	// Storage backend operations
-	RegisterBackend(name string, backend BlobStore)
-	GetBackend(name string) (BlobStore, error)
+    RegisterBackend(name string, backend BlobStore)
+    GetBackend(name string) (BlobStore, error)
+
+    // Derived content relationship helpers
+    GetDerivedRelationshipByContentID(ctx context.Context, contentID uuid.UUID) (*DerivedContent, error)
 }

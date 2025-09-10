@@ -36,16 +36,18 @@ Track completion of the refactor centered on `pkg/simplecontent`, finishing the 
 
 2) Implement HTTP handlers (cmd/server-configured)
 
-- [ ] Content: Create/Get/Update/Delete/List
-- [ ] Content metadata: Set/Get
-- [ ] Objects: Create/Get/Delete/List-by-content
-- [ ] Upload/download: direct upload/download, presigned upload/download, preview URL
-- [ ] Consistent error → HTTP mapping using typed errors; structured JSON responses
+- [x] Content: Create/Get/Update/Delete/List
+- [x] Content metadata: Set/Get
+- [x] Objects: Create/Get/Delete/List-by-content
+- [x] Upload/download: direct upload/download, presigned upload/download, preview URL
+- [x] Consistent error → HTTP mapping using typed errors; structured JSON responses
+- [x] Augment content responses with `category` (mirrors `Content.DerivationType`); plan to include `variant` via relationship lookup (see below)
 
 3) Postgres wiring and migrations
 
-- [ ] Implement `pgxpool` wiring in `pkg/simplecontent/config.BuildService` when `DATABASE_TYPE=postgres`
-- [ ] Add `/migrations` with baseline from `pkg/simplecontent/repo/postgres/schema.sql` and a simple migration runner or documented workflow
+- [x] Implement `pgxpool` wiring in `pkg/simplecontent/config.BuildService` with optional `CONTENT_DB_SCHEMA` (search_path)
+- [x] Add `migrations/postgres/*` (timestamped) compatible with goose; dedicated schema `content` by default
+- [x] Makefile targets for goose (up/down/status)
 - [ ] Update `docker-compose.yml` to include Postgres (and optional MinIO) for local integration tests
 
 4) Testing
@@ -54,6 +56,7 @@ Track completion of the refactor centered on `pkg/simplecontent`, finishing the 
 - [ ] Add fs backend unit tests (temp dir) under `pkg/simplecontent/storage/fs`
 - [ ] Add service-level tests for presigned URL generation paths
 - [ ] Add integration tests (tagged) for Postgres and MinIO via docker-compose
+- [x] Add basic httptest coverage for configured server (content create/list; object create/upload/download)
 
 5) Deprecate legacy packages
 
@@ -65,6 +68,14 @@ Track completion of the refactor centered on `pkg/simplecontent`, finishing the 
 - [ ] Reconcile `REFACTORING_STATUS.md` and `REFACTORING_COMPLETE.md` (single source of truth)
 - [ ] Update README: library usage, configured server setup, environment variables, backend matrix
 - [ ] Add CI: `go vet`, lint, unit tests, (optional) integration matrix; enforce `go mod tidy`
+- [x] Add `claude.md` with conventions, API outline, and migration docs
+
+7) Category/Variant migration (code-first, no DB change)
+
+- [x] Normalize both `category` and `variant` to lowercase in service
+- [x] Infer `category` from `variant` (prefix before `_`) when `category` is omitted
+- [x] Expose `category` in content responses; plan to add `variant` via relationship lookup
+- [x] Add repo helper to fetch variant by content ID and include in GET responses for derived items
 
 ## Milestones
 

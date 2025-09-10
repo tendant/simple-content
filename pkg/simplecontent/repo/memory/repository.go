@@ -404,3 +404,15 @@ func (r *Repository) ListDerivedContent(ctx context.Context, params simpleconten
 	
 	return result, nil
 }
+
+func (r *Repository) GetDerivedRelationshipByContentID(ctx context.Context, contentID uuid.UUID) (*simplecontent.DerivedContent, error) {
+    r.mu.RLock()
+    defer r.mu.RUnlock()
+
+    dc, exists := r.derivedContents[contentID]
+    if !exists {
+        return nil, fmt.Errorf("derived relationship not found for content %s", contentID)
+    }
+    copy := *dc
+    return &copy, nil
+}

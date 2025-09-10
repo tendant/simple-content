@@ -292,7 +292,11 @@ func (s *HTTPServer) handleGetContent(w http.ResponseWriter, r *http.Request) {
         writeServiceError(w, err)
         return
     }
-    writeJSON(w, http.StatusOK, contentResponse(content, ""))
+    variant := ""
+    if rel, err := s.service.GetDerivedRelationshipByContentID(r.Context(), id); err == nil && rel != nil {
+        variant = rel.DerivationType
+    }
+    writeJSON(w, http.StatusOK, contentResponse(content, variant))
 }
 
 func (s *HTTPServer) handleUpdateContent(w http.ResponseWriter, r *http.Request) {
@@ -370,7 +374,11 @@ func (s *HTTPServer) handleListContents(w http.ResponseWriter, r *http.Request) 
     }
     out := make([]map[string]interface{}, 0, len(contents))
     for _, c := range contents {
-        out = append(out, contentResponse(c, ""))
+        v := ""
+        if rel, err := s.service.GetDerivedRelationshipByContentID(r.Context(), c.ID); err == nil && rel != nil {
+            v = rel.DerivationType
+        }
+        out = append(out, contentResponse(c, v))
     }
     writeJSON(w, http.StatusOK, out)
 }

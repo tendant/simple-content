@@ -48,9 +48,11 @@ type Repository interface {
 	SetContentMetadata(ctx context.Context, metadata *ContentMetadata) error
 	GetContentMetadata(ctx context.Context, contentID uuid.UUID) (*ContentMetadata, error)
 	
-	// Derived content operations
-	CreateDerivedContentRelationship(ctx context.Context, params CreateDerivedContentParams) (*DerivedContent, error)
-	ListDerivedContent(ctx context.Context, params ListDerivedContentParams) ([]*DerivedContent, error)
+    // Derived content operations
+    CreateDerivedContentRelationship(ctx context.Context, params CreateDerivedContentParams) (*DerivedContent, error)
+    ListDerivedContent(ctx context.Context, params ListDerivedContentParams) ([]*DerivedContent, error)
+    // GetDerivedRelationshipByContentID returns the derived-content relationship for a given derived content ID
+    GetDerivedRelationshipByContentID(ctx context.Context, contentID uuid.UUID) (*DerivedContent, error)
 	
 	// Object operations
 	CreateObject(ctx context.Context, object *Object) error
