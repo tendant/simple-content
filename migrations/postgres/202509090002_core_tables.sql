@@ -61,11 +61,10 @@ CREATE TABLE IF NOT EXISTS object_metadata (
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );
 
--- Derived content relationship table
-CREATE TABLE IF NOT EXISTS derived_content (
+CREATE TABLE IF NOT EXISTS content_derived (
     parent_id UUID NOT NULL REFERENCES content(id) ON DELETE CASCADE,
     content_id UUID NOT NULL REFERENCES content(id) ON DELETE CASCADE,
-    derivation_type VARCHAR(100) NOT NULL,
+    variant VARCHAR(100) NOT NULL,
     derivation_params JSONB,
     processing_metadata JSONB,
     document_type VARCHAR(100),
@@ -97,8 +96,8 @@ CREATE INDEX IF NOT EXISTS idx_object_storage_backend ON object(storage_backend_
 CREATE INDEX IF NOT EXISTS idx_object_status ON object(status);
 CREATE INDEX IF NOT EXISTS idx_object_created_at ON object(created_at);
 
-CREATE INDEX IF NOT EXISTS idx_derived_content_parent ON derived_content(parent_id);
-CREATE INDEX IF NOT EXISTS idx_derived_content_type ON derived_content(derivation_type);
+CREATE INDEX IF NOT EXISTS idx_content_derived_parent ON content_derived(parent_id);
+CREATE INDEX IF NOT EXISTS idx_content_derived_variant ON content_derived(variant);
 
 CREATE INDEX IF NOT EXISTS idx_object_preview_object_id ON object_preview(object_id);
 CREATE INDEX IF NOT EXISTS idx_object_preview_type ON object_preview(preview_type);
@@ -124,20 +123,19 @@ CREATE TRIGGER update_object_updated_at BEFORE UPDATE ON object
 CREATE TRIGGER update_object_metadata_updated_at BEFORE UPDATE ON object_metadata
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
-CREATE TRIGGER update_derived_content_updated_at BEFORE UPDATE ON derived_content
+CREATE TRIGGER update_content_derived_updated_at BEFORE UPDATE ON content_derived
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- +goose Down
 SET search_path TO content;
-DROP TRIGGER IF EXISTS update_derived_content_updated_at ON derived_content;
+DROP TRIGGER IF EXISTS update_content_derived_updated_at ON content_derived;
 DROP TRIGGER IF EXISTS update_object_metadata_updated_at ON object_metadata;
 DROP TRIGGER IF EXISTS update_object_updated_at ON object;
 DROP TRIGGER IF EXISTS update_content_metadata_updated_at ON content_metadata;
 DROP TRIGGER IF EXISTS update_content_updated_at ON content;
 DROP TABLE IF EXISTS object_preview;
-DROP TABLE IF EXISTS derived_content;
+DROP TABLE IF EXISTS content_derived;
 DROP TABLE IF EXISTS object_metadata;
 DROP TABLE IF EXISTS object;
 DROP TABLE IF EXISTS content_metadata;
 DROP TABLE IF EXISTS content;
-

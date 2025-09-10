@@ -139,7 +139,7 @@ The library uses a hybrid metadata approach:
 ## Derived Content Typing
 
 - Derivation type (user-facing): stored on derived `Content.DerivationType` (e.g., `thumbnail`, `preview`, `transcode`). Omitted for originals.
-- Variant (specific): stored on the `derived_content` relationship (DB column `derivation_type`, API presents this as `variant`), e.g., `thumbnail_256`, `thumbnail_720`, `conversion`.
+- Variant (specific): stored on the `content_derived` relationship (DB column `variant`), e.g., `thumbnail_256`, `thumbnail_720`, `conversion`.
 - All keyword values use lowercase to minimize typos and normalization overhead. If only `variant` is provided when creating derived content, the service infers `derivation_type` from the variant prefix.
 
 ### Typed constants

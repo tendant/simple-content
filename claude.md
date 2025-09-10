@@ -12,7 +12,7 @@ This document gives AI coding assistants (Claude, ChatGPT, etc.) the context and
 
 - Content: abstraction for a logical piece of content (e.g., a document, image, video). It represents the item as users think about it, with its own metadata and lifecycle status. A content can have multiple associated objects (versions, formats).
 - Object: an individual blob stored in a storage backend (memory/fs/s3). Objects belong to a content, have an `object_key`, a `version`, and storage-specific metadata.
-- Derived Content: generated content produced from an original (parent) content (e.g., thumbnails, previews, transcodes). It is stored as its own Content row and linked to the parent via the `derived_content` relationship.
+- Derived Content: generated content produced from an original (parent) content (e.g., thumbnails, previews, transcodes). It is stored as its own Content row and linked to the parent via the `content_derived` relationship.
 
 ## Key Packages
 
@@ -37,7 +37,7 @@ This document gives AI coding assistants (Claude, ChatGPT, etc.) the context and
 - Lowercase keywords: all derivation values are normalized to lowercase.
 - Derivation terms:
   - `derivation_type` (user-facing) lives on derived Content (e.g., `thumbnail`, `preview`, `transcode`). It is omitted for originals.
-  - `variant` (specific) lives on the `derived_content` relationship. The DB now has a `variant` column; legacy `derivation_type` remains for smooth migration. API exposes `variant`. No uniqueness is enforced on `(parent_id, variant)`; choose a canonical record by status/time if needed.
+  - `variant` (specific) lives on the `content_derived` relationship. Column is named `variant`. No uniqueness is enforced on `(parent_id, variant)`; choose a canonical record by status/time if needed.
 - If only `variant` is provided when creating derived content, the service infers `derivation_type` from the variant prefix.
 - Typed enums are used for statuses/variants; struct fields remain strings for wire compatibility.
 - Error mapping (server): typed errors → HTTP status codes with structured JSON body `{ "error": { code, message } }`.

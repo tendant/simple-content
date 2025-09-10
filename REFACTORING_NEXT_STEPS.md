@@ -75,7 +75,7 @@ Track completion of the refactor centered on `pkg/simplecontent`, finishing the 
 - [x] Normalize `derivation_type` (user-facing type on Content) and `variant` to lowercase in service
 - [x] Infer `derivation_type` from `variant` (prefix before `_`) when missing
 - [x] Include `variant` via relationship lookup in GET/list responses for derived items; omit both for originals
-- [x] Add Postgres migration to introduce `variant` column to `derived_content`, backfill from legacy `derivation_type`
+- [x] Postgres migrations now create `content_derived` with `variant` column (manual migration for existing DBs)
 - [x] No unique index on `(parent_id, variant)` by design; multiple rows per variant may exist (e.g., history/backends/locales)
 
 ## Milestones

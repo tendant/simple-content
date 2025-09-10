@@ -366,11 +366,11 @@ func (r *Repository) CreateDerivedContentRelationship(ctx context.Context, param
     // This would need a proper derived_content table implementation
     // For now, return a basic implementation
     query := `
-        INSERT INTO derived_content (
-            parent_id, content_id, derivation_type, variant, derivation_params,
+        INSERT INTO content_derived (
+            parent_id, content_id, variant, derivation_params,
             processing_metadata, created_at, updated_at, document_type, status
-        ) VALUES ($1, $2, $3, $3, $4, $5, NOW(), NOW(), '', 'created')
-        RETURNING parent_id, content_id, COALESCE(variant, derivation_type) as derivation_type, derivation_params,
+        ) VALUES ($1, $2, $3, $4, $5, NOW(), NOW(), '', 'created')
+        RETURNING parent_id, content_id, variant as derivation_type, derivation_params,
                   processing_metadata, created_at, updated_at, document_type, status`
 	
 	var derived simplecontent.DerivedContent
@@ -391,9 +391,9 @@ func (r *Repository) CreateDerivedContentRelationship(ctx context.Context, param
 func (r *Repository) ListDerivedContent(ctx context.Context, params simplecontent.ListDerivedContentParams) ([]*simplecontent.DerivedContent, error) {
     // Basic implementation - would need to be expanded based on actual table structure
     query := `
-        SELECT parent_id, content_id, COALESCE(variant, derivation_type) as derivation_type, derivation_params,
+        SELECT parent_id, content_id, variant as derivation_type, derivation_params,
                processing_metadata, created_at, updated_at, document_type, status
-        FROM derived_content WHERE 1=1`
+        FROM content_derived WHERE 1=1`
 	
 	var args []interface{}
 	argCount := 0
@@ -406,7 +406,7 @@ func (r *Repository) ListDerivedContent(ctx context.Context, params simpleconten
 	
 	if params.DerivationType != nil {
 		argCount++
-		query += fmt.Sprintf(" AND derivation_type = $%d", argCount)
+        query += fmt.Sprintf(" AND variant = $%d", argCount)
 		args = append(args, *params.DerivationType)
 	}
 	
@@ -447,9 +447,9 @@ func (r *Repository) ListDerivedContent(ctx context.Context, params simpleconten
 
 func (r *Repository) GetDerivedRelationshipByContentID(ctx context.Context, contentID uuid.UUID) (*simplecontent.DerivedContent, error) {
     query := `
-        SELECT parent_id, content_id, COALESCE(variant, derivation_type) as derivation_type, derivation_params,
+        SELECT parent_id, content_id, variant as derivation_type, derivation_params,
                processing_metadata, created_at, updated_at, document_type, status
-        FROM derived_content WHERE content_id = $1`
+        FROM content_derived WHERE content_id = $1`
 
     var derived simplecontent.DerivedContent
     err := r.db.QueryRow(ctx, query, contentID).Scan(
