@@ -111,6 +111,11 @@ func (s *service) CreateDerivedContent(ctx context.Context, req CreateDerivedCon
 		return nil, fmt.Errorf("parent content not found: %w", err)
 	}
 
+    // Infer category from variant if missing (backward compatibility)
+    if req.Category == "" && req.DerivationType != "" {
+        req.Category = string(ExtractCategoryFromVariant(req.DerivationType))
+    }
+
     // Create derived content
     now := time.Now().UTC()
     content := &Content{

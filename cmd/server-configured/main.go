@@ -277,7 +277,7 @@ func (s *HTTPServer) handleCreateContent(w http.ResponseWriter, r *http.Request)
         writeServiceError(w, err)
         return
     }
-    writeJSON(w, http.StatusCreated, content)
+    writeJSON(w, http.StatusCreated, contentResponse(content, ""))
 }
 
 func (s *HTTPServer) handleGetContent(w http.ResponseWriter, r *http.Request) {
@@ -292,7 +292,7 @@ func (s *HTTPServer) handleGetContent(w http.ResponseWriter, r *http.Request) {
         writeServiceError(w, err)
         return
     }
-    writeJSON(w, http.StatusOK, content)
+    writeJSON(w, http.StatusOK, contentResponse(content, ""))
 }
 
 func (s *HTTPServer) handleUpdateContent(w http.ResponseWriter, r *http.Request) {
@@ -329,7 +329,7 @@ func (s *HTTPServer) handleUpdateContent(w http.ResponseWriter, r *http.Request)
         writeServiceError(w, err)
         return
     }
-    writeJSON(w, http.StatusOK, existing)
+    writeJSON(w, http.StatusOK, contentResponse(existing, ""))
 }
 
 func (s *HTTPServer) handleDeleteContent(w http.ResponseWriter, r *http.Request) {
@@ -368,7 +368,11 @@ func (s *HTTPServer) handleListContents(w http.ResponseWriter, r *http.Request) 
         writeServiceError(w, err)
         return
     }
-    writeJSON(w, http.StatusOK, contents)
+    out := make([]map[string]interface{}, 0, len(contents))
+    for _, c := range contents {
+        out = append(out, contentResponse(c, ""))
+    }
+    writeJSON(w, http.StatusOK, out)
 }
 
 func (s *HTTPServer) handleSetContentMetadata(w http.ResponseWriter, r *http.Request) {
@@ -649,4 +653,28 @@ func writeServiceError(w http.ResponseWriter, err error) {
     }
 
     writeError(w, status, code, msg, nil)
+}
+
+// contentResponse augments a Content with explicit category and variant fields
+// for clients. Category mirrors Content.DerivationType (user-facing). Variant
+// is optional and should be supplied by callers when known.
+func contentResponse(c *simplecontent.Content, variant string) map[string]interface{} {
+    m := map[string]interface{}{
+        "id":              c.ID,
+        "tenant_id":       c.TenantID,
+        "owner_id":        c.OwnerID,
+        "owner_type":      c.OwnerType,
+        "name":            c.Name,
+        "description":     c.Description,
+        "document_type":   c.DocumentType,
+        "status":          c.Status,
+        "derivation_type": c.DerivationType,
+        "category":        c.DerivationType,
+        "created_at":      c.CreatedAt,
+        "updated_at":      c.UpdatedAt,
+    }
+    if variant != "" {
+        m["variant"] = variant
+    }
+    return m
 }
