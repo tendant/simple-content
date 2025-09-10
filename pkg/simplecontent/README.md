@@ -138,9 +138,9 @@ The library uses a hybrid metadata approach:
 
 ## Derived Content Typing
 
-- Category: user-facing, coarse-grained type (e.g., `thumbnail`, `preview`). Stored on the derived `Content.DerivationType` for easy filtering and UX.
-- DerivationType: specific variant within the category (e.g., `thumbnail_256`, `thumbnail_720`, `conversion`). Stored in the derived-content relationship to precisely identify the derivation.
-- All keyword values use lowercase to minimize typos and normalization overhead.
+- Derivation type (user-facing): stored on derived `Content.DerivationType` (e.g., `thumbnail`, `preview`, `transcode`). Omitted for originals.
+- Variant (specific): stored on the `derived_content` relationship (DB column `derivation_type`, API presents this as `variant`), e.g., `thumbnail_256`, `thumbnail_720`, `conversion`.
+- All keyword values use lowercase to minimize typos and normalization overhead. If only `variant` is provided when creating derived content, the service infers `derivation_type` from the variant prefix.
 
 ### Typed constants
 
@@ -149,7 +149,6 @@ For clarity and IDE hints, typed string constants are provided:
 - Content statuses: `simplecontent.ContentStatus` with constants like `ContentStatusCreated`.
 - Object statuses: `simplecontent.ObjectStatus` with constants like `ObjectStatusUploaded`.
 - Derivation:
-  - Category: `simplecontent.DerivationCategory`
   - Variant: `simplecontent.DerivationVariant` (e.g., `VariantThumbnail256`).
 
 Struct fields remain `string` for compatibility. You can extend by declaring your own typed constants:

@@ -363,23 +363,23 @@ func (r *Repository) GetObjectMetadata(ctx context.Context, objectID uuid.UUID) 
 // Derived content operations (simplified implementations)
 
 func (r *Repository) CreateDerivedContentRelationship(ctx context.Context, params simplecontent.CreateDerivedContentParams) (*simplecontent.DerivedContent, error) {
-	// This would need a proper derived_content table implementation
-	// For now, return a basic implementation
-	query := `
-		INSERT INTO derived_content (
-			parent_id, content_id, derivation_type, derivation_params,
-			processing_metadata, created_at, updated_at, document_type, status
-		) VALUES ($1, $2, $3, $4, $5, NOW(), NOW(), '', 'created')
-		RETURNING parent_id, content_id, derivation_type, derivation_params,
-				  processing_metadata, created_at, updated_at, document_type, status`
+    // This would need a proper derived_content table implementation
+    // For now, return a basic implementation
+    query := `
+        INSERT INTO derived_content (
+            parent_id, content_id, derivation_type, variant, derivation_params,
+            processing_metadata, created_at, updated_at, document_type, status
+        ) VALUES ($1, $2, $3, $3, $4, $5, NOW(), NOW(), '', 'created')
+        RETURNING parent_id, content_id, COALESCE(variant, derivation_type) as derivation_type, derivation_params,
+                  processing_metadata, created_at, updated_at, document_type, status`
 	
 	var derived simplecontent.DerivedContent
 	err := r.db.QueryRow(ctx, query,
-		params.ParentID, params.DerivedContentID, params.DerivationType,
-		params.DerivationParams, params.ProcessingMetadata).Scan(
-		&derived.ParentID, &derived.ContentID, &derived.DerivationType,
-		&derived.DerivationParams, &derived.ProcessingMetadata,
-		&derived.CreatedAt, &derived.UpdatedAt, &derived.DocumentType, &derived.Status)
+        params.ParentID, params.DerivedContentID, params.DerivationType,
+        params.DerivationParams, params.ProcessingMetadata).Scan(
+        &derived.ParentID, &derived.ContentID, &derived.DerivationType,
+        &derived.DerivationParams, &derived.ProcessingMetadata,
+        &derived.CreatedAt, &derived.UpdatedAt, &derived.DocumentType, &derived.Status)
 	
 	if err != nil {
 		return nil, err
@@ -389,11 +389,11 @@ func (r *Repository) CreateDerivedContentRelationship(ctx context.Context, param
 }
 
 func (r *Repository) ListDerivedContent(ctx context.Context, params simplecontent.ListDerivedContentParams) ([]*simplecontent.DerivedContent, error) {
-	// Basic implementation - would need to be expanded based on actual table structure
-	query := `
-		SELECT parent_id, content_id, derivation_type, derivation_params,
-			   processing_metadata, created_at, updated_at, document_type, status
-		FROM derived_content WHERE 1=1`
+    // Basic implementation - would need to be expanded based on actual table structure
+    query := `
+        SELECT parent_id, content_id, COALESCE(variant, derivation_type) as derivation_type, derivation_params,
+               processing_metadata, created_at, updated_at, document_type, status
+        FROM derived_content WHERE 1=1`
 	
 	var args []interface{}
 	argCount := 0
@@ -447,7 +447,7 @@ func (r *Repository) ListDerivedContent(ctx context.Context, params simpleconten
 
 func (r *Repository) GetDerivedRelationshipByContentID(ctx context.Context, contentID uuid.UUID) (*simplecontent.DerivedContent, error) {
     query := `
-        SELECT parent_id, content_id, derivation_type, derivation_params,
+        SELECT parent_id, content_id, COALESCE(variant, derivation_type) as derivation_type, derivation_params,
                processing_metadata, created_at, updated_at, document_type, status
         FROM derived_content WHERE content_id = $1`
 
