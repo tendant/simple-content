@@ -53,9 +53,9 @@ Track completion of the refactor centered on `pkg/simplecontent`, finishing the 
 4) Testing
 
 - [ ] Consolidate on `pkg/simplecontent` tests; port or remove legacy tests to avoid duplication
-- [ ] Add fs backend unit tests (temp dir) under `pkg/simplecontent/storage/fs`
-- [ ] Add service-level tests for presigned URL generation paths
-- [ ] Add integration tests (tagged) for Postgres and MinIO via docker-compose
+- [x] Add fs backend unit tests (temp dir) under `pkg/simplecontent/storage/fs`
+- [x] Add service-level tests (derived creation inference; relationship listing)
+- [x] Add integration tests (tagged) for Postgres and MinIO via docker-compose
 - [x] Add basic httptest coverage for configured server (content create/list; object create/upload/download)
 
 5) Deprecate legacy packages
