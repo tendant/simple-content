@@ -16,7 +16,8 @@ CREATE TABLE IF NOT EXISTS content (
     status VARCHAR(50) NOT NULL DEFAULT 'created',
     derivation_type VARCHAR(100),
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    deleted_at TIMESTAMP WITH TIME ZONE NULL
 );
 
 -- Content metadata table: stores metadata for content
@@ -46,6 +47,7 @@ CREATE TABLE IF NOT EXISTS object (
     status VARCHAR(50) NOT NULL DEFAULT 'created',
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    deleted_at TIMESTAMP WITH TIME ZONE NULL,
     
     -- Unique constraint on storage backend and object key
     UNIQUE(storage_backend_name, object_key)
@@ -72,6 +74,7 @@ CREATE TABLE IF NOT EXISTS content_derived (
     status VARCHAR(50) NOT NULL DEFAULT 'created',
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    deleted_at TIMESTAMP WITH TIME ZONE NULL,
     
     PRIMARY KEY (parent_id, content_id)
 );
@@ -84,6 +87,7 @@ CREATE TABLE IF NOT EXISTS object_preview (
     preview_url TEXT,
     status VARCHAR(50) NOT NULL DEFAULT 'created',
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    deleted_at TIMESTAMP WITH TIME ZONE NULL,
     
     UNIQUE(object_id, preview_type)
 );
