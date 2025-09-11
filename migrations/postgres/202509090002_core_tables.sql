@@ -69,7 +69,6 @@ CREATE TABLE IF NOT EXISTS content_derived (
     variant VARCHAR(100) NOT NULL,
     derivation_params JSONB,
     processing_metadata JSONB,
-    document_type VARCHAR(100),
     status VARCHAR(50) NOT NULL DEFAULT 'created',
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),

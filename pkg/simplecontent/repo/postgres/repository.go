@@ -371,7 +371,7 @@ func (r *Repository) CreateDerivedContentRelationship(ctx context.Context, param
             processing_metadata, created_at, updated_at, document_type, status
         ) VALUES ($1, $2, $3, $4, $5, NOW(), NOW(), '', 'created')
         RETURNING parent_id, content_id, variant as derivation_type, derivation_params,
-                  processing_metadata, created_at, updated_at, document_type, status`
+                  processing_metadata, created_at, updated_at, status`
 	
 	var derived simplecontent.DerivedContent
 	err := r.db.QueryRow(ctx, query,
@@ -379,7 +379,7 @@ func (r *Repository) CreateDerivedContentRelationship(ctx context.Context, param
         params.DerivationParams, params.ProcessingMetadata).Scan(
         &derived.ParentID, &derived.ContentID, &derived.DerivationType,
         &derived.DerivationParams, &derived.ProcessingMetadata,
-        &derived.CreatedAt, &derived.UpdatedAt, &derived.DocumentType, &derived.Status)
+        &derived.CreatedAt, &derived.UpdatedAt, &derived.Status)
 	
 	if err != nil {
 		return nil, err
@@ -392,7 +392,7 @@ func (r *Repository) ListDerivedContent(ctx context.Context, params simpleconten
     // Basic implementation - would need to be expanded based on actual table structure
     query := `
         SELECT parent_id, content_id, variant as derivation_type, derivation_params,
-               processing_metadata, created_at, updated_at, document_type, status
+               processing_metadata, created_at, updated_at, status
         FROM content_derived WHERE 1=1`
 	
 	var args []interface{}
@@ -433,12 +433,12 @@ func (r *Repository) ListDerivedContent(ctx context.Context, params simpleconten
 	var derivedContents []*simplecontent.DerivedContent
 	for rows.Next() {
 		var derived simplecontent.DerivedContent
-		if err := rows.Scan(
-			&derived.ParentID, &derived.ContentID, &derived.DerivationType,
-			&derived.DerivationParams, &derived.ProcessingMetadata,
-			&derived.CreatedAt, &derived.UpdatedAt, &derived.DocumentType, &derived.Status); err != nil {
-			return nil, err
-		}
+        if err := rows.Scan(
+            &derived.ParentID, &derived.ContentID, &derived.DerivationType,
+            &derived.DerivationParams, &derived.ProcessingMetadata,
+            &derived.CreatedAt, &derived.UpdatedAt, &derived.Status); err != nil {
+            return nil, err
+        }
 		derivedContents = append(derivedContents, &derived)
 	}
 	
@@ -448,14 +448,14 @@ func (r *Repository) ListDerivedContent(ctx context.Context, params simpleconten
 func (r *Repository) GetDerivedRelationshipByContentID(ctx context.Context, contentID uuid.UUID) (*simplecontent.DerivedContent, error) {
     query := `
         SELECT parent_id, content_id, variant as derivation_type, derivation_params,
-               processing_metadata, created_at, updated_at, document_type, status
+               processing_metadata, created_at, updated_at, status
         FROM content_derived WHERE content_id = $1`
 
     var derived simplecontent.DerivedContent
     err := r.db.QueryRow(ctx, query, contentID).Scan(
         &derived.ParentID, &derived.ContentID, &derived.DerivationType,
         &derived.DerivationParams, &derived.ProcessingMetadata,
-        &derived.CreatedAt, &derived.UpdatedAt, &derived.DocumentType, &derived.Status,
+        &derived.CreatedAt, &derived.UpdatedAt, &derived.Status,
     )
     if err != nil {
         return nil, r.handlePostgresError("get derived relationship by content id", err)
