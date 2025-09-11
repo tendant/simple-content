@@ -13,6 +13,7 @@ type ContentStatus string
 const (
     ContentStatusCreated  ContentStatus = "created"
     ContentStatusUploaded ContentStatus = "uploaded"
+    ContentStatusDeleted  ContentStatus = "deleted"
 )
 
 // Content derivation type constants
@@ -64,6 +65,7 @@ type Content struct {
     DerivationType string    `json:"derivation_type,omitempty"`
     CreatedAt      time.Time `json:"created_at"`
     UpdatedAt      time.Time `json:"updated_at"`
+    DeletedAt      *time.Time `json:"deleted_at,omitempty"`
 }
 
 // DerivedContent represents content derived from a parent content.
@@ -96,17 +98,18 @@ type ContentMetadata struct {
 
 // Object represents a physical object stored in a storage backend
 type Object struct {
-	ID                 uuid.UUID `json:"id"`
-	ContentID          uuid.UUID `json:"content_id"`
-	StorageBackendName string    `json:"storage_backend_name"`
-	StorageClass       string    `json:"storage_class,omitempty"`
-	ObjectKey          string    `json:"object_key"`
-	FileName           string    `json:"file_name,omitempty"`
-	Version            int       `json:"version"`
-	ObjectType         string    `json:"object_type,omitempty"`
-	Status             string    `json:"status"`
-	CreatedAt          time.Time `json:"created_at"`
-	UpdatedAt          time.Time `json:"updated_at"`
+    ID                 uuid.UUID `json:"id"`
+    ContentID          uuid.UUID `json:"content_id"`
+    StorageBackendName string    `json:"storage_backend_name"`
+    StorageClass       string    `json:"storage_class,omitempty"`
+    ObjectKey          string    `json:"object_key"`
+    FileName           string    `json:"file_name,omitempty"`
+    Version            int       `json:"version"`
+    ObjectType         string    `json:"object_type,omitempty"`
+    Status             string    `json:"status"`
+    CreatedAt          time.Time `json:"created_at"`
+    UpdatedAt          time.Time `json:"updated_at"`
+    DeletedAt          *time.Time `json:"deleted_at,omitempty"`
 }
 
 // ObjectMetadata represents metadata about an object

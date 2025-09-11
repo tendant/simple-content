@@ -90,10 +90,10 @@ func (r *Repository) CreateContent(ctx context.Context, content *simplecontent.C
 }
 
 func (r *Repository) GetContent(ctx context.Context, id uuid.UUID) (*simplecontent.Content, error) {
-	query := `
-		SELECT id, tenant_id, owner_id, owner_type, name, description,
-			   document_type, status, derivation_type, created_at, updated_at
-		FROM content WHERE id = $1`
+    query := `
+        SELECT id, tenant_id, owner_id, owner_type, name, description,
+               document_type, status, derivation_type, created_at, updated_at
+        FROM content WHERE id = $1 AND deleted_at IS NULL`
 	
 	var content simplecontent.Content
 	err := r.db.QueryRow(ctx, query, id).Scan(
@@ -128,17 +128,17 @@ func (r *Repository) UpdateContent(ctx context.Context, content *simplecontent.C
 }
 
 func (r *Repository) DeleteContent(ctx context.Context, id uuid.UUID) error {
-	query := `DELETE FROM content WHERE id = $1`
-	_, err := r.db.Exec(ctx, query, id)
-	return err
+    query := `UPDATE content SET status = 'deleted', deleted_at = NOW() WHERE id = $1`
+    _, err := r.db.Exec(ctx, query, id)
+    return err
 }
 
 func (r *Repository) ListContent(ctx context.Context, ownerID, tenantID uuid.UUID) ([]*simplecontent.Content, error) {
-	query := `
-		SELECT id, tenant_id, owner_id, owner_type, name, description,
-			   document_type, status, derivation_type, created_at, updated_at
-		FROM content WHERE owner_id = $1 AND tenant_id = $2
-		ORDER BY created_at DESC`
+    query := `
+        SELECT id, tenant_id, owner_id, owner_type, name, description,
+               document_type, status, derivation_type, created_at, updated_at
+        FROM content WHERE owner_id = $1 AND tenant_id = $2 AND deleted_at IS NULL
+        ORDER BY created_at DESC`
 	
 	rows, err := r.db.Query(ctx, query, ownerID, tenantID)
 	if err != nil {
@@ -227,10 +227,10 @@ func (r *Repository) CreateObject(ctx context.Context, object *simplecontent.Obj
 }
 
 func (r *Repository) GetObject(ctx context.Context, id uuid.UUID) (*simplecontent.Object, error) {
-	query := `
-		SELECT id, content_id, storage_backend_name, storage_class, object_key,
-			   file_name, version, object_type, status, created_at, updated_at
-		FROM object WHERE id = $1`
+    query := `
+        SELECT id, content_id, storage_backend_name, storage_class, object_key,
+               file_name, version, object_type, status, created_at, updated_at
+        FROM object WHERE id = $1 AND deleted_at IS NULL`
 	
 	var object simplecontent.Object
 	err := r.db.QueryRow(ctx, query, id).Scan(
@@ -249,10 +249,10 @@ func (r *Repository) GetObject(ctx context.Context, id uuid.UUID) (*simpleconten
 }
 
 func (r *Repository) GetObjectsByContentID(ctx context.Context, contentID uuid.UUID) ([]*simplecontent.Object, error) {
-	query := `
-		SELECT id, content_id, storage_backend_name, storage_class, object_key,
-			   file_name, version, object_type, status, created_at, updated_at
-		FROM object WHERE content_id = $1 ORDER BY version DESC`
+    query := `
+        SELECT id, content_id, storage_backend_name, storage_class, object_key,
+               file_name, version, object_type, status, created_at, updated_at
+        FROM object WHERE content_id = $1 AND deleted_at IS NULL ORDER BY version DESC`
 	
 	rows, err := r.db.Query(ctx, query, contentID)
 	if err != nil {
@@ -279,7 +279,7 @@ func (r *Repository) GetObjectByObjectKeyAndStorageBackendName(ctx context.Conte
 	query := `
 		SELECT id, content_id, storage_backend_name, storage_class, object_key,
 			   file_name, version, object_type, status, created_at, updated_at
-		FROM object WHERE object_key = $1 AND storage_backend_name = $2`
+		FROM object WHERE object_key = $1 AND storage_backend_name = $2 AND deleted_at IS NULL`
 	
 	var object simplecontent.Object
 	err := r.db.QueryRow(ctx, query, objectKey, storageBackendName).Scan(
@@ -314,9 +314,9 @@ func (r *Repository) UpdateObject(ctx context.Context, object *simplecontent.Obj
 }
 
 func (r *Repository) DeleteObject(ctx context.Context, id uuid.UUID) error {
-	query := `DELETE FROM object WHERE id = $1`
-	_, err := r.db.Exec(ctx, query, id)
-	return err
+    query := `UPDATE object SET status = 'deleted', deleted_at = NOW() WHERE id = $1`
+    _, err := r.db.Exec(ctx, query, id)
+    return err
 }
 
 // Object metadata operations

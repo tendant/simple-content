@@ -57,7 +57,10 @@ func (r *Repository) GetContent(ctx context.Context, id uuid.UUID) (*simpleconte
 	if !exists {
 		return nil, simplecontent.ErrContentNotFound
 	}
-	
+
+	if content.DeletedAt != nil {
+		return nil, simplecontent.ErrContentNotFound
+	}
 	// Return a copy to prevent external modifications
 	contentCopy := *content
 	return &contentCopy, nil
@@ -82,22 +85,15 @@ func (r *Repository) DeleteContent(ctx context.Context, id uuid.UUID) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	
-	if _, exists := r.contents[id]; !exists {
+	c, exists := r.contents[id]
+	if !exists {
 		return simplecontent.ErrContentNotFound
 	}
 	
-	delete(r.contents, id)
-	delete(r.contentMetadata, id)
-	
-	// Clean up associated objects
-	if objectIDs, exists := r.objectsByContent[id]; exists {
-		for _, objectID := range objectIDs {
-			delete(r.objects, objectID)
-			delete(r.objectMetadata, objectID)
-		}
-		delete(r.objectsByContent, id)
-	}
-	
+	now := time.Now()
+	c.Status = string(simplecontent.ContentStatusDeleted)
+	c.DeletedAt = &now
+	c.UpdatedAt = now
 	return nil
 }
 
@@ -106,12 +102,12 @@ func (r *Repository) ListContent(ctx context.Context, ownerID, tenantID uuid.UUI
 	defer r.mu.RUnlock()
 	
 	var result []*simplecontent.Content
-	for _, content := range r.contents {
-		if content.OwnerID == ownerID && content.TenantID == tenantID {
-			contentCopy := *content
-			result = append(result, &contentCopy)
-		}
-	}
+    for _, content := range r.contents {
+        if content.OwnerID == ownerID && content.TenantID == tenantID && content.DeletedAt == nil {
+            contentCopy := *content
+            result = append(result, &contentCopy)
+        }
+    }
 	
 	// Sort by created_at descending
 	sort.Slice(result, func(i, j int) bool {
@@ -191,7 +187,10 @@ func (r *Repository) GetObject(ctx context.Context, id uuid.UUID) (*simpleconten
 	if !exists {
 		return nil, simplecontent.ErrObjectNotFound
 	}
-	
+
+	if object.DeletedAt != nil {
+		return nil, simplecontent.ErrObjectNotFound
+	}
 	// Return a copy to prevent external modifications
 	objectCopy := *object
 	return &objectCopy, nil
@@ -207,12 +206,14 @@ func (r *Repository) GetObjectsByContentID(ctx context.Context, contentID uuid.U
 	}
 	
 	var result []*simplecontent.Object
-	for _, objectID := range objectIDs {
-		if object, exists := r.objects[objectID]; exists {
-			objectCopy := *object
-			result = append(result, &objectCopy)
-		}
-	}
+    for _, objectID := range objectIDs {
+        if object, exists := r.objects[objectID]; exists {
+            if object.DeletedAt == nil {
+                objectCopy := *object
+                result = append(result, &objectCopy)
+            }
+        }
+    }
 	
 	// Sort by version descending
 	sort.Slice(result, func(i, j int) bool {
@@ -232,14 +233,16 @@ func (r *Repository) GetObjectByObjectKeyAndStorageBackendName(ctx context.Conte
 		return nil, simplecontent.ErrObjectNotFound
 	}
 	
-	object, exists := r.objects[objectID]
-	if !exists {
-		return nil, simplecontent.ErrObjectNotFound
-	}
-	
-	// Return a copy to prevent external modifications
-	objectCopy := *object
-	return &objectCopy, nil
+    object, exists := r.objects[objectID]
+    if !exists {
+        return nil, simplecontent.ErrObjectNotFound
+    }
+    if object.DeletedAt != nil {
+        return nil, simplecontent.ErrObjectNotFound
+    }
+    // Return a copy to prevent external modifications
+    objectCopy := *object
+    return &objectCopy, nil
 }
 
 func (r *Repository) UpdateObject(ctx context.Context, object *simplecontent.Object) error {
@@ -270,27 +273,11 @@ func (r *Repository) DeleteObject(ctx context.Context, id uuid.UUID) error {
 		return simplecontent.ErrObjectNotFound
 	}
 	
-	// Remove from maps
-	delete(r.objects, id)
-	delete(r.objectMetadata, id)
-	
-	// Remove from content mapping
-	contentID := object.ContentID
-	if objectIDs, exists := r.objectsByContent[contentID]; exists {
-		var newObjectIDs []uuid.UUID
-		for _, objectID := range objectIDs {
-			if objectID != id {
-				newObjectIDs = append(newObjectIDs, objectID)
-			}
-		}
-		r.objectsByContent[contentID] = newObjectIDs
-	}
-	
-	// Remove from key mapping
-	keyStr := fmt.Sprintf("%s:%s", object.StorageBackendName, object.ObjectKey)
-	delete(r.objectsByKey, keyStr)
-	
-	return nil
+    now := time.Now()
+    object.Status = string(simplecontent.ObjectStatusDeleted)
+    object.DeletedAt = &now
+    object.UpdatedAt = now
+    return nil
 }
 
 // Object metadata operations
