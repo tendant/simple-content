@@ -78,18 +78,6 @@ CREATE TABLE IF NOT EXISTS content_derived (
     PRIMARY KEY (parent_id, content_id)
 );
 
--- Object preview table: stores preview information for objects  
-CREATE TABLE IF NOT EXISTS object_preview (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    object_id UUID NOT NULL REFERENCES object(id) ON DELETE CASCADE,
-    preview_type VARCHAR(100) NOT NULL,
-    preview_url TEXT,
-    status VARCHAR(50) NOT NULL DEFAULT 'created',
-    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-    deleted_at TIMESTAMP WITH TIME ZONE NULL,
-    
-    UNIQUE(object_id, preview_type)
-);
 
 -- Indexes for better query performance
 
@@ -109,9 +97,6 @@ CREATE INDEX IF NOT EXISTS idx_object_created_at ON object(created_at);
 CREATE INDEX IF NOT EXISTS idx_content_derived_parent ON content_derived(parent_id);
 CREATE INDEX IF NOT EXISTS idx_content_derived_variant ON content_derived(variant);
 
--- Object preview indexes
-CREATE INDEX IF NOT EXISTS idx_object_preview_object_id ON object_preview(object_id);
-CREATE INDEX IF NOT EXISTS idx_object_preview_type ON object_preview(preview_type);
 
 -- Functions for automatic timestamp updates
 CREATE OR REPLACE FUNCTION update_updated_at_column()

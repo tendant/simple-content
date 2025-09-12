@@ -45,8 +45,6 @@ ALTER TABLE content.object
 ALTER TABLE content.content_derived
   ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ NULL;
 
-ALTER TABLE content.object_preview
-  ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ NULL;
 ```
 
 3) Indexes (optional but recommended)
@@ -204,4 +202,3 @@ Error mapping is consistent and typed (not_found, invalid_status, storage_error,
   - Not enforced by design; if a single canonical record is desired, select by status/time in service
 - OpenAPI
   - Consider adding an OpenAPI spec for the configured server to aid clients
-
