@@ -8,8 +8,8 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 -- Content table
 CREATE TABLE IF NOT EXISTS content (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    tenant_id UUID NOT NULL,
-    owner_id UUID NOT NULL,
+    tenant_id UUID,
+    owner_id UUID,
     owner_type VARCHAR(50),
     name VARCHAR(500),
     description TEXT,
