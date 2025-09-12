@@ -67,6 +67,7 @@ CREATE TABLE IF NOT EXISTS content_derived (
     parent_id UUID NOT NULL REFERENCES content(id) ON DELETE CASCADE,
     content_id UUID NOT NULL REFERENCES content(id) ON DELETE CASCADE,
     variant VARCHAR(100) NOT NULL,
+    derivation_type VARCHAR(100) NOT NULL,
     derivation_params JSONB,
     processing_metadata JSONB,
     status VARCHAR(50) NOT NULL DEFAULT 'created',
