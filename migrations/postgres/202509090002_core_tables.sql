@@ -8,16 +8,16 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 -- Content table
 CREATE TABLE IF NOT EXISTS content (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    tenant_id UUID NOT NULL,
-    owner_id UUID NOT NULL,
+    tenant_id UUID,
+    owner_id UUID,
     owner_type VARCHAR(50),
     name VARCHAR(500),
     description TEXT,
     document_type VARCHAR(100),
     status VARCHAR(50) NOT NULL DEFAULT 'created',
     derivation_type VARCHAR(100),
-    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT (NOW() AT TIME ZONE 'utc'),
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT (NOW() AT TIME ZONE 'utc'),
     deleted_at TIMESTAMP WITH TIME ZONE NULL
 );
 
@@ -31,8 +31,8 @@ CREATE TABLE IF NOT EXISTS content_metadata (
     checksum VARCHAR(100),
     checksum_algorithm VARCHAR(50),
     metadata JSONB,
-    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT (NOW() AT TIME ZONE 'utc'),
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT (NOW() AT TIME ZONE 'utc')
 );
 
 -- Object table
@@ -46,8 +46,8 @@ CREATE TABLE IF NOT EXISTS object (
     version INTEGER NOT NULL DEFAULT 1,
     object_type VARCHAR(100),
     status VARCHAR(50) NOT NULL DEFAULT 'created',
-    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT (NOW() AT TIME ZONE 'utc'),
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT (NOW() AT TIME ZONE 'utc'),
     deleted_at TIMESTAMP WITH TIME ZONE NULL,
     UNIQUE(storage_backend_name, object_key)
 );
@@ -59,19 +59,20 @@ CREATE TABLE IF NOT EXISTS object_metadata (
     mime_type VARCHAR(100),
     etag VARCHAR(100),
     metadata JSONB,
-    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT (NOW() AT TIME ZONE 'utc'),
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT (NOW() AT TIME ZONE 'utc')
 );
 
 CREATE TABLE IF NOT EXISTS content_derived (
     parent_id UUID NOT NULL REFERENCES content(id) ON DELETE CASCADE,
     content_id UUID NOT NULL REFERENCES content(id) ON DELETE CASCADE,
     variant VARCHAR(100) NOT NULL,
+    derivation_type VARCHAR(100) NOT NULL,
     derivation_params JSONB,
     processing_metadata JSONB,
     status VARCHAR(50) NOT NULL DEFAULT 'created',
-    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT (NOW() AT TIME ZONE 'utc'),
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT (NOW() AT TIME ZONE 'utc'),
     deleted_at TIMESTAMP WITH TIME ZONE NULL,
     PRIMARY KEY (parent_id, content_id)
 );
@@ -83,7 +84,7 @@ CREATE TABLE IF NOT EXISTS object_preview (
     preview_type VARCHAR(100) NOT NULL,
     preview_url TEXT,
     status VARCHAR(50) NOT NULL DEFAULT 'created',
-    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT (NOW() AT TIME ZONE 'utc'),
     deleted_at TIMESTAMP WITH TIME ZONE NULL,
     UNIQUE(object_id, preview_type)
 );
