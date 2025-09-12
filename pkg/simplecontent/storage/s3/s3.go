@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net/url"
 	"strings"
 	"time"
 
@@ -15,20 +14,20 @@ import (
 	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
-	smithyendpoints "github.com/aws/smithy-go/endpoints"
 	"github.com/tendant/simple-content/pkg/simplecontent"
 )
 
 // Config options for the S3 backend
 type Config struct {
-	Region          string // AWS region
-	Bucket          string // S3 bucket name
-	AccessKeyID     string // AWS access key ID
-	SecretAccessKey string // AWS secret access key
-	Endpoint        string // Optional custom endpoint for S3-compatible services
-	UseSSL          bool   // Use SSL for connections (default: true)
-	UsePathStyle    bool   // Use path-style addressing (default: false)
-	PresignDuration int    // Duration in seconds for presigned URLs (default: 3600)
+	Region           string // AWS region
+	Bucket           string // S3 bucket name
+	AccessKeyID      string // AWS access key ID
+	SecretAccessKey  string // AWS secret access key
+	Endpoint         string // Optional custom endpoint for S3-compatible services
+	ExternalEndpoint string // External endpoint for presigned URLs (e.g., for nginx proxy)
+	UseSSL           bool   // Use SSL for connections (default: true)
+	UsePathStyle     bool   // Use path-style addressing (default: false)
+	PresignDuration  int    // Duration in seconds for presigned URLs (default: 3600)
 
 	// Server-side encryption options
 	EnableSSE    bool   // Enable server-side encryption
@@ -95,17 +94,26 @@ func New(config Config) (simplecontent.BlobStore, error) {
 		s3Options = append(s3Options, func(o *s3.Options) {
 			o.BaseEndpoint = aws.String(config.Endpoint)
 			o.UsePathStyle = config.UsePathStyle
-			
-			// Custom endpoint resolver
-			o.EndpointResolverV2 = &customEndpointResolver{
-				endpoint:     config.Endpoint,
-				usePathStyle: config.UsePathStyle,
-			}
+			// Note: Removed custom EndpointResolverV2 for better MinIO compatibility
 		})
 	}
 
 	client := s3.NewFromConfig(awsCfg, s3Options...)
-	presignClient := s3.NewPresignClient(client)
+
+	// Create separate presign client with external endpoint if configured
+	var presignClient *s3.PresignClient
+	if config.ExternalEndpoint != "" {
+		// Create separate S3 client for presigning with external endpoint
+		var presignS3Options []func(*s3.Options)
+		presignS3Options = append(presignS3Options, func(o *s3.Options) {
+			o.BaseEndpoint = aws.String(config.ExternalEndpoint)
+			o.UsePathStyle = config.UsePathStyle
+		})
+		presignS3Client := s3.NewFromConfig(awsCfg, presignS3Options...)
+		presignClient = s3.NewPresignClient(presignS3Client)
+	} else {
+		presignClient = s3.NewPresignClient(client)
+	}
 
 	backend := &Backend{
 		client:          client,
@@ -125,25 +133,6 @@ func New(config Config) (simplecontent.BlobStore, error) {
 	return backend, nil
 }
 
-// customEndpointResolver implements custom endpoint resolution for S3-compatible services
-type customEndpointResolver struct {
-	endpoint     string
-	usePathStyle bool
-}
-
-func (r *customEndpointResolver) ResolveEndpoint(ctx context.Context, params s3.EndpointParameters) (
-	smithyendpoints.Endpoint, error,
-) {
-	u, err := url.Parse(r.endpoint)
-	if err != nil {
-		return smithyendpoints.Endpoint{}, err
-	}
-
-	return smithyendpoints.Endpoint{
-		URI: *u,
-	}, nil
-}
-
 // createBucketIfNotExists creates the bucket if it doesn't exist
 func (b *Backend) createBucketIfNotExists(ctx context.Context) error {
 	// Check if bucket exists
@@ -156,9 +145,13 @@ func (b *Backend) createBucketIfNotExists(ctx context.Context) error {
 		return nil
 	}
 
-	// Check if error is "bucket not found"
+	// Check if error indicates bucket doesn't exist (handle multiple error types for MinIO compatibility)
 	var notFound *types.NotFound
-	if !errors.As(err, &notFound) {
+	var noSuchBucket *types.NoSuchBucket
+
+	if !errors.As(err, &notFound) && !errors.As(err, &noSuchBucket) &&
+		!strings.Contains(err.Error(), "BadRequest") &&
+		!strings.Contains(err.Error(), "NoSuchBucket") {
 		return fmt.Errorf("failed to check bucket: %w", err)
 	}
 
@@ -176,6 +169,11 @@ func (b *Backend) createBucketIfNotExists(ctx context.Context) error {
 
 	_, err = b.client.CreateBucket(ctx, createInput)
 	if err != nil {
+		// Handle bucket already exists gracefully
+		if strings.Contains(err.Error(), "BucketAlreadyExists") ||
+			strings.Contains(err.Error(), "BucketAlreadyOwnedByYou") {
+			return nil
+		}
 		return fmt.Errorf("failed to create bucket: %w", err)
 	}
 
