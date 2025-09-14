@@ -94,6 +94,7 @@ CREATE INDEX IF NOT EXISTS idx_content_derived_variant ON content_derived(varian
 
 
 -- Triggers to maintain updated_at
+-- +goose StatementBegin
 CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -101,6 +102,7 @@ BEGIN
     RETURN NEW;
 END;
 $$ language 'plpgsql';
+-- +goose StatementEnd
 
 CREATE TRIGGER update_content_updated_at BEFORE UPDATE ON content
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
