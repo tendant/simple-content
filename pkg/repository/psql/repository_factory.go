@@ -1,3 +1,5 @@
+// Deprecated: This module is deprecated and will be removed in a future version.
+// Please use the new module instead.
 package repository
 
 import "github.com/tendant/simple-content/internal/repository"
