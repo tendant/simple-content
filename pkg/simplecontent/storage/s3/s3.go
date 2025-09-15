@@ -132,13 +132,9 @@ func (b *Backend) createBucketIfNotExists(ctx context.Context) error {
 		return nil
 	}
 
-	// Check if error indicates bucket doesn't exist (handle multiple error types for MinIO compatibility)
+	// Check if error is "bucket not found"
 	var notFound *types.NotFound
-	var noSuchBucket *types.NoSuchBucket
-
-	if !errors.As(err, &notFound) && !errors.As(err, &noSuchBucket) &&
-		!strings.Contains(err.Error(), "BadRequest") &&
-		!strings.Contains(err.Error(), "NoSuchBucket") {
+	if !errors.As(err, &notFound) {
 		return fmt.Errorf("failed to check bucket: %w", err)
 	}
 
@@ -156,11 +152,6 @@ func (b *Backend) createBucketIfNotExists(ctx context.Context) error {
 
 	_, err = b.client.CreateBucket(ctx, createInput)
 	if err != nil {
-		// Handle bucket already exists gracefully
-		if strings.Contains(err.Error(), "BucketAlreadyExists") ||
-			strings.Contains(err.Error(), "BucketAlreadyOwnedByYou") {
-			return nil
-		}
 		return fmt.Errorf("failed to create bucket: %w", err)
 	}
 
