@@ -93,13 +93,11 @@ func New(config Config) (simplecontent.BlobStore, error) {
 		s3Options = append(s3Options, func(o *s3.Options) {
 			o.BaseEndpoint = aws.String(config.Endpoint)
 			o.UsePathStyle = config.UsePathStyle
-			// Note: Removed custom EndpointResolverV2 for better MinIO compatibility
 		})
 	}
 
 	client := s3.NewFromConfig(awsCfg, s3Options...)
 
-	// Create presign client
 	presignClient := s3.NewPresignClient(client)
 
 	backend := &Backend{
