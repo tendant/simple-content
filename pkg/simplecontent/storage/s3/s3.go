@@ -19,15 +19,14 @@ import (
 
 // Config options for the S3 backend
 type Config struct {
-	Region           string // AWS region
-	Bucket           string // S3 bucket name
-	AccessKeyID      string // AWS access key ID
-	SecretAccessKey  string // AWS secret access key
-	Endpoint         string // Optional custom endpoint for S3-compatible services
-	ExternalEndpoint string // External endpoint for presigned URLs (e.g., for nginx proxy)
-	UseSSL           bool   // Use SSL for connections (default: true)
-	UsePathStyle     bool   // Use path-style addressing (default: false)
-	PresignDuration  int    // Duration in seconds for presigned URLs (default: 3600)
+	Region          string // AWS region
+	Bucket          string // S3 bucket name
+	AccessKeyID     string // AWS access key ID
+	SecretAccessKey string // AWS secret access key
+	Endpoint        string // Optional custom endpoint for S3-compatible services
+	UseSSL          bool   // Use SSL for connections (default: true)
+	UsePathStyle    bool   // Use path-style addressing (default: false)
+	PresignDuration int    // Duration in seconds for presigned URLs (default: 3600)
 
 	// Server-side encryption options
 	EnableSSE    bool   // Enable server-side encryption
@@ -100,20 +99,8 @@ func New(config Config) (simplecontent.BlobStore, error) {
 
 	client := s3.NewFromConfig(awsCfg, s3Options...)
 
-	// Create separate presign client with external endpoint if configured
-	var presignClient *s3.PresignClient
-	if config.ExternalEndpoint != "" {
-		// Create separate S3 client for presigning with external endpoint
-		var presignS3Options []func(*s3.Options)
-		presignS3Options = append(presignS3Options, func(o *s3.Options) {
-			o.BaseEndpoint = aws.String(config.ExternalEndpoint)
-			o.UsePathStyle = config.UsePathStyle
-		})
-		presignS3Client := s3.NewFromConfig(awsCfg, presignS3Options...)
-		presignClient = s3.NewPresignClient(presignS3Client)
-	} else {
-		presignClient = s3.NewPresignClient(client)
-	}
+	// Create presign client
+	presignClient := s3.NewPresignClient(client)
 
 	backend := &Backend{
 		client:          client,
