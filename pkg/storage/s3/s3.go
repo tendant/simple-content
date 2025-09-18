@@ -1,3 +1,5 @@
+// Deprecated: This service is deprecated and will be removed in a future version.
+// Please use the new module instead.
 package s3
 
 import (
