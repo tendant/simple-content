@@ -9,3 +9,4 @@ Guidance:
 - Use these only for existing deployments. New greenfield DBs should use `migrations/postgres` after the schema exists.
 - Always back up your database before applying.
 - Adjust schema qualifiers if you are not using the `content` schema.
+- Configure your SQL session or connection string to set `search_path` to the target schema before running the snippets or goose migrations.

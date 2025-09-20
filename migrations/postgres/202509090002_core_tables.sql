@@ -1,6 +1,5 @@
 -- +goose Up
--- Use the dedicated schema. To customize, run previous step with your schema name and set search_path before applying.
-SET search_path TO content;
+-- Migrations run in whichever schema is selected by the connection search_path.
 
 -- Enable UUID extension
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
@@ -120,7 +119,6 @@ CREATE TRIGGER update_content_derived_updated_at BEFORE UPDATE ON content_derive
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- +goose Down
-SET search_path TO content;
 DROP TRIGGER IF EXISTS update_content_derived_updated_at ON content_derived;
 DROP TRIGGER IF EXISTS update_object_metadata_updated_at ON object_metadata;
 DROP TRIGGER IF EXISTS update_object_updated_at ON object;

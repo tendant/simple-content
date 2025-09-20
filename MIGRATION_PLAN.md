@@ -21,6 +21,7 @@ This document outlines how to migrate from the legacy packages (pkg/service, pkg
 - Postgres 13+ (recommended); MinIO/AWS if using s3 storage
 - Ability to run goose migrations for greenfield DBs; for existing DBs, apply the manual SQL below
 - Target database schema (default: `content`) created ahead of goose migrations; see `migrations/manual/000_create_schema.sql`.
+- Database connections that run migrations should set the `search_path` to the target schema (e.g., append `?search_path=content` to the connection string) instead of relying on the SQL migrations to change it.
 
 ## Database Alignment (manual)
 
