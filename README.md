@@ -39,6 +39,11 @@ go build -o simple-content ./cmd/server
 
 The server will start on port 8080 by default. You can change the port by setting the `PORT` environment variable.
 
+### Database schema
+
+- Postgres deployments default to using a dedicated `content` schema. Provision it ahead of goose migrations (see `migrations/manual/000_create_schema.sql` for a helper snippet).
+- Configure the database connection that runs migrations to set `search_path` to the target schema (for example, append `?search_path=content` to the Postgres connection string).
+
 ## Docker Deployment
 
 For a complete development environment with PostgreSQL and MinIO, you can use Docker Compose:
