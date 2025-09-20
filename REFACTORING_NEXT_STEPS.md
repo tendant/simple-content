@@ -93,3 +93,29 @@ Track completion of the refactor centered on `pkg/simplecontent`, finishing the 
 - Unit tests cover memory/fs/s3 paths; integration tests pass locally via compose
 - README and refactoring docs updated; CI enforces quality gates
 - Legacy packages clearly deprecated or removed
+
+
+## FIXME
+    
+• Edited pkg/simplecontent/repo/postgres/repository.go (+9 -7)
+    368         query := `
+    369   -        INSERT INTO content_derived (
+    370   -            parent_id, content_id, variant, derivation_params,
+    371   -            processing_metadata, created_at, updated_at, status
+    372   -        ) VALUES ($1, $2, $3, $4, $5, NOW(), NOW(), 'created')
+    373   -        RETURNING parent_id, content_id, variant as derivation_type, derivation_params,
+    374   -                  processing_metadata, created_at, updated_at, status`
+    369   +             INSERT INTO content_derived (
+    370   +                 parent_id, content_id, variant, derivation_type, derivation_params,
+    371   +                 processing_metadata, created_at, updated_at, status
+    372   +             ) VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW(), 'created')
+    373   +             RETURNING parent_id, content_id, variant as derivation_type, derivation_params,
+    374   +                       processing_metadata, created_at, updated_at, status`
+    375
+    376         var derived simplecontent.DerivedContent
+    377   +     derivationType := simplecontent.DerivationTypeFromVariant(params.DerivationType)
+    378   +
+    379         err := r.db.QueryRow(ctx, query,
+    378   -             params.ParentID, params.DerivedContentID, params.DerivationType,
+    380   +             params.ParentID, params.DerivedContentID, params.DerivationType, derivationType,
+    381                 params.DerivationParams, params.ProcessingMetadata).Scan(

@@ -366,16 +366,18 @@ func (r *Repository) CreateDerivedContentRelationship(ctx context.Context, param
 	// This would need a proper derived_content table implementation
 	// For now, return a basic implementation
 	query := `
-        INSERT INTO content_derived (
-            parent_id, content_id, variant, derivation_params,
-            processing_metadata, created_at, updated_at, status
-        ) VALUES ($1, $2, $3, $4, $5, NOW(), NOW(), 'created')
-        RETURNING parent_id, content_id, variant as derivation_type, derivation_params,
-                  processing_metadata, created_at, updated_at, status`
+	        INSERT INTO content_derived (
+	            parent_id, content_id, variant, derivation_type, derivation_params,
+	            processing_metadata, created_at, updated_at, status
+	        ) VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW(), 'created')
+	        RETURNING parent_id, content_id, variant as derivation_type, derivation_params,
+	                  processing_metadata, created_at, updated_at, status`
 
 	var derived simplecontent.DerivedContent
+	derivationType := simplecontent.DerivationTypeFromVariant(params.DerivationType)
+
 	err := r.db.QueryRow(ctx, query,
-		params.ParentID, params.DerivedContentID, params.DerivationType,
+		params.ParentID, params.DerivedContentID, params.DerivationType, derivationType,
 		params.DerivationParams, params.ProcessingMetadata).Scan(
 		&derived.ParentID, &derived.ContentID, &derived.DerivationType,
 		&derived.DerivationParams, &derived.ProcessingMetadata,
