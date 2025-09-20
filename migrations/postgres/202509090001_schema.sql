@@ -1,7 +1,6 @@
 -- +goose Up
--- Create dedicated schema for content-related tables (customize as needed)
-CREATE SCHEMA IF NOT EXISTS content;
+-- Schema creation is now managed outside of goose migrations.
+-- See migrations/manual/000_create_schema.sql for an example helper snippet.
 
 -- +goose Down
-DROP SCHEMA IF EXISTS content CASCADE;
-
+-- No-op. Schema removal is handled outside of goose migrations.

@@ -20,8 +20,11 @@ This document outlines how to migrate from the legacy packages (pkg/service, pkg
 - Go 1.24+
 - Postgres 13+ (recommended); MinIO/AWS if using s3 storage
 - Ability to run goose migrations for greenfield DBs; for existing DBs, apply the manual SQL below
+- Target database schema (default: `content`) created ahead of goose migrations; see `migrations/manual/000_create_schema.sql`.
 
 ## Database Alignment (manual)
+
+For greenfield databases, create the application schema (or run `migrations/manual/000_create_schema.sql`) before executing goose migrations.
 
 For existing databases, apply the following SQL in the target schema (default: content). Adjust schema qualifiers as needed.
 
