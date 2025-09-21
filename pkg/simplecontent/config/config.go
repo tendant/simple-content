@@ -17,6 +17,48 @@ import (
 	s3storage "github.com/tendant/simple-content/pkg/simplecontent/storage/s3"
 )
 
+// Option applies configuration to a ServerConfig instance.
+type Option func(*ServerConfig) error
+
+// Load constructs a ServerConfig by applying the supplied options on top of library defaults.
+func Load(opts ...Option) (*ServerConfig, error) {
+	cfg := defaults()
+
+	for _, opt := range opts {
+		if opt == nil {
+			continue
+		}
+		if err := opt(&cfg); err != nil {
+			return nil, err
+		}
+	}
+
+	if err := cfg.Validate(); err != nil {
+		return nil, err
+	}
+
+	return &cfg, nil
+}
+
+func defaults() ServerConfig {
+	return ServerConfig{
+		Port:                  "8080",
+		Environment:           "development",
+		DatabaseType:          "memory",
+		DBSchema:              "content",
+		DefaultStorageBackend: "memory",
+		StorageBackends: []StorageBackendConfig{
+			{
+				Name:   "memory",
+				Type:   "memory",
+				Config: map[string]interface{}{},
+			},
+		},
+		EnableEventLogging: true,
+		EnablePreviews:     true,
+	}
+}
+
 // ServerConfig represents server configuration for the simple-content service
 type ServerConfig struct {
 	Port        string
