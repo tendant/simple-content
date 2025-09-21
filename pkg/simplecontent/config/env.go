@@ -21,7 +21,7 @@ func WithEnv(prefix string) Option {
 		if v, ok := lookupEnv(prefix, "DATABASE_TYPE"); ok && v != "" {
 			c.DatabaseType = v
 		}
-		if v, ok := lookupEnv(prefix, "CONTENT_DB_SCHEMA"); ok && v != "" {
+		if v, ok := lookupEnv(prefix, "DATABASE_SCHEMA"); ok && v != "" {
 			c.DBSchema = v
 		}
 		if v, ok := lookupEnv(prefix, "DEFAULT_STORAGE_BACKEND"); ok && v != "" {
