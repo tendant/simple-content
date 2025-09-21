@@ -1,32 +1,31 @@
 package config
 
 import (
-    "context"
-    "errors"
-    "fmt"
-    "os"
-    "strconv"
-    "time"
+	"context"
+	"errors"
+	"fmt"
+	"strconv"
+	"time"
 
-    "github.com/jackc/pgx/v5"
-    "github.com/jackc/pgx/v5/pgxpool"
-    "github.com/tendant/simple-content/pkg/simplecontent"
-    repopg "github.com/tendant/simple-content/pkg/simplecontent/repo/postgres"
-    "github.com/tendant/simple-content/pkg/simplecontent/repo/memory"
-    fsstorage "github.com/tendant/simple-content/pkg/simplecontent/storage/fs"
-    memorystorage "github.com/tendant/simple-content/pkg/simplecontent/storage/memory"
-    s3storage "github.com/tendant/simple-content/pkg/simplecontent/storage/s3"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/tendant/simple-content/pkg/simplecontent"
+	"github.com/tendant/simple-content/pkg/simplecontent/repo/memory"
+	repopg "github.com/tendant/simple-content/pkg/simplecontent/repo/postgres"
+	fsstorage "github.com/tendant/simple-content/pkg/simplecontent/storage/fs"
+	memorystorage "github.com/tendant/simple-content/pkg/simplecontent/storage/memory"
+	s3storage "github.com/tendant/simple-content/pkg/simplecontent/storage/s3"
 )
 
-// ServerConfig represents server configuration loaded from environment variables
+// ServerConfig represents server configuration for the simple-content service
 type ServerConfig struct {
-    Port        string
-    Environment string // development, production, testing
+	Port        string
+	Environment string // development, production, testing
 
-    // Database configuration
-    DatabaseURL  string
-    DatabaseType string // "memory", "postgres"
-    DBSchema     string // Postgres schema to use (default: content)
+	// Database configuration
+	DatabaseURL  string
+	DatabaseType string // "memory", "postgres"
+	DBSchema     string // Postgres schema to use (default: content)
 
 	// Storage configuration
 	DefaultStorageBackend string
@@ -42,34 +41,6 @@ type StorageBackendConfig struct {
 	Name   string
 	Type   string // "memory", "fs", "s3"
 	Config map[string]interface{}
-}
-
-// LoadServerConfig loads server configuration from environment variables
-func LoadServerConfig() (*ServerConfig, error) {
-    config := &ServerConfig{
-        Port:                  getEnv("PORT", "8080"),
-        Environment:           getEnv("ENVIRONMENT", "development"),
-        DatabaseURL:           getEnv("DATABASE_URL", ""),
-        DatabaseType:          getEnv("DATABASE_TYPE", "memory"),
-        DBSchema:              getEnv("CONTENT_DB_SCHEMA", "content"),
-        DefaultStorageBackend: getEnv("DEFAULT_STORAGE_BACKEND", "memory"),
-        EnableEventLogging:    getBoolEnv("ENABLE_EVENT_LOGGING", true),
-        EnablePreviews:        getBoolEnv("ENABLE_PREVIEWS", true),
-    }
-
-	// Load storage backends configuration
-	backendConfigs, err := loadStorageBackendConfigs()
-	if err != nil {
-		return nil, fmt.Errorf("failed to load storage backend configs: %w", err)
-	}
-	config.StorageBackends = backendConfigs
-
-	// Validate configuration
-	if err := config.Validate(); err != nil {
-		return nil, fmt.Errorf("invalid configuration: %w", err)
-	}
-
-	return config, nil
 }
 
 // Validate validates the server configuration
@@ -138,64 +109,64 @@ func (c *ServerConfig) BuildService() (simplecontent.Service, error) {
 
 // buildRepository creates a Repository based on the configuration
 func (c *ServerConfig) buildRepository() (simplecontent.Repository, error) {
-    switch c.DatabaseType {
-    case "memory":
-        return memory.New(), nil
-    case "postgres":
-        if c.DatabaseURL == "" {
-            return nil, errors.New("database_url is required for postgres")
-        }
-        cfg, err := pgxpool.ParseConfig(c.DatabaseURL)
-        if err != nil {
-            return nil, fmt.Errorf("failed to parse DATABASE_URL: %w", err)
-        }
-        // Optionally set search_path for the connection
-        schema := c.DBSchema
-        cfg.AfterConnect = func(ctx context.Context, conn *pgx.Conn) error {
-            if schema == "" {
-                return nil
-            }
-            // set search_path for this session
-            _, err := conn.Exec(ctx, fmt.Sprintf("SET search_path TO %s", schema))
-            return err
-        }
-        pool, err := pgxpool.NewWithConfig(context.Background(), cfg)
-        if err != nil {
-            return nil, fmt.Errorf("failed to create pgx pool: %w", err)
-        }
-        return repopg.NewWithPool(pool), nil
-    default:
-        return nil, fmt.Errorf("unsupported database type: %s", c.DatabaseType)
-    }
+	switch c.DatabaseType {
+	case "memory":
+		return memory.New(), nil
+	case "postgres":
+		if c.DatabaseURL == "" {
+			return nil, errors.New("database_url is required for postgres")
+		}
+		cfg, err := pgxpool.ParseConfig(c.DatabaseURL)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse DATABASE_URL: %w", err)
+		}
+		// Optionally set search_path for the connection
+		schema := c.DBSchema
+		cfg.AfterConnect = func(ctx context.Context, conn *pgx.Conn) error {
+			if schema == "" {
+				return nil
+			}
+			// set search_path for this session
+			_, err := conn.Exec(ctx, fmt.Sprintf("SET search_path TO %s", schema))
+			return err
+		}
+		pool, err := pgxpool.NewWithConfig(context.Background(), cfg)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create pgx pool: %w", err)
+		}
+		return repopg.NewWithPool(pool), nil
+	default:
+		return nil, fmt.Errorf("unsupported database type: %s", c.DatabaseType)
+	}
 }
 
 // PingPostgres verifies connectivity to Postgres and optionally sets search_path for the session.
 // It fails if the schema (when provided) does not exist.
 func PingPostgres(databaseURL, schema string) error {
-    if databaseURL == "" {
-        return errors.New("database_url is required")
-    }
-    cfg, err := pgxpool.ParseConfig(databaseURL)
-    if err != nil {
-        return fmt.Errorf("failed to parse DATABASE_URL: %w", err)
-    }
-    if schema != "" {
-        cfg.AfterConnect = func(ctx context.Context, conn *pgx.Conn) error {
-            _, err := conn.Exec(ctx, fmt.Sprintf("SET search_path TO %s", schema))
-            return err
-        }
-    }
-    pool, err := pgxpool.NewWithConfig(context.Background(), cfg)
-    if err != nil {
-        return fmt.Errorf("failed to create pgx pool: %w", err)
-    }
-    defer pool.Close()
-    ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-    defer cancel()
-    if err := pool.Ping(ctx); err != nil {
-        return fmt.Errorf("database ping failed: %w", err)
-    }
-    return nil
+	if databaseURL == "" {
+		return errors.New("database_url is required")
+	}
+	cfg, err := pgxpool.ParseConfig(databaseURL)
+	if err != nil {
+		return fmt.Errorf("failed to parse DATABASE_URL: %w", err)
+	}
+	if schema != "" {
+		cfg.AfterConnect = func(ctx context.Context, conn *pgx.Conn) error {
+			_, err := conn.Exec(ctx, fmt.Sprintf("SET search_path TO %s", schema))
+			return err
+		}
+	}
+	pool, err := pgxpool.NewWithConfig(context.Background(), cfg)
+	if err != nil {
+		return fmt.Errorf("failed to create pgx pool: %w", err)
+	}
+	defer pool.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := pool.Ping(ctx); err != nil {
+		return fmt.Errorf("database ping failed: %w", err)
+	}
+	return nil
 }
 
 // buildStorageBackend creates a BlobStore based on the backend configuration
@@ -231,90 +202,6 @@ func (c *ServerConfig) buildStorageBackend(config StorageBackendConfig) (simplec
 	default:
 		return nil, fmt.Errorf("unsupported storage backend type: %s", config.Type)
 	}
-}
-
-// loadStorageBackendConfigs loads storage backend configurations from environment variables
-func loadStorageBackendConfigs() ([]StorageBackendConfig, error) {
-	var configs []StorageBackendConfig
-
-	// Look for STORAGE_BACKENDS environment variable (JSON format)
-	backendStr := os.Getenv("STORAGE_BACKENDS")
-	if backendStr != "" {
-		// In a real implementation, you'd parse JSON here
-		// For now, we'll provide a simple default configuration
-	}
-
-	// Provide default configurations based on environment variables
-	configs = append(configs, StorageBackendConfig{
-		Name:   "memory",
-		Type:   "memory",
-		Config: map[string]interface{}{},
-	})
-
-	// Add filesystem backend if configured
-	fsBaseDir := os.Getenv("FS_BASE_DIR")
-	if fsBaseDir != "" {
-		configs = append(configs, StorageBackendConfig{
-			Name: "fs",
-			Type: "fs",
-			Config: map[string]interface{}{
-				"base_dir":   fsBaseDir,
-				"url_prefix": os.Getenv("FS_URL_PREFIX"),
-			},
-		})
-	}
-
-	// Add S3 backend if configured
-	s3Bucket := os.Getenv("S3_BUCKET")
-	if s3Bucket != "" {
-		configs = append(configs, StorageBackendConfig{
-			Name: "s3",
-			Type: "s3",
-			Config: map[string]interface{}{
-				"region":                     os.Getenv("S3_REGION"),
-				"bucket":                     s3Bucket,
-				"access_key_id":              os.Getenv("S3_ACCESS_KEY_ID"),
-				"secret_access_key":          os.Getenv("S3_SECRET_ACCESS_KEY"),
-				"endpoint":                   os.Getenv("S3_ENDPOINT"),
-				"use_ssl":                    getBoolEnv("S3_USE_SSL", true),
-				"use_path_style":             getBoolEnv("S3_USE_PATH_STYLE", false),
-				"presign_duration":           getIntEnv("S3_PRESIGN_DURATION", 3600),
-				"enable_sse":                 getBoolEnv("S3_ENABLE_SSE", false),
-				"sse_algorithm":              os.Getenv("S3_SSE_ALGORITHM"),
-				"sse_kms_key_id":             os.Getenv("S3_SSE_KMS_KEY_ID"),
-				"create_bucket_if_not_exist": getBoolEnv("S3_CREATE_BUCKET_IF_NOT_EXIST", false),
-			},
-		})
-	}
-
-	return configs, nil
-}
-
-// Helper functions for configuration parsing
-
-func getEnv(key, defaultValue string) string {
-	if value := os.Getenv(key); value != "" {
-		return value
-	}
-	return defaultValue
-}
-
-func getBoolEnv(key string, defaultValue bool) bool {
-	if value := os.Getenv(key); value != "" {
-		if b, err := strconv.ParseBool(value); err == nil {
-			return b
-		}
-	}
-	return defaultValue
-}
-
-func getIntEnv(key string, defaultValue int) int {
-	if value := os.Getenv(key); value != "" {
-		if i, err := strconv.Atoi(value); err == nil {
-			return i
-		}
-	}
-	return defaultValue
 }
 
 func getString(config map[string]interface{}, key string, defaultValue string) string {

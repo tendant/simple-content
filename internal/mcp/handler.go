@@ -124,7 +124,7 @@ func (h *Handler) handleUploadContent(ctx context.Context, request mcp.CallToolR
 		return nil, fmt.Errorf("failed to write data to file: %v", err)
 	}
 
-	slog.Info("Successfully wrote decoded data to %s", outputFilePath)
+	slog.Info("Successfully wrote decoded data", slog.String("path", outputFilePath))
 
 	// Create content
 	contentParams := service.CreateContentParams{
@@ -214,7 +214,7 @@ func (h *Handler) handleUploadContent(ctx context.Context, request mcp.CallToolR
 		return nil, fmt.Errorf("failed to get download URL: %v", err)
 	}
 
-	slog.Info("Created content with ID: %s", content.ID)
+	slog.Info("Created content", slog.Any("content_id", content.ID))
 
 	// Delete the temporary file after successful upload
 	err = os.Remove(outputFilePath)
