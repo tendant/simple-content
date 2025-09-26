@@ -74,11 +74,8 @@ type EnhancedDerivedContentService struct {
 
 // NewEnhancedDerivedContentService creates a service with enhanced filtering
 func NewEnhancedDerivedContentService() (*EnhancedDerivedContentService, error) {
-	// Use memory storage for demo
-	cfg, err := config.Load(
-		config.WithDatabaseType("memory"),
-		config.WithStorageBackend("memory", map[string]interface{}{}),
-	)
+	// Use memory storage for demo - the default config already sets up memory storage
+	cfg, err := config.Load()
 	if err != nil {
 		return nil, fmt.Errorf("failed to create config: %w", err)
 	}

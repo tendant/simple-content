@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"image"
+	"image/color"
 	"image/jpeg"
 	"image/png"
 	"io"
@@ -16,7 +17,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/nfnt/resize"
 	"github.com/tendant/simple-content/pkg/simplecontent"
-	"github.com/tendant/simple-content/pkg/simplecontent/config"
 	fsstorage "github.com/tendant/simple-content/pkg/simplecontent/storage/fs"
 	memoryrepo "github.com/tendant/simple-content/pkg/simplecontent/repo/memory"
 )
@@ -225,13 +225,13 @@ func (ts *ThumbnailService) generateThumbnail(ctx context.Context, parentContent
 		Version:            1,
 	})
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to create thumbnail object: %w", err)
+		return nil, fmt.Errorf("failed to create thumbnail object: %w", err)
 	}
 
 	// Upload thumbnail data
 	err = ts.svc.UploadObject(ctx, thumbnailObject.ID, bytes.NewReader(thumbnailData))
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to upload thumbnail: %w", err)
+		return nil, fmt.Errorf("failed to upload thumbnail: %w", err)
 	}
 
 	// Set thumbnail metadata
@@ -248,7 +248,7 @@ func (ts *ThumbnailService) generateThumbnail(ctx context.Context, parentContent
 		},
 	})
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to set thumbnail metadata: %w", err)
+		return nil, fmt.Errorf("failed to set thumbnail metadata: %w", err)
 	}
 
 	return &ThumbnailInfo{
@@ -462,7 +462,7 @@ func createSampleImage(path string) error {
 			r := uint8(x * 255 / 400)
 			g := uint8(y * 255 / 300)
 			b := uint8((x + y) * 255 / 700)
-			img.Set(x, y, image.NRGBA{R: r, G: g, B: b, A: 255})
+			img.Set(x, y, color.NRGBA{R: r, G: g, B: b, A: 255})
 		}
 	}
 

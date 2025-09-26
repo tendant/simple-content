@@ -1,15 +1,12 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"log"
 	"net/http"
 	"os"
-	"path/filepath"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -28,20 +25,31 @@ type DirectUploadService struct {
 func NewDirectUploadService() (*DirectUploadService, error) {
 	// For this example, we'll use MinIO (S3-compatible) running locally
 	// You can start MinIO with: docker run -p 9000:9000 -p 9001:9001 minio/minio server /data --console-address ":9001"
-	cfg, err := config.Load(
-		config.WithDatabaseType("memory"),
-		config.WithStorageBackend("s3", map[string]interface{}{
-			"region":                     "us-east-1",
-			"bucket":                     "direct-upload-demo",
-			"access_key_id":              getEnv("MINIO_ACCESS_KEY", "minioadmin"),
-			"secret_access_key":          getEnv("MINIO_SECRET_KEY", "minioadmin"),
-			"endpoint":                   getEnv("MINIO_ENDPOINT", "http://localhost:9000"),
-			"use_ssl":                    false,
-			"use_path_style":             true, // Required for MinIO
-			"presign_duration":           1800, // 30 minutes
-			"create_bucket_if_not_exist": true,
-		}),
-	)
+
+	// Create config with S3 storage backend
+	cfg := &config.ServerConfig{
+		DatabaseType:          "memory",
+		DefaultStorageBackend: "s3",
+		StorageBackends: []config.StorageBackendConfig{
+			{
+				Name: "s3",
+				Type: "s3",
+				Config: map[string]interface{}{
+					"region":                     "us-east-1",
+					"bucket":                     "direct-upload-demo",
+					"access_key_id":              getEnv("MINIO_ACCESS_KEY", "minioadmin"),
+					"secret_access_key":          getEnv("MINIO_SECRET_KEY", "minioadmin"),
+					"endpoint":                   getEnv("MINIO_ENDPOINT", "http://localhost:9000"),
+					"use_ssl":                    false,
+					"use_path_style":             true, // Required for MinIO
+					"presign_duration":           1800, // 30 minutes
+					"create_bucket_if_not_exist": true,
+				},
+			},
+		},
+	}
+
+	err := cfg.Validate()
 	if err != nil {
 		return nil, fmt.Errorf("failed to create config: %w", err)
 	}
