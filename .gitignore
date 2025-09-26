@@ -35,3 +35,4 @@ build/
 tests/data/
 
 
+.claude/
