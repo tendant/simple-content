@@ -3,6 +3,7 @@ package simplecontent
 import (
 	"context"
 	"io"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -48,4 +49,18 @@ type Service interface {
     // Derived content relationship helpers
     GetDerivedRelationshipByContentID(ctx context.Context, contentID uuid.UUID) (*DerivedContent, error)
     ListDerivedByParent(ctx context.Context, parentID uuid.UUID) ([]*DerivedContent, error)
+
+    // NEW: Enhanced filtering methods with URL support
+    ListDerivedContentWithFilters(ctx context.Context, params ListDerivedContentParams) ([]*DerivedContent, error)
+    CountDerivedContent(ctx context.Context, params ListDerivedContentParams) (int64, error)
+
+    // NEW: URL-enabled convenience methods
+    ListDerivedByTypeAndVariant(ctx context.Context, parentID uuid.UUID, derivationType, variant string) ([]*DerivedContent, error)
+    ListDerivedByVariants(ctx context.Context, parentID uuid.UUID, variants []string) ([]*DerivedContent, error)
+    GetThumbnailsBySize(ctx context.Context, parentID uuid.UUID, sizes []string) ([]*DerivedContent, error)
+    GetRecentDerived(ctx context.Context, parentID uuid.UUID, since time.Time) ([]*DerivedContent, error)
+
+    // NEW: URL-specific methods
+    ListDerivedContentWithURLs(ctx context.Context, params ListDerivedContentParams) ([]*DerivedContent, error)
+    GetDerivedContentWithURLs(ctx context.Context, contentID uuid.UUID) (*DerivedContent, error)
 }

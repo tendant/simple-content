@@ -69,17 +69,30 @@ type Content struct {
 }
 
 // DerivedContent represents content derived from a parent content.
-// DerivationType here represents the specific variant (e.g., "thumbnail_256").
+// DerivationType here represents the category (e.g., "thumbnail", "preview").
+// Variant represents the specific variant (e.g., "thumbnail_256").
 type DerivedContent struct {
-	ParentID           uuid.UUID              `json:"parent_id"`
-	ContentID          uuid.UUID              `json:"content_id"`
-	DerivationType     string                 `json:"derivation_type"`
-	DerivationParams   map[string]interface{} `json:"derivation_params"`
-	ProcessingMetadata map[string]interface{} `json:"processing_metadata"`
-	CreatedAt          time.Time              `json:"created_at"`
-	UpdatedAt          time.Time              `json:"updated_at"`
-	DocumentType       string                 `json:"document_type"`
-	Status             string                 `json:"status"`
+	// Persisted fields
+	ParentID           uuid.UUID              `json:"parent_id" db:"parent_id"`
+	ContentID          uuid.UUID              `json:"content_id" db:"content_id"`
+	DerivationType     string                 `json:"derivation_type" db:"derivation_type"`
+	Variant            string                 `json:"variant" db:"variant"`                      // NEW: Specific variant (persisted)
+	DerivationParams   map[string]interface{} `json:"derivation_params" db:"derivation_params"`
+	ProcessingMetadata map[string]interface{} `json:"processing_metadata" db:"processing_metadata"`
+	CreatedAt          time.Time              `json:"created_at" db:"created_at"`
+	UpdatedAt          time.Time              `json:"updated_at" db:"updated_at"`
+	DocumentType       string                 `json:"document_type" db:"document_type"`
+	Status             string                 `json:"status" db:"status"`
+
+	// Computed fields (not persisted - populated by service layer)
+	DownloadURL        string                 `json:"download_url,omitempty" db:"-"`
+	PreviewURL         string                 `json:"preview_url,omitempty" db:"-"`
+	ThumbnailURL       string                 `json:"thumbnail_url,omitempty" db:"-"`
+
+	// Optional enhanced data (not persisted - populated on demand)
+	Objects            []*Object              `json:"objects,omitempty" db:"-"`
+	Metadata           *ContentMetadata       `json:"metadata,omitempty" db:"-"`
+	ParentContent      *Content               `json:"parent_content,omitempty" db:"-"`
 }
 
 // ContentMetadata represents metadata for a content

@@ -363,23 +363,20 @@ func (r *Repository) GetObjectMetadata(ctx context.Context, objectID uuid.UUID) 
 // Derived content operations (simplified implementations)
 
 func (r *Repository) CreateDerivedContentRelationship(ctx context.Context, params simplecontent.CreateDerivedContentParams) (*simplecontent.DerivedContent, error) {
-	// This would need a proper derived_content table implementation
-	// For now, return a basic implementation
 	query := `
 	        INSERT INTO content_derived (
-	            parent_id, content_id, variant, derivation_type, derivation_params,
+	            parent_id, content_id, derivation_type, variant, derivation_params,
 	            processing_metadata, created_at, updated_at, status
 	        ) VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW(), 'created')
-	        RETURNING parent_id, content_id, variant as derivation_type, derivation_params,
+	        RETURNING parent_id, content_id, derivation_type, variant, derivation_params,
 	                  processing_metadata, created_at, updated_at, status`
 
 	var derived simplecontent.DerivedContent
-	derivationType := simplecontent.DerivationTypeFromVariant(params.DerivationType)
 
 	err := r.db.QueryRow(ctx, query,
-		params.ParentID, params.DerivedContentID, params.DerivationType, derivationType,
+		params.ParentID, params.DerivedContentID, params.DerivationType, params.Variant,
 		params.DerivationParams, params.ProcessingMetadata).Scan(
-		&derived.ParentID, &derived.ContentID, &derived.DerivationType,
+		&derived.ParentID, &derived.ContentID, &derived.DerivationType, &derived.Variant,
 		&derived.DerivationParams, &derived.ProcessingMetadata,
 		&derived.CreatedAt, &derived.UpdatedAt, &derived.Status)
 
@@ -399,60 +396,31 @@ func (r *Repository) CreateDerivedContentRelationship(ctx context.Context, param
 }
 
 func (r *Repository) ListDerivedContent(ctx context.Context, params simplecontent.ListDerivedContentParams) ([]*simplecontent.DerivedContent, error) {
-	// Basic implementation - would need to be expanded based on actual table structure
-	query := `
-        SELECT parent_id, content_id, variant as derivation_type, derivation_params,
-               processing_metadata, created_at, updated_at, status
-        FROM content_derived WHERE 1=1`
-
-	var args []interface{}
-	argCount := 0
-
-	if params.ParentID != nil {
-		argCount++
-		query += fmt.Sprintf(" AND parent_id = $%d", argCount)
-		args = append(args, *params.ParentID)
-	}
-
-	if params.DerivationType != nil {
-		argCount++
-		query += fmt.Sprintf(" AND variant = $%d", argCount)
-		args = append(args, *params.DerivationType)
-	}
-
-	query += " ORDER BY created_at DESC"
-
-	if params.Limit != nil {
-		argCount++
-		query += fmt.Sprintf(" LIMIT $%d", argCount)
-		args = append(args, *params.Limit)
-	}
-
-	if params.Offset != nil {
-		argCount++
-		query += fmt.Sprintf(" OFFSET $%d", argCount)
-		args = append(args, *params.Offset)
-	}
+	query, args := r.buildEnhancedQuery(params)
 
 	rows, err := r.db.Query(ctx, query, args...)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to query derived content: %w", err)
 	}
 	defer rows.Close()
 
-	var derivedContents []*simplecontent.DerivedContent
+	var result []*simplecontent.DerivedContent
 	for rows.Next() {
-		var derived simplecontent.DerivedContent
-		if err := rows.Scan(
-			&derived.ParentID, &derived.ContentID, &derived.DerivationType,
+		derived := &simplecontent.DerivedContent{}
+		err := rows.Scan(
+			&derived.ParentID, &derived.ContentID,
+			&derived.DerivationType, &derived.Variant,
 			&derived.DerivationParams, &derived.ProcessingMetadata,
-			&derived.CreatedAt, &derived.UpdatedAt, &derived.Status); err != nil {
-			return nil, err
+			&derived.CreatedAt, &derived.UpdatedAt,
+			&derived.DocumentType, &derived.Status,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan derived content: %w", err)
 		}
-		derivedContents = append(derivedContents, &derived)
+		result = append(result, derived)
 	}
 
-	return derivedContents, nil
+	return result, nil
 }
 
 func (r *Repository) GetDerivedRelationshipByContentID(ctx context.Context, contentID uuid.UUID) (*simplecontent.DerivedContent, error) {
@@ -471,4 +439,125 @@ func (r *Repository) GetDerivedRelationshipByContentID(ctx context.Context, cont
 		return nil, r.handlePostgresError("get derived relationship by content id", err)
 	}
 	return &derived, nil
+}
+
+// buildEnhancedQuery builds a PostgreSQL query with enhanced filtering capabilities
+func (r *Repository) buildEnhancedQuery(params simplecontent.ListDerivedContentParams) (string, []interface{}) {
+	query := `
+		SELECT cd.parent_id, cd.content_id, cd.derivation_type, cd.variant, cd.derivation_params,
+			   cd.processing_metadata, cd.created_at, cd.updated_at,
+			   COALESCE(c.document_type, '') as document_type, cd.status
+		FROM content_derived cd
+		LEFT JOIN content c ON cd.content_id = c.id
+		WHERE cd.deleted_at IS NULL
+	`
+
+	var args []interface{}
+	argIndex := 1
+
+	// Backward compatible filtering
+	if params.ParentID != nil {
+		query += fmt.Sprintf(" AND cd.parent_id = $%d", argIndex)
+		args = append(args, *params.ParentID)
+		argIndex++
+	}
+	if params.DerivationType != nil {
+		query += fmt.Sprintf(" AND cd.derivation_type = $%d", argIndex)
+		args = append(args, *params.DerivationType)
+		argIndex++
+	}
+
+	// NEW: Enhanced filtering
+	if len(params.ParentIDs) > 0 {
+		placeholders := make([]string, len(params.ParentIDs))
+		for i, parentID := range params.ParentIDs {
+			placeholders[i] = fmt.Sprintf("$%d", argIndex)
+			args = append(args, parentID)
+			argIndex++
+		}
+		query += fmt.Sprintf(" AND cd.parent_id IN (%s)", strings.Join(placeholders, ","))
+	}
+
+	if len(params.DerivationTypes) > 0 {
+		placeholders := make([]string, len(params.DerivationTypes))
+		for i, dtype := range params.DerivationTypes {
+			placeholders[i] = fmt.Sprintf("$%d", argIndex)
+			args = append(args, dtype)
+			argIndex++
+		}
+		query += fmt.Sprintf(" AND cd.derivation_type IN (%s)", strings.Join(placeholders, ","))
+	}
+
+	if params.Variant != nil {
+		query += fmt.Sprintf(" AND cd.variant = $%d", argIndex)
+		args = append(args, *params.Variant)
+		argIndex++
+	}
+
+	if len(params.Variants) > 0 {
+		placeholders := make([]string, len(params.Variants))
+		for i, variant := range params.Variants {
+			placeholders[i] = fmt.Sprintf("$%d", argIndex)
+			args = append(args, variant)
+			argIndex++
+		}
+		query += fmt.Sprintf(" AND cd.variant IN (%s)", strings.Join(placeholders, ","))
+	}
+
+	// TypeVariantPair filtering
+	if len(params.TypeVariantPairs) > 0 {
+		conditions := make([]string, len(params.TypeVariantPairs))
+		for i, pair := range params.TypeVariantPairs {
+			conditions[i] = fmt.Sprintf("(cd.derivation_type = $%d AND cd.variant = $%d)", argIndex, argIndex+1)
+			args = append(args, pair.DerivationType, pair.Variant)
+			argIndex += 2
+		}
+		query += fmt.Sprintf(" AND (%s)", strings.Join(conditions, " OR "))
+	}
+
+	// Content status filtering
+	if params.ContentStatus != nil {
+		query += fmt.Sprintf(" AND cd.status = $%d", argIndex)
+		args = append(args, *params.ContentStatus)
+		argIndex++
+	}
+
+	// Temporal filtering
+	if params.CreatedAfter != nil {
+		query += fmt.Sprintf(" AND cd.created_at > $%d", argIndex)
+		args = append(args, *params.CreatedAfter)
+		argIndex++
+	}
+
+	if params.CreatedBefore != nil {
+		query += fmt.Sprintf(" AND cd.created_at < $%d", argIndex)
+		args = append(args, *params.CreatedBefore)
+		argIndex++
+	}
+
+	// Sorting
+	switch {
+	case params.SortBy == nil || *params.SortBy == "" || *params.SortBy == "created_at_desc":
+		query += " ORDER BY cd.created_at DESC"
+	case *params.SortBy == "created_at_asc":
+		query += " ORDER BY cd.created_at ASC"
+	case *params.SortBy == "type_variant":
+		query += " ORDER BY cd.derivation_type, cd.variant"
+	default:
+		query += " ORDER BY cd.created_at DESC"
+	}
+
+	// Pagination
+	if params.Limit != nil {
+		query += fmt.Sprintf(" LIMIT $%d", argIndex)
+		args = append(args, *params.Limit)
+		argIndex++
+	}
+	if params.Offset != nil {
+		query += fmt.Sprintf(" OFFSET $%d", argIndex)
+		args = append(args, *params.Offset)
+		argIndex++
+	}
+
+	return query, args
 }

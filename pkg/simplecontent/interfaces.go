@@ -118,14 +118,38 @@ type CreateDerivedContentParams struct {
 	ParentID           uuid.UUID
 	DerivedContentID   uuid.UUID
 	DerivationType     string
+	Variant            string                     // NEW: Specific variant (e.g., "thumbnail_256")
 	DerivationParams   map[string]interface{}
 	ProcessingMetadata map[string]interface{}
 }
 
 // ListDerivedContentParams contains parameters for listing derived content
 type ListDerivedContentParams struct {
-	ParentID       *uuid.UUID
-	DerivationType *string
-	Limit          *int
-	Offset         *int
+	// Existing fields (no breaking changes)
+	ParentID       *uuid.UUID `json:"parent_id,omitempty"`
+	DerivationType *string    `json:"derivation_type,omitempty"`
+	Limit          *int       `json:"limit,omitempty"`
+	Offset         *int       `json:"offset,omitempty"`
+
+	// NEW: Advanced filtering fields
+	ParentIDs        []uuid.UUID          `json:"parent_ids,omitempty"`
+	DerivationTypes  []string             `json:"derivation_types,omitempty"`
+	Variant          *string              `json:"variant,omitempty"`
+	Variants         []string             `json:"variants,omitempty"`
+	TypeVariantPairs []TypeVariantPair    `json:"type_variant_pairs,omitempty"`
+	ContentStatus    *string              `json:"content_status,omitempty"`
+	CreatedAfter     *time.Time           `json:"created_after,omitempty"`
+	CreatedBefore    *time.Time           `json:"created_before,omitempty"`
+	SortBy           *string              `json:"sort_by,omitempty"`
+
+	// NEW: URL and metadata inclusion options
+	IncludeURLs      bool                 `json:"include_urls"`
+	IncludeObjects   bool                 `json:"include_objects"`
+	IncludeMetadata  bool                 `json:"include_metadata"`
+}
+
+// TypeVariantPair represents a specific derivation type and variant combination
+type TypeVariantPair struct {
+	DerivationType string `json:"derivation_type"`
+	Variant        string `json:"variant"`
 }

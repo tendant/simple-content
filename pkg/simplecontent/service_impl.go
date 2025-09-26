@@ -159,7 +159,8 @@ func (s *service) CreateDerivedContent(ctx context.Context, req CreateDerivedCon
     _, err = s.repository.CreateDerivedContentRelationship(ctx, CreateDerivedContentParams{
         ParentID:           req.ParentID,
         DerivedContentID:   content.ID,
-        DerivationType:     string(NormalizeVariant(variant)),
+        DerivationType:     req.DerivationType,                 // Store the derivation type (e.g., "thumbnail")
+        Variant:            string(NormalizeVariant(variant)),  // Store the specific variant (e.g., "thumbnail_256")
         DerivationParams:   req.Metadata,
         ProcessingMetadata: nil,
     })
@@ -707,4 +708,205 @@ func (s *service) ListDerivedByParent(ctx context.Context, parentID uuid.UUID) (
         ParentID: &parentID,
     }
     return s.repository.ListDerivedContent(ctx, params)
+}
+
+// NEW: Enhanced filtering methods with URL support
+func (s *service) ListDerivedContentWithFilters(ctx context.Context, params ListDerivedContentParams) ([]*DerivedContent, error) {
+    // Get base derived content from repository
+    derived, err := s.repository.ListDerivedContent(ctx, params)
+    if err != nil {
+        return nil, err
+    }
+
+    // Enhance with URLs, objects, and metadata if requested
+    if params.IncludeURLs || params.IncludeObjects || params.IncludeMetadata {
+        for _, d := range derived {
+            if err := s.enhanceDerivedContent(ctx, d, params); err != nil {
+                // Log error but don't fail entire operation
+                // Note: In production, you might want to use a proper logger
+                fmt.Printf("Failed to enhance derived content %s: %v\n", d.ContentID, err)
+            }
+        }
+    }
+
+    return derived, nil
+}
+
+func (s *service) CountDerivedContent(ctx context.Context, params ListDerivedContentParams) (int64, error) {
+    // For counting, we temporarily remove limits and get all matching records
+    countParams := params
+    countParams.Limit = nil
+    countParams.Offset = nil
+
+    results, err := s.repository.ListDerivedContent(ctx, countParams)
+    if err != nil {
+        return 0, err
+    }
+
+    return int64(len(results)), nil
+}
+
+// NEW: URL-enabled convenience methods
+func (s *service) ListDerivedByTypeAndVariant(ctx context.Context, parentID uuid.UUID, derivationType, variant string) ([]*DerivedContent, error) {
+    params := ListDerivedContentParams{
+        ParentID:       &parentID,
+        DerivationType: &derivationType,
+        Variant:        &variant,
+    }
+    return s.ListDerivedContentWithFilters(ctx, params)
+}
+
+func (s *service) ListDerivedByVariants(ctx context.Context, parentID uuid.UUID, variants []string) ([]*DerivedContent, error) {
+    params := ListDerivedContentParams{
+        ParentID: &parentID,
+        Variants: variants,
+    }
+    return s.ListDerivedContentWithFilters(ctx, params)
+}
+
+func (s *service) GetThumbnailsBySize(ctx context.Context, parentID uuid.UUID, sizes []string) ([]*DerivedContent, error) {
+    variants := make([]string, len(sizes))
+    for i, size := range sizes {
+        variants[i] = fmt.Sprintf("thumbnail_%s", size)
+    }
+
+    params := ListDerivedContentParams{
+        ParentID:       &parentID,
+        DerivationType: stringPtr("thumbnail"),
+        Variants:       variants,
+        IncludeURLs:    true, // Always include URLs for thumbnails
+    }
+    return s.ListDerivedContentWithFilters(ctx, params)
+}
+
+func (s *service) GetRecentDerived(ctx context.Context, parentID uuid.UUID, since time.Time) ([]*DerivedContent, error) {
+    params := ListDerivedContentParams{
+        ParentID:     &parentID,
+        CreatedAfter: &since,
+        SortBy:       stringPtr("created_at_desc"),
+    }
+    return s.ListDerivedContentWithFilters(ctx, params)
+}
+
+// NEW: URL-specific methods
+func (s *service) ListDerivedContentWithURLs(ctx context.Context, params ListDerivedContentParams) ([]*DerivedContent, error) {
+    params.IncludeURLs = true
+    return s.ListDerivedContentWithFilters(ctx, params)
+}
+
+func (s *service) GetDerivedContentWithURLs(ctx context.Context, contentID uuid.UUID) (*DerivedContent, error) {
+    // Get the derived content relationship
+    derived, err := s.repository.GetDerivedRelationshipByContentID(ctx, contentID)
+    if err != nil {
+        return nil, err
+    }
+
+    // Enhance with URLs
+    params := ListDerivedContentParams{IncludeURLs: true}
+    if err := s.enhanceDerivedContent(ctx, derived, params); err != nil {
+        return nil, fmt.Errorf("failed to enhance derived content with URLs: %w", err)
+    }
+
+    return derived, nil
+}
+
+// Helper methods for enhancement
+
+func (s *service) enhanceDerivedContent(ctx context.Context, derived *DerivedContent, params ListDerivedContentParams) error {
+    // Note: Variant is now persisted, no need to extract it
+
+    // Include objects if requested
+    if params.IncludeObjects {
+        objects, err := s.repository.GetObjectsByContentID(ctx, derived.ContentID)
+        if err == nil {
+            derived.Objects = objects
+        }
+    }
+
+    // Include metadata if requested
+    if params.IncludeMetadata {
+        metadata, err := s.repository.GetContentMetadata(ctx, derived.ContentID)
+        if err == nil {
+            derived.Metadata = metadata
+        }
+    }
+
+    // Include URLs if requested
+    if params.IncludeURLs {
+        if err := s.populateURLs(ctx, derived); err != nil {
+            return err
+        }
+    }
+
+    return nil
+}
+
+func (s *service) populateURLs(ctx context.Context, derived *DerivedContent) error {
+    // Get objects for this content (use cached objects if already loaded)
+    var objects []*Object
+    if len(derived.Objects) > 0 {
+        objects = derived.Objects
+    } else {
+        var err error
+        objects, err = s.repository.GetObjectsByContentID(ctx, derived.ContentID)
+        if err != nil || len(objects) == 0 {
+            return err
+        }
+    }
+
+    // Use first object (usually there's only one per derived content)
+    obj := objects[0]
+
+    // Generate URLs
+    if downloadURL, err := s.GetDownloadURL(ctx, obj.ID); err == nil {
+        derived.DownloadURL = downloadURL
+    }
+
+    if previewURL, err := s.GetPreviewURL(ctx, obj.ID); err == nil {
+        derived.PreviewURL = previewURL
+    }
+
+    // For thumbnails, use preview URL as thumbnail URL
+    if derived.DerivationType == "thumbnail" {
+        derived.ThumbnailURL = derived.PreviewURL
+    }
+
+    return nil
+}
+
+func (s *service) extractVariant(derived *DerivedContent) string {
+    // Strategy 1: Use persisted Variant field (NEW - highest priority)
+    if derived.Variant != "" {
+        return derived.Variant
+    }
+
+    // Strategy 2: ProcessingMetadata (backward compatibility)
+    if variant, exists := derived.ProcessingMetadata["variant"]; exists {
+        if variantStr, ok := variant.(string); ok {
+            return variantStr
+        }
+    }
+
+    // Strategy 3: DerivationParams (backward compatibility)
+    if variant, exists := derived.DerivationParams["variant"]; exists {
+        if variantStr, ok := variant.(string); ok {
+            return variantStr
+        }
+    }
+
+    // Strategy 4: Parse DerivationType (legacy support)
+    if derived.DerivationType != "" {
+        // If derivation type contains underscore, assume it includes variant
+        if derived.DerivationType != "thumbnail" && derived.DerivationType != "preview" && derived.DerivationType != "transcode" {
+            return derived.DerivationType
+        }
+    }
+
+    // Strategy 5: Fallback to derivation type
+    return derived.DerivationType
+}
+
+// Helper functions for pointer creation
+func stringPtr(s string) *string {
+    return &s
 }

@@ -336,6 +336,7 @@ func (r *Repository) CreateDerivedContentRelationship(ctx context.Context, param
         ParentID:           params.ParentID,
         ContentID:          params.DerivedContentID,
         DerivationType:     params.DerivationType,
+        Variant:            params.Variant,                     // NEW: Store variant
         DerivationParams:   params.DerivationParams,
         ProcessingMetadata: params.ProcessingMetadata,
         CreatedAt:          now,
@@ -353,42 +354,21 @@ func (r *Repository) CreateDerivedContentRelationship(ctx context.Context, param
 func (r *Repository) ListDerivedContent(ctx context.Context, params simplecontent.ListDerivedContentParams) ([]*simplecontent.DerivedContent, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	
+
 	var result []*simplecontent.DerivedContent
 	for _, derived := range r.derivedContents {
-		match := true
-		
-		if params.ParentID != nil && derived.ParentID != *params.ParentID {
-			match = false
-		}
-		
-		if params.DerivationType != nil && derived.DerivationType != *params.DerivationType {
-			match = false
-		}
-		
-		if match {
+		if r.matchesEnhancedFilters(derived, params) {
 			derivedCopy := *derived
 			result = append(result, &derivedCopy)
 		}
 	}
-	
-	// Sort by created_at descending
-	sort.Slice(result, func(i, j int) bool {
-		return result[i].CreatedAt.After(result[j].CreatedAt)
-	})
-	
-	// Apply limit and offset
-	if params.Offset != nil && *params.Offset > 0 {
-		if *params.Offset >= len(result) {
-			return []*simplecontent.DerivedContent{}, nil
-		}
-		result = result[*params.Offset:]
-	}
-	
-	if params.Limit != nil && *params.Limit > 0 && *params.Limit < len(result) {
-		result = result[:*params.Limit]
-	}
-	
+
+	// Apply sorting
+	r.sortDerivedContent(result, params)
+
+	// Apply pagination
+	result = r.paginateDerivedContent(result, params)
+
 	return result, nil
 }
 
@@ -402,4 +382,177 @@ func (r *Repository) GetDerivedRelationshipByContentID(ctx context.Context, cont
     }
     copy := *dc
     return &copy, nil
+}
+
+// Enhanced filtering logic for derived content
+func (r *Repository) matchesEnhancedFilters(derived *simplecontent.DerivedContent, params simplecontent.ListDerivedContentParams) bool {
+	// Existing logic for backward compatibility
+	if params.ParentID != nil && derived.ParentID != *params.ParentID {
+		return false
+	}
+	if params.DerivationType != nil && derived.DerivationType != *params.DerivationType {
+		return false
+	}
+
+	// NEW: Enhanced filtering logic
+	if len(params.ParentIDs) > 0 {
+		found := false
+		for _, id := range params.ParentIDs {
+			if id == derived.ParentID {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return false
+		}
+	}
+
+	if len(params.DerivationTypes) > 0 {
+		found := false
+		for _, dtype := range params.DerivationTypes {
+			if dtype == derived.DerivationType {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return false
+		}
+	}
+
+	// Variant filtering - new capability
+	actualVariant := r.extractVariant(derived)
+	if params.Variant != nil && actualVariant != *params.Variant {
+		return false
+	}
+
+	if len(params.Variants) > 0 {
+		found := false
+		for _, variant := range params.Variants {
+			if variant == actualVariant {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return false
+		}
+	}
+
+	// Type+Variant pair filtering
+	if len(params.TypeVariantPairs) > 0 {
+		found := false
+		for _, pair := range params.TypeVariantPairs {
+			if pair.DerivationType == derived.DerivationType && pair.Variant == actualVariant {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return false
+		}
+	}
+
+	// Content status filtering
+	if params.ContentStatus != nil && derived.Status != *params.ContentStatus {
+		return false
+	}
+
+	// Temporal filtering
+	if params.CreatedAfter != nil && derived.CreatedAt.Before(*params.CreatedAfter) {
+		return false
+	}
+	if params.CreatedBefore != nil && derived.CreatedAt.After(*params.CreatedBefore) {
+		return false
+	}
+
+	return true
+}
+
+// extractVariant extracts variant from derived content using multiple strategies
+func (r *Repository) extractVariant(derived *simplecontent.DerivedContent) string {
+	// Strategy 1: Direct Variant field (preferred - persisted data)
+	if derived.Variant != "" {
+		return derived.Variant
+	}
+
+	// Strategy 2: ProcessingMetadata (fallback)
+	if variant, exists := derived.ProcessingMetadata["variant"]; exists {
+		if variantStr, ok := variant.(string); ok {
+			return variantStr
+		}
+	}
+
+	// Strategy 3: DerivationParams (fallback)
+	if variant, exists := derived.DerivationParams["variant"]; exists {
+		if variantStr, ok := variant.(string); ok {
+			return variantStr
+		}
+	}
+
+	// Strategy 4: Parse DerivationType (e.g., "thumbnail_256" -> "thumbnail_256")
+	if derived.DerivationType != "" && (len(derived.DerivationType) > 0) {
+		// If derivation type contains underscore, assume it includes variant
+		if derived.DerivationType != "thumbnail" && derived.DerivationType != "preview" && derived.DerivationType != "transcode" {
+			return derived.DerivationType
+		}
+	}
+
+	// Strategy 4: Fallback to derivation type
+	return derived.DerivationType
+}
+
+// sortDerivedContent applies sorting based on parameters
+func (r *Repository) sortDerivedContent(result []*simplecontent.DerivedContent, params simplecontent.ListDerivedContentParams) {
+	if params.SortBy == nil {
+		// Default sort: created_at descending
+		sort.Slice(result, func(i, j int) bool {
+			return result[i].CreatedAt.After(result[j].CreatedAt)
+		})
+		return
+	}
+
+	switch *params.SortBy {
+	case "created_at_asc":
+		sort.Slice(result, func(i, j int) bool {
+			return result[i].CreatedAt.Before(result[j].CreatedAt)
+		})
+	case "created_at_desc":
+		sort.Slice(result, func(i, j int) bool {
+			return result[i].CreatedAt.After(result[j].CreatedAt)
+		})
+	case "type_variant":
+		sort.Slice(result, func(i, j int) bool {
+			if result[i].DerivationType != result[j].DerivationType {
+				return result[i].DerivationType < result[j].DerivationType
+			}
+			variantI := r.extractVariant(result[i])
+			variantJ := r.extractVariant(result[j])
+			return variantI < variantJ
+		})
+	default:
+		// Default sort: created_at descending
+		sort.Slice(result, func(i, j int) bool {
+			return result[i].CreatedAt.After(result[j].CreatedAt)
+		})
+	}
+}
+
+// paginateDerivedContent applies pagination based on parameters
+func (r *Repository) paginateDerivedContent(result []*simplecontent.DerivedContent, params simplecontent.ListDerivedContentParams) []*simplecontent.DerivedContent {
+	// Apply offset
+	if params.Offset != nil && *params.Offset > 0 {
+		if *params.Offset >= len(result) {
+			return []*simplecontent.DerivedContent{}
+		}
+		result = result[*params.Offset:]
+	}
+
+	// Apply limit
+	if params.Limit != nil && *params.Limit > 0 && *params.Limit < len(result) {
+		result = result[:*params.Limit]
+	}
+
+	return result
 }
