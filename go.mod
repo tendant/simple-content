@@ -14,6 +14,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/ilyakaznacheev/cleanenv v1.5.0
 	github.com/jackc/pgx/v5 v5.7.5
+	github.com/nfnt/resize v0.0.0-20180221191011-83c6a9932646
 	github.com/stretchr/testify v1.10.0
 	github.com/tendant/chi-demo v1.5.2
 	golang.org/x/exp v0.0.0-20250506013437-ce4c2cf36ca6
