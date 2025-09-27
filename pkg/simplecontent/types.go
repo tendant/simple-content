@@ -156,17 +156,29 @@ type StorageBackend struct {
 	UpdatedAt time.Time              `json:"updated_at"`
 }
 
-// ContentURLs represents all available URLs for a content.
-// Inspired by proven URL aggregation patterns, this provides both
-// direct access to primary URLs and organized collections for variants.
-type ContentURLs struct {
+// ContentDetails represents all details for a content including URLs and metadata.
+// This unified type provides everything clients need in a single call.
+type ContentDetails struct {
 	ID          string            `json:"id"`                        // Content ID
+
+	// Access URLs
 	Download    string            `json:"download,omitempty"`        // Primary download URL
 	Preview     string            `json:"preview,omitempty"`         // Primary preview URL
 	Thumbnail   string            `json:"thumbnail,omitempty"`       // Primary thumbnail URL
 	Thumbnails  map[string]string `json:"thumbnails,omitempty"`      // size -> URL (256, 512, etc.)
 	Previews    map[string]string `json:"previews,omitempty"`        // variant -> URL (720p, 1080p, webm, etc.)
 	Transcodes  map[string]string `json:"transcodes,omitempty"`      // format -> URL (mp3, flac, mp4, etc.)
+
+	// File metadata
+	FileName    string            `json:"file_name,omitempty"`       // Original file name
+	FileSize    int64             `json:"file_size,omitempty"`       // File size in bytes
+	MimeType    string            `json:"mime_type,omitempty"`       // MIME type
+	Tags        []string          `json:"tags,omitempty"`            // Content tags
+	Checksum    string            `json:"checksum,omitempty"`        // File checksum
+
+	// Status and timing
 	Ready       bool              `json:"ready"`                     // Are all URLs ready/available?
 	ExpiresAt   *time.Time        `json:"expires_at,omitempty"`      // When URLs expire (for presigned URLs)
+	CreatedAt   time.Time         `json:"created_at"`                // Content creation time
+	UpdatedAt   time.Time         `json:"updated_at"`                // Content last update time
 }

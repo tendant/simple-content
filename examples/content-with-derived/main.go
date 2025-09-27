@@ -223,11 +223,19 @@ func (ecs *ExtendedContentService) getDerivedContentsWithDetails(ctx context.Con
 
 		// Include metadata if requested
 		if opts.IncludeMetadata {
-			metadata, err := ecs.svc.GetContentMetadata(ctx, derivedContent.ID)
+			details, err := ecs.svc.GetContentDetails(ctx, derivedContent.ID)
 			if err != nil {
-				log.Printf("Warning: failed to get metadata for content %s: %v", derivedContent.ID, err)
+				log.Printf("Warning: failed to get details for content %s: %v", derivedContent.ID, err)
 			} else {
-				item.Metadata = metadata
+				// Convert ContentDetails to ContentMetadata for backward compatibility
+				item.Metadata = &simplecontent.ContentMetadata{
+					FileName: details.FileName,
+					FileSize: details.FileSize,
+					MimeType: details.MimeType,
+					Tags:     details.Tags,
+					Checksum: details.Checksum,
+					Metadata: make(map[string]interface{}),
+				}
 			}
 		}
 

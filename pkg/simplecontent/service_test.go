@@ -213,52 +213,6 @@ func TestContentOperations(t *testing.T) {
 	})
 }
 
-func TestContentMetadataOperations(t *testing.T) {
-	svc := setupTestService(t)
-	ctx := context.Background()
-
-	// Create a content first
-	contentReq := simplecontent.CreateContentRequest{
-		OwnerID:  uuid.New(),
-		TenantID: uuid.New(),
-		Name:     "Test Content with Metadata",
-	}
-	content, err := svc.CreateContent(ctx, contentReq)
-	require.NoError(t, err)
-
-	t.Run("SetContentMetadata", func(t *testing.T) {
-		metadataReq := simplecontent.SetContentMetadataRequest{
-			ContentID:   content.ID,
-			ContentType: "text/plain",
-			Title:       "Test Document",
-			Description: "A test document",
-			Tags:        []string{"test", "document"},
-			FileName:    "test.txt",
-			FileSize:    1024,
-			CreatedBy:   "test-user",
-			CustomMetadata: map[string]interface{}{
-				"category": "testing",
-				"priority": "high",
-			},
-		}
-
-		err := svc.SetContentMetadata(ctx, metadataReq)
-		assert.NoError(t, err)
-	})
-
-	t.Run("GetContentMetadata", func(t *testing.T) {
-		metadata, err := svc.GetContentMetadata(ctx, content.ID)
-		assert.NoError(t, err)
-		assert.NotNil(t, metadata)
-		assert.Equal(t, content.ID, metadata.ContentID)
-		assert.Equal(t, "text/plain", metadata.MimeType)
-		assert.Equal(t, "test.txt", metadata.FileName)
-		assert.Equal(t, int64(1024), metadata.FileSize)
-		assert.Equal(t, []string{"test", "document"}, metadata.Tags)
-		assert.Contains(t, metadata.Metadata, "category")
-		assert.Contains(t, metadata.Metadata, "priority")
-	})
-}
 
 func TestObjectOperations(t *testing.T) {
 	svc := setupTestService(t)
@@ -598,7 +552,7 @@ func setupBenchmarkService(b *testing.B) simplecontent.Service {
 	return svc
 }
 
-func TestGetContentURLs(t *testing.T) {
+func TestGetContentDetails(t *testing.T) {
 	ctx := context.Background()
 	svc := setupTestService(t)
 
@@ -606,7 +560,7 @@ func TestGetContentURLs(t *testing.T) {
 	ownerID := uuid.New()
 	tenantID := uuid.New()
 
-	// Test 1: Content with no objects - should return empty URLs but not error
+	// Test 1: Content with no objects - should return basic details
 	t.Run("ContentWithoutObjects", func(t *testing.T) {
 		req := simplecontent.CreateContentRequest{
 			OwnerID:  ownerID,
@@ -616,16 +570,18 @@ func TestGetContentURLs(t *testing.T) {
 		content, err := svc.CreateContent(ctx, req)
 		require.NoError(t, err)
 
-		urls, err := svc.GetContentURLs(ctx, content.ID)
+		details, err := svc.GetContentDetails(ctx, content.ID)
 		require.NoError(t, err)
-		assert.Equal(t, content.ID.String(), urls.ID)
-		assert.Empty(t, urls.Download)
-		assert.Empty(t, urls.Preview)
-		assert.Empty(t, urls.Thumbnail)
-		assert.Empty(t, urls.Thumbnails)
-		assert.Empty(t, urls.Previews)
-		assert.Empty(t, urls.Transcodes)
-		assert.True(t, urls.Ready) // Content exists and is ready
+		assert.Equal(t, content.ID.String(), details.ID)
+		assert.Empty(t, details.Download)
+		assert.Empty(t, details.Preview)
+		assert.Empty(t, details.Thumbnail)
+		assert.Empty(t, details.Thumbnails)
+		assert.Empty(t, details.Previews)
+		assert.Empty(t, details.Transcodes)
+		assert.True(t, details.Ready) // Content exists and is ready
+		assert.Equal(t, content.CreatedAt, details.CreatedAt)
+		assert.Equal(t, content.UpdatedAt, details.UpdatedAt)
 	})
 
 	// Test 2: Content with objects - should return download/preview URLs
@@ -658,13 +614,13 @@ func TestGetContentURLs(t *testing.T) {
 		err = svc.UploadObject(ctx, uploadReq)
 		require.NoError(t, err)
 
-		// Get URLs
-		urls, err := svc.GetContentURLs(ctx, content.ID)
+		// Get details
+		details, err := svc.GetContentDetails(ctx, content.ID)
 		require.NoError(t, err)
-		assert.Equal(t, content.ID.String(), urls.ID)
+		assert.Equal(t, content.ID.String(), details.ID)
 		// Memory backend doesn't generate URLs (returns empty strings)
 		// This is expected behavior - it supports direct download only
-		assert.True(t, urls.Ready)
+		assert.True(t, details.Ready)
 	})
 
 	// Test 3: Content with derived content (thumbnails)
@@ -727,21 +683,21 @@ func TestGetContentURLs(t *testing.T) {
 		err = svc.UploadObject(ctx, thumbUploadReq)
 		require.NoError(t, err)
 
-		// Get URLs - should include both original and thumbnail URLs
-		urls, err := svc.GetContentURLs(ctx, parent.ID)
+		// Get details - should include both original and thumbnail URLs
+		details, err := svc.GetContentDetails(ctx, parent.ID)
 		require.NoError(t, err)
-		assert.Equal(t, parent.ID.String(), urls.ID)
+		assert.Equal(t, parent.ID.String(), details.ID)
 		// Memory backend doesn't generate URLs, but structure should be correct
-		assert.NotNil(t, urls.Thumbnails)
-		assert.NotNil(t, urls.Previews)
-		assert.NotNil(t, urls.Transcodes)
-		assert.True(t, urls.Ready)
+		assert.NotNil(t, details.Thumbnails)
+		assert.NotNil(t, details.Previews)
+		assert.NotNil(t, details.Transcodes)
+		assert.True(t, details.Ready)
 	})
 
 	// Test 4: Non-existent content
 	t.Run("NonExistentContent", func(t *testing.T) {
 		nonExistentID := uuid.New()
-		_, err := svc.GetContentURLs(ctx, nonExistentID)
+		_, err := svc.GetContentDetails(ctx, nonExistentID)
 		assert.Error(t, err)
 		// Should be a ContentError with not found
 		var contentErr *simplecontent.ContentError

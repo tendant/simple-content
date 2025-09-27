@@ -45,21 +45,8 @@ func main() {
 	}
 	fmt.Printf("   Created content: %s\n", content.ID)
 	
-	// Set content metadata
-	fmt.Println("2. Setting content metadata...")
-	err = svc.SetContentMetadata(ctx, simplecontent.SetContentMetadataRequest{
-		ContentID:   content.ID,
-		ContentType: "text/plain",
-		Title:       "My Sample Document",
-		Description: "This is a sample document for testing",
-		Tags:        []string{"sample", "test", "document"},
-		FileName:    "sample.txt",
-		FileSize:    13, // "Hello, World!" length
-	})
-	if err != nil {
-		log.Fatal(err)
-	}
-	fmt.Println("   Metadata set successfully")
+	// Note: Metadata can be set using the storage object metadata
+	fmt.Println("2. Skipping metadata setup (will be handled via object upload)...")
 	
 	// Create object for storage
 	fmt.Println("3. Creating object...")

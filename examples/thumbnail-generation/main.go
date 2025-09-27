@@ -117,7 +117,7 @@ func (ts *ThumbnailService) uploadOriginalImage(ctx context.Context, req UploadI
 	defer file.Close()
 
 	// Get file info
-	fileInfo, err := file.Stat()
+	_, err = file.Stat()
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to get file info: %w", err)
 	}
@@ -148,21 +148,8 @@ func (ts *ThumbnailService) uploadOriginalImage(ctx context.Context, req UploadI
 		return nil, nil, fmt.Errorf("failed to create content: %w", err)
 	}
 
-	// Set content metadata
-	err = ts.svc.SetContentMetadata(ctx, simplecontent.SetContentMetadataRequest{
-		ContentID:   content.ID,
-		ContentType: mimeType,
-		FileName:    filepath.Base(req.FilePath),
-		FileSize:    fileInfo.Size(),
-		Tags:        append(req.Tags, "original", "image"),
-		CustomMetadata: map[string]interface{}{
-			"file_extension": ext,
-			"upload_source":  "thumbnail_generation_example",
-		},
-	})
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to set content metadata: %w", err)
-	}
+	// Note: Content metadata is now handled automatically through object storage
+	// Custom metadata can be set on the object level if needed
 
 	// Create object
 	object, err := ts.svc.CreateObject(ctx, simplecontent.CreateObjectRequest{
@@ -242,22 +229,8 @@ func (ts *ThumbnailService) generateThumbnail(ctx context.Context, parentContent
 		return nil, fmt.Errorf("failed to upload thumbnail: %w", err)
 	}
 
-	// Set thumbnail metadata
-	err = ts.svc.SetContentMetadata(ctx, simplecontent.SetContentMetadataRequest{
-		ContentID:   thumbnailContent.ID,
-		ContentType: "image/jpeg",
-		FileName:    fmt.Sprintf("thumbnail_%dpx.jpg", size),
-		FileSize:    int64(len(thumbnailData)),
-		Tags:        []string{"thumbnail", "derived", fmt.Sprintf("%dpx", size)},
-		CustomMetadata: map[string]interface{}{
-			"thumbnail_size": size,
-			"parent_id":     parentContentID.String(),
-			"generated_by":  "thumbnail_generation_example",
-		},
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to set thumbnail metadata: %w", err)
-	}
+	// Note: Thumbnail metadata is now handled automatically
+	// Custom metadata was previously stored in the derivation relationship
 
 	return &ThumbnailInfo{
 		Content: thumbnailContent,
@@ -325,13 +298,13 @@ func (ts *ThumbnailService) ListContentWithThumbnails(ctx context.Context, owner
 			fmt.Printf("  Derivation Type: %s\n", content.DerivationType)
 		}
 
-		// Get content metadata
-		metadata, err := ts.svc.GetContentMetadata(ctx, content.ID)
+		// Get content details (replaces old metadata call)
+		details, err := ts.svc.GetContentDetails(ctx, content.ID)
 		if err == nil {
-			fmt.Printf("  File Name: %s\n", metadata.FileName)
-			fmt.Printf("  File Size: %d bytes\n", metadata.FileSize)
-			fmt.Printf("  MIME Type: %s\n", metadata.MimeType)
-			fmt.Printf("  Tags: %v\n", metadata.Tags)
+			fmt.Printf("  File Name: %s\n", details.FileName)
+			fmt.Printf("  File Size: %d bytes\n", details.FileSize)
+			fmt.Printf("  MIME Type: %s\n", details.MimeType)
+			fmt.Printf("  Tags: %v\n", details.Tags)
 		}
 
 		// Get objects for this content

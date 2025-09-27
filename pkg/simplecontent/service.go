@@ -16,10 +16,6 @@ type Service interface {
 	DeleteContent(ctx context.Context, id uuid.UUID) error
 	ListContent(ctx context.Context, req ListContentRequest) ([]*Content, error)
 	
-	// Content metadata operations
-	SetContentMetadata(ctx context.Context, req SetContentMetadataRequest) error
-	GetContentMetadata(ctx context.Context, contentID uuid.UUID) (*ContentMetadata, error)
-	
 	// Object operations
 	CreateObject(ctx context.Context, req CreateObjectRequest) (*Object, error)
 	GetObject(ctx context.Context, id uuid.UUID) (*Object, error)
@@ -48,6 +44,6 @@ type Service interface {
     GetDerivedRelationship(ctx context.Context, contentID uuid.UUID) (*DerivedContent, error)
     ListDerivedContent(ctx context.Context, options ...ListDerivedContentOption) ([]*DerivedContent, error)
 
-    // Content URL operations (simple interface for clients)
-    GetContentURLs(ctx context.Context, contentID uuid.UUID) (*ContentURLs, error)
+    // Content details operations (unified interface for clients)
+    GetContentDetails(ctx context.Context, contentID uuid.UUID) (*ContentDetails, error)
 }

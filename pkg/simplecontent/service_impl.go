@@ -532,12 +532,11 @@ func (s *service) GetPreviewURL(ctx context.Context, id uuid.UUID) (string, erro
 	return backend.GetPreviewURL(ctx, object.ObjectKey)
 }
 
-// GetContentURLs returns all available URLs for a content in a single call.
-// This provides the simplest interface for clients to get download, preview,
-// and derived content URLs without needing to understand object relationships.
-func (s *service) GetContentURLs(ctx context.Context, contentID uuid.UUID) (*ContentURLs, error) {
+// GetContentDetails returns all details for a content including URLs and metadata.
+// This provides the simplest interface for clients to get everything they need in one call.
+func (s *service) GetContentDetails(ctx context.Context, contentID uuid.UUID) (*ContentDetails, error) {
 	// Initialize the result
-	result := &ContentURLs{
+	result := &ContentDetails{
 		ID:         contentID.String(),
 		Thumbnails: make(map[string]string),
 		Previews:   make(map[string]string),
@@ -548,7 +547,7 @@ func (s *service) GetContentURLs(ctx context.Context, contentID uuid.UUID) (*Con
 	// Get the content to check if it exists and get its status
 	content, err := s.repository.GetContent(ctx, contentID)
 	if err != nil {
-		return nil, &ContentError{ContentID: contentID, Op: "get_content_urls", Err: err}
+		return nil, &ContentError{ContentID: contentID, Op: "get_content_details", Err: err}
 	}
 
 	// Check if content is ready
@@ -559,7 +558,7 @@ func (s *service) GetContentURLs(ctx context.Context, contentID uuid.UUID) (*Con
 	// Get primary objects for this content (for download/preview URLs)
 	objects, err := s.repository.GetObjectsByContentID(ctx, contentID)
 	if err != nil {
-		return nil, &ContentError{ContentID: contentID, Op: "get_content_urls", Err: err}
+		return nil, &ContentError{ContentID: contentID, Op: "get_content_details", Err: err}
 	}
 
 	// Generate download and preview URLs from primary object
@@ -580,7 +579,7 @@ func (s *service) GetContentURLs(ctx context.Context, contentID uuid.UUID) (*Con
 	// Get all derived content with URLs
 	derivedContent, err := s.ListDerivedContent(ctx, WithParentID(contentID), WithURLs())
 	if err != nil {
-		return nil, &ContentError{ContentID: contentID, Op: "get_content_urls", Err: err}
+		return nil, &ContentError{ContentID: contentID, Op: "get_content_details", Err: err}
 	}
 
 	// Organize derived content URLs by type
@@ -619,6 +618,19 @@ func (s *service) GetContentURLs(ctx context.Context, contentID uuid.UUID) (*Con
 		if derived.Status != "created" && derived.Status != "active" {
 			result.Ready = false
 		}
+	}
+
+	// Add content timestamps
+	result.CreatedAt = content.CreatedAt
+	result.UpdatedAt = content.UpdatedAt
+
+	// Get content metadata if available
+	if metadata, err := s.repository.GetContentMetadata(ctx, contentID); err == nil {
+		result.FileName = metadata.FileName
+		result.FileSize = metadata.FileSize
+		result.MimeType = metadata.MimeType
+		result.Tags = metadata.Tags
+		result.Checksum = metadata.Checksum
 	}
 
 	return result, nil

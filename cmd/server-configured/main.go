@@ -147,12 +147,8 @@ func (s *HTTPServer) Routes() http.Handler {
 		r.Delete("/contents/{contentID}", s.handleDeleteContent)
 		r.Get("/contents", s.handleListContents)
 
-		// Content metadata
-		r.Post("/contents/{contentID}/metadata", s.handleSetContentMetadata)
-		r.Get("/contents/{contentID}/metadata", s.handleGetContentMetadata)
-
-		// Content URLs (simple interface for clients)
-		r.Get("/contents/{contentID}/urls", s.handleGetContentURLs)
+		// Content details (unified interface for clients)
+		r.Get("/contents/{contentID}/details", s.handleGetContentDetails)
 
 		// Object management
 		r.Post("/contents/{contentID}/objects", s.handleCreateObject)
@@ -479,60 +475,8 @@ func (s *HTTPServer) handleListDerivedForParent(w http.ResponseWriter, r *http.R
 	writeJSON(w, http.StatusOK, out)
 }
 
-func (s *HTTPServer) handleSetContentMetadata(w http.ResponseWriter, r *http.Request) {
-	idStr := chi.URLParam(r, "contentID")
-	contentID, err := uuid.Parse(idStr)
-	if err != nil {
-		writeError(w, http.StatusBadRequest, "invalid_content_id", "contentID must be a UUID", nil)
-		return
-	}
-	var req struct {
-		ContentType    string                 `json:"content_type"`
-		Title          string                 `json:"title"`
-		Description    string                 `json:"description"`
-		Tags           []string               `json:"tags"`
-		FileName       string                 `json:"file_name"`
-		FileSize       int64                  `json:"file_size"`
-		CreatedBy      string                 `json:"created_by"`
-		CustomMetadata map[string]interface{} `json:"custom_metadata"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid_json", err.Error(), nil)
-		return
-	}
-	if err := s.service.SetContentMetadata(r.Context(), simplecontent.SetContentMetadataRequest{
-		ContentID:      contentID,
-		ContentType:    req.ContentType,
-		Title:          req.Title,
-		Description:    req.Description,
-		Tags:           req.Tags,
-		FileName:       req.FileName,
-		FileSize:       req.FileSize,
-		CreatedBy:      req.CreatedBy,
-		CustomMetadata: req.CustomMetadata,
-	}); err != nil {
-		writeServiceError(w, err)
-		return
-	}
-	w.WriteHeader(http.StatusNoContent)
-}
 
-func (s *HTTPServer) handleGetContentMetadata(w http.ResponseWriter, r *http.Request) {
-	idStr := chi.URLParam(r, "contentID")
-	contentID, err := uuid.Parse(idStr)
-	if err != nil {
-		writeError(w, http.StatusBadRequest, "invalid_content_id", "contentID must be a UUID", nil)
-		return
-	}
-	md, err := s.service.GetContentMetadata(r.Context(), contentID)
-	if err != nil {
-		writeServiceError(w, err)
-		return
-	}
-	writeJSON(w, http.StatusOK, md)
-}
-
-func (s *HTTPServer) handleGetContentURLs(w http.ResponseWriter, r *http.Request) {
+func (s *HTTPServer) handleGetContentDetails(w http.ResponseWriter, r *http.Request) {
 	idStr := chi.URLParam(r, "contentID")
 	contentID, err := uuid.Parse(idStr)
 	if err != nil {
@@ -540,13 +484,13 @@ func (s *HTTPServer) handleGetContentURLs(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	urls, err := s.service.GetContentURLs(r.Context(), contentID)
+	details, err := s.service.GetContentDetails(r.Context(), contentID)
 	if err != nil {
 		writeServiceError(w, err)
 		return
 	}
 
-	writeJSON(w, http.StatusOK, urls)
+	writeJSON(w, http.StatusOK, details)
 }
 
 func (s *HTTPServer) handleCreateObject(w http.ResponseWriter, r *http.Request) {

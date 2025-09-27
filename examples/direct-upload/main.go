@@ -119,21 +119,8 @@ func (dus *DirectUploadService) PrepareDirectUpload(ctx context.Context, req Pre
 		return nil, fmt.Errorf("failed to create content: %w", err)
 	}
 
-	// 2. Set content metadata
-	err = dus.svc.SetContentMetadata(ctx, simplecontent.SetContentMetadataRequest{
-		ContentID:   content.ID,
-		ContentType: req.ContentType,
-		FileName:    req.FileName,
-		FileSize:    req.FileSize,
-		Tags:        append(req.Tags, "direct-upload"),
-		CustomMetadata: map[string]interface{}{
-			"upload_method": "direct_client_upload",
-			"prepared_at":   time.Now().UTC().Format(time.RFC3339),
-		},
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to set content metadata: %w", err)
-	}
+	// 2. Note: Content metadata is now handled automatically
+	// Tags and custom metadata can be set on object level if needed
 
 	// 3. Create object for storage
 	object, err := dus.svc.CreateObject(ctx, simplecontent.CreateObjectRequest{
@@ -211,10 +198,10 @@ func (dus *DirectUploadService) GetUploadStatus(ctx context.Context, objectID st
 		return nil, fmt.Errorf("failed to get content: %w", err)
 	}
 
-	metadata, err := dus.svc.GetContentMetadata(ctx, content.ID)
+	details, err := dus.svc.GetContentDetails(ctx, content.ID)
 	if err != nil {
-		log.Printf("Warning: failed to get content metadata: %v", err)
-		metadata = nil
+		log.Printf("Warning: failed to get content details: %v", err)
+		details = nil
 	}
 
 	status := map[string]interface{}{
@@ -228,10 +215,10 @@ func (dus *DirectUploadService) GetUploadStatus(ctx context.Context, objectID st
 		"content_type": content.DocumentType,
 	}
 
-	if metadata != nil {
-		status["file_name"] = metadata.FileName
-		status["file_size"] = metadata.FileSize
-		status["tags"] = metadata.Tags
+	if details != nil {
+		status["file_name"] = details.FileName
+		status["file_size"] = details.FileSize
+		status["tags"] = details.Tags
 	}
 
 	return status, nil
