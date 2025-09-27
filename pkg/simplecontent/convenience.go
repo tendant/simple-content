@@ -157,55 +157,8 @@ func intPtr(i int) *int {
 	return &i
 }
 
-// Convenience functions using the new option pattern
-
-// GetThumbnailsBySizeWithOptions retrieves thumbnails of specific sizes using the option pattern.
-func GetThumbnailsBySizeWithOptions(ctx context.Context, svc Service, parentID uuid.UUID, sizes []string) ([]*DerivedContent, error) {
-	variants := make([]string, len(sizes))
-	for i, size := range sizes {
-		variants[i] = fmt.Sprintf("thumbnail_%s", size)
-	}
-
-	return svc.ListDerivedContentWithOptions(ctx,
-		WithParentID(parentID),
-		WithDerivationType("thumbnail"),
-		WithVariants(variants...),
-		WithURLs(),
-	)
-}
-
-// GetRecentDerivedWithOptions retrieves derived content created after a specific time using the option pattern.
-func GetRecentDerivedWithOptions(ctx context.Context, svc Service, parentID uuid.UUID, since time.Time) ([]*DerivedContent, error) {
-	return svc.ListDerivedContentWithOptions(ctx,
-		WithParentID(parentID),
-		WithCreatedAfter(since),
-		WithSortBy("created_at_desc"),
-	)
-}
-
-// ListDerivedByTypeAndVariantWithOptions retrieves derived content by specific type and variant using the option pattern.
-func ListDerivedByTypeAndVariantWithOptions(ctx context.Context, svc Service, parentID uuid.UUID, derivationType, variant string) ([]*DerivedContent, error) {
-	return svc.ListDerivedContentWithOptions(ctx,
-		WithParentID(parentID),
-		WithDerivationType(derivationType),
-		WithVariant(variant),
-	)
-}
-
-// ListDerivedByVariantsWithOptions retrieves derived content by specific variants using the option pattern.
-func ListDerivedByVariantsWithOptions(ctx context.Context, svc Service, parentID uuid.UUID, variants []string) ([]*DerivedContent, error) {
-	return svc.ListDerivedContentWithOptions(ctx,
-		WithParentID(parentID),
-		WithVariants(variants...),
-	)
-}
-
-// GetDerivedContentWithURLsUsingOptions retrieves derived content with URLs populated using the option pattern.
-func GetDerivedContentWithURLsUsingOptions(ctx context.Context, svc Service, parentID uuid.UUID, derivationType, variant string) ([]*DerivedContent, error) {
-	return svc.ListDerivedContentWithOptions(ctx,
-		WithParentID(parentID),
-		WithDerivationType(derivationType),
-		WithVariant(variant),
-		WithURLs(),
-	)
-}
+// Note: With the introduction of ListDerivedContentWithOptions, most specific convenience
+// functions are no longer needed since the option pattern provides a cleaner, more flexible API.
+// Users can simply call:
+//   svc.ListDerivedContentWithOptions(ctx, simplecontent.WithParentID(id), simplecontent.WithDerivationType("thumbnail"))
+// instead of creating separate wrapper functions.

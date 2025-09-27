@@ -518,7 +518,7 @@ func TestListDerivedContentWithOptions_EmptyOptions(t *testing.T) {
     _ = results
 }
 
-func TestConvenienceFunctionsWithOptions(t *testing.T) {
+func TestOptionPatternVsLegacyConvenienceFunctions(t *testing.T) {
     svc := mustService(t)
     ctx := context.Background()
 
@@ -539,14 +539,28 @@ func TestConvenienceFunctionsWithOptions(t *testing.T) {
         if err != nil { t.Fatalf("create thumbnail %s: %v", size, err) }
     }
 
-    // Test convenience function with options
-    results, err := simplecontent.GetThumbnailsBySizeWithOptions(ctx, svc, parent.ID, []string{"256", "512"})
+    // Test option pattern replacing GetThumbnailsBySize
+    results, err := svc.ListDerivedContentWithOptions(ctx,
+        simplecontent.WithParentID(parent.ID),
+        simplecontent.WithDerivationType("thumbnail"),
+        simplecontent.WithVariants("thumbnail_256", "thumbnail_512"),
+        simplecontent.WithURLs(),
+    )
     if err != nil { t.Fatalf("get thumbnails with options: %v", err) }
     if len(results) != 2 { t.Fatalf("expected 2 thumbnails, got %d", len(results)) }
 
-    // Test specific type and variant
-    results, err = simplecontent.ListDerivedByTypeAndVariantWithOptions(ctx, svc, parent.ID, "thumbnail", "thumbnail_256")
+    // Test option pattern replacing ListDerivedByTypeAndVariant
+    results, err = svc.ListDerivedContentWithOptions(ctx,
+        simplecontent.WithParentID(parent.ID),
+        simplecontent.WithDerivationType("thumbnail"),
+        simplecontent.WithVariant("thumbnail_256"),
+    )
     if err != nil { t.Fatalf("list by type and variant with options: %v", err) }
     if len(results) != 1 { t.Fatalf("expected 1 result, got %d", len(results)) }
     if results[0].Variant != "thumbnail_256" { t.Fatalf("expected variant thumbnail_256, got %s", results[0].Variant) }
+
+    // Test legacy convenience function still works
+    legacyResults, err := simplecontent.GetThumbnailsBySize(ctx, svc, parent.ID, []string{"256", "512"})
+    if err != nil { t.Fatalf("legacy get thumbnails: %v", err) }
+    if len(legacyResults) != 2 { t.Fatalf("expected 2 thumbnails from legacy, got %d", len(legacyResults)) }
 }

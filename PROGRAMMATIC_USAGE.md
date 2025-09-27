@@ -357,37 +357,53 @@ if err != nil {
 }
 ```
 
-### Enhanced Convenience Functions with Options
+### Enhanced Convenience Functions
 
-The library provides both traditional and option-based convenience functions:
+The library provides traditional convenience functions, but **the option pattern is now the recommended approach** for most use cases:
 
 ```go
-// Traditional convenience functions (still supported)
+// Traditional convenience functions (still supported for simple cases)
 thumbnails, err := simplecontent.GetThumbnailsBySize(ctx, svc, parentContentID, []string{"128", "256", "512"})
 if err != nil {
     log.Fatal(err)
 }
 
-// Modern option-based convenience functions
-thumbnails, err := simplecontent.GetThumbnailsBySizeWithOptions(ctx, svc, parentContentID, []string{"256", "512"})
+// Modern option pattern (recommended) - more flexible and readable
+thumbnails, err := svc.ListDerivedContentWithOptions(ctx,
+    simplecontent.WithParentID(parentContentID),
+    simplecontent.WithDerivationType("thumbnail"),
+    simplecontent.WithVariants("thumbnail_256", "thumbnail_512"),
+    simplecontent.WithURLs(),
+)
 if err != nil {
     log.Fatal(err)
 }
 
 // Get recent derived content using options
-recent, err := simplecontent.GetRecentDerivedWithOptions(ctx, svc, parentContentID, time.Now().Add(-24*time.Hour))
+recent, err := svc.ListDerivedContentWithOptions(ctx,
+    simplecontent.WithParentID(parentContentID),
+    simplecontent.WithCreatedAfter(time.Now().Add(-24*time.Hour)),
+    simplecontent.WithSortBy("created_at_desc"),
+)
 if err != nil {
     log.Fatal(err)
 }
 
 // List by specific type and variant
-specific, err := simplecontent.ListDerivedByTypeAndVariantWithOptions(ctx, svc, parentContentID, "thumbnail", "thumbnail_256")
+specific, err := svc.ListDerivedContentWithOptions(ctx,
+    simplecontent.WithParentID(parentContentID),
+    simplecontent.WithDerivationType("thumbnail"),
+    simplecontent.WithVariant("thumbnail_256"),
+)
 if err != nil {
     log.Fatal(err)
 }
 
 // List by multiple variants
-variants, err := simplecontent.ListDerivedByVariantsWithOptions(ctx, svc, parentContentID, []string{"thumbnail_256", "preview_720"})
+variants, err := svc.ListDerivedContentWithOptions(ctx,
+    simplecontent.WithParentID(parentContentID),
+    simplecontent.WithVariants("thumbnail_256", "preview_720"),
+)
 if err != nil {
     log.Fatal(err)
 }
