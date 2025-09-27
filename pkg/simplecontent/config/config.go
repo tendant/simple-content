@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/tendant/simple-content/pkg/simplecontent"
+	"github.com/tendant/simple-content/pkg/simplecontent/objectkey"
 	"github.com/tendant/simple-content/pkg/simplecontent/repo/memory"
 	repopg "github.com/tendant/simple-content/pkg/simplecontent/repo/postgres"
 	fsstorage "github.com/tendant/simple-content/pkg/simplecontent/storage/fs"
@@ -62,6 +63,7 @@ func defaults() ServerConfig {
 		},
 		EnableEventLogging: true,
 		EnablePreviews:     true,
+		ObjectKeyGenerator: "git-like", // Default to Git-like for better performance
 	}
 }
 
@@ -82,6 +84,9 @@ type ServerConfig struct {
 	// Server options
 	EnableEventLogging bool
 	EnablePreviews     bool
+
+	// Object key generation
+	ObjectKeyGenerator string // "default", "git-like", "tenant-aware", "legacy"
 }
 
 // StorageBackendConfig represents configuration for a storage backend
@@ -151,6 +156,13 @@ func (c *ServerConfig) BuildService() (simplecontent.Service, error) {
 		previewer := simplecontent.NewBasicImagePreviewer()
 		options = append(options, simplecontent.WithPreviewer(previewer))
 	}
+
+	// Set up object key generator
+	keyGenerator, err := c.buildObjectKeyGenerator()
+	if err != nil {
+		return nil, fmt.Errorf("failed to build object key generator: %w", err)
+	}
+	options = append(options, simplecontent.WithObjectKeyGenerator(keyGenerator))
 
 	return simplecontent.New(options...)
 }
@@ -290,4 +302,20 @@ func getInt(config map[string]interface{}, key string, defaultValue int) int {
 		}
 	}
 	return defaultValue
+}
+
+// buildObjectKeyGenerator creates an ObjectKey Generator based on the configuration
+func (c *ServerConfig) buildObjectKeyGenerator() (objectkey.Generator, error) {
+	switch c.ObjectKeyGenerator {
+	case "legacy":
+		return objectkey.NewLegacyGenerator(), nil
+	case "git-like", "default", "":
+		return objectkey.NewGitLikeGenerator(), nil
+	case "tenant-aware":
+		return objectkey.NewTenantAwareGitLikeGenerator(), nil
+	case "high-performance":
+		return objectkey.NewHighPerformanceGenerator(), nil
+	default:
+		return nil, fmt.Errorf("unsupported object key generator: %s", c.ObjectKeyGenerator)
+	}
 }

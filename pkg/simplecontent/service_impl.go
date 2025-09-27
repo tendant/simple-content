@@ -8,6 +8,7 @@ import (
     "time"
 
     "github.com/google/uuid"
+    "github.com/tendant/simple-content/pkg/simplecontent/objectkey"
 )
 
 // service implements both the Service and StorageService interfaces
@@ -16,6 +17,7 @@ type service struct {
 	blobStores map[string]BlobStore
 	eventSink  EventSink
 	previewer  Previewer
+	keyGenerator objectkey.Generator
 }
 
 // Option represents a functional option for configuring the service
@@ -52,6 +54,13 @@ func WithPreviewer(previewer Previewer) Option {
 	}
 }
 
+// WithObjectKeyGenerator sets the object key generator for the service
+func WithObjectKeyGenerator(generator objectkey.Generator) Option {
+	return func(s *service) {
+		s.keyGenerator = generator
+	}
+}
+
 // New creates a new service instance with the given options
 func New(options ...Option) (Service, error) {
 	s := &service{
@@ -64,6 +73,11 @@ func New(options ...Option) (Service, error) {
 
 	if s.repository == nil {
 		return nil, fmt.Errorf("repository is required")
+	}
+
+	// Set default key generator if none provided
+	if s.keyGenerator == nil {
+		s.keyGenerator = objectkey.NewRecommendedGenerator()
 	}
 
 	return s, nil
@@ -81,6 +95,11 @@ func NewStorageService(options ...Option) (StorageService, error) {
 
 	if s.repository == nil {
 		return nil, fmt.Errorf("repository is required")
+	}
+
+	// Set default key generator if none provided
+	if s.keyGenerator == nil {
+		s.keyGenerator = objectkey.NewRecommendedGenerator()
 	}
 
 	return s, nil
@@ -432,7 +451,9 @@ func (s *service) UploadDerivedContent(ctx context.Context, req UploadDerivedCon
 
 	// Step 6: Create the object
 	objectID := uuid.New()
-	objectKey := fmt.Sprintf("%s/%s", content.ID.String(), objectID.String())
+
+	// Generate object key using the configured generator
+	objectKey := s.generateDerivedObjectKey(content.ID, objectID, req.ParentID, derivationType, req.Variant, content)
 
 	object := &Object{
 		ID:                 objectID,
@@ -1110,10 +1131,34 @@ func (s *service) GetBackend(name string) (BlobStore, error) {
 // Helper methods
 
 func (s *service) generateObjectKey(contentID, objectID uuid.UUID, contentMetadata *ContentMetadata) string {
-	if contentMetadata != nil && contentMetadata.FileName != "" {
-		return fmt.Sprintf("C/%s/%s/%s", contentID, objectID, contentMetadata.FileName)
+	// Convert ContentMetadata to KeyMetadata
+	var keyMetadata *objectkey.KeyMetadata
+	if contentMetadata != nil {
+		keyMetadata = &objectkey.KeyMetadata{
+			FileName:    contentMetadata.FileName,
+			ContentType: contentMetadata.MimeType,
+			IsOriginal:  true, // Default to original, will be overridden for derived content
+		}
 	}
-	return fmt.Sprintf("C/%s/%s", contentID, objectID)
+
+	return s.keyGenerator.GenerateKey(contentID, objectID, keyMetadata)
+}
+
+func (s *service) generateDerivedObjectKey(contentID, objectID, parentContentID uuid.UUID, derivationType, variant string, content *Content) string {
+	// Convert Content and metadata to KeyMetadata for derived content
+	keyMetadata := &objectkey.KeyMetadata{
+		IsOriginal:      false,
+		DerivationType:  derivationType,
+		Variant:         variant,
+		ParentContentID: parentContentID,
+	}
+
+	if content != nil {
+		keyMetadata.TenantID = content.TenantID.String()
+		keyMetadata.OwnerID = content.OwnerID.String()
+	}
+
+	return s.keyGenerator.GenerateKey(contentID, objectID, keyMetadata)
 }
 
 func (s *service) updateObjectFromStorage(ctx context.Context, objectID uuid.UUID) error {
