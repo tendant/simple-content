@@ -78,12 +78,20 @@ func main() {
 
 // HTTPServer wraps the simple-content service for HTTP access
 type HTTPServer struct {
-	service simplecontent.Service
+	service        simplecontent.Service
+	storageService simplecontent.StorageService
 }
 
 // NewHTTPServer creates a new HTTP server wrapper
 func NewHTTPServer(service simplecontent.Service) *HTTPServer {
-	return &HTTPServer{service: service}
+	storageService, ok := service.(simplecontent.StorageService)
+	if !ok {
+		log.Fatalf("Service does not implement StorageService interface")
+	}
+	return &HTTPServer{
+		service:        service,
+		storageService: storageService,
+	}
 }
 
 // Routes sets up the HTTP routes
@@ -128,7 +136,7 @@ func (s *HTTPServer) handleDemo(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Create an object for the content
-	object, err := s.service.CreateObject(ctx, simplecontent.CreateObjectRequest{
+	object, err := s.storageService.CreateObject(ctx, simplecontent.CreateObjectRequest{
 		ContentID:          content.ID,
 		StorageBackendName: "memory",
 		Version:            1,
