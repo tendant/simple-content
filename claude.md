@@ -28,6 +28,7 @@ This document gives AI coding assistants (Claude, ChatGPT, etc.) the context and
   - Requests/DTOs (`requests.go`): UploadContentRequest, UploadDerivedContentRequest
   - Interfaces (`interfaces.go`): Service, StorageService, Repository, BlobStore, EventSink, Previewer
   - Errors (`errors.go`): typed sentinel errors for mapping
+  - **Object Key Generation** (`objectkey/`): Pluggable key generators for optimal storage performance
   - Storage backends: `storage/memory`, `storage/fs`, `storage/s3`
   - Repositories: `repo/memory`, `repo/postgres` (+ `schema.sql`)
   - Config: `pkg/simplecontent/config` builds a Service from env
@@ -81,6 +82,83 @@ Base path: `/api/v1`
   - `GET /objects/{objectID}/download-url` presigned download
   - `GET /objects/{objectID}/preview-url` preview URL
 
+## Object Key Generation
+
+The system uses pluggable object key generators for optimal storage performance and organization. Object keys determine where and how files are stored in the underlying storage backends.
+
+### Available Generators
+
+- **GitLikeGenerator** (default): Git-style sharded storage for optimal filesystem performance
+  - Original: `originals/objects/{shard}/{objectId}_{filename}`
+  - Derived: `derived/{type}/{variant}/objects/{shard}/{objectId}_{filename}`
+  - Benefits: Limits directory size, clear content hierarchy, better I/O performance
+
+- **TenantAwareGitLikeGenerator**: Multi-tenant organization with Git-like sharding
+  - Structure: `tenants/{tenant}/originals/objects/{shard}/{objectId}_{filename}`
+  - Use case: Multi-tenant SaaS applications requiring data isolation
+
+- **LegacyGenerator**: Backwards compatibility with existing flat structure
+  - Structure: `C/{contentId}/{objectId}/{filename}`
+  - Use case: Migration scenarios or legacy compatibility
+
+- **CustomFuncGenerator**: User-defined key generation logic
+  - Allows complete control over key generation strategy
+  - Use case: Specialized requirements or complex organizational needs
+
+### Configuration
+
+Set via environment variable or config:
+
+```bash
+# Git-like sharding (recommended, default)
+OBJECT_KEY_GENERATOR=git-like
+
+# Multi-tenant aware
+OBJECT_KEY_GENERATOR=tenant-aware
+
+# High-performance (3-char sharding)
+OBJECT_KEY_GENERATOR=high-performance
+
+# Legacy compatibility
+OBJECT_KEY_GENERATOR=legacy
+```
+
+Or programmatically:
+
+```go
+// Configure service with custom key generator
+service, err := simplecontent.New(
+    simplecontent.WithRepository(repo),
+    simplecontent.WithBlobStore("fs", fsBackend),
+    simplecontent.WithObjectKeyGenerator(objectkey.NewGitLikeGenerator()),
+)
+```
+
+### Key Structure Examples
+
+**Git-like Generator (Recommended):**
+- Original: `originals/objects/ab/cd1234ef5678_document.pdf`
+- Thumbnail: `derived/thumbnail/256x256/objects/ab/cd1234ef5678_thumb.jpg`
+- Preview: `derived/preview/1080p/objects/ab/cd1234ef5678_preview.mp4`
+
+**Tenant-aware Generator:**
+- Original: `tenants/acme-corp/originals/objects/ab/cd1234ef5678_contract.pdf`
+- Derived: `tenants/acme-corp/derived/thumbnail/small/objects/ab/cd1234ef5678_thumb.jpg`
+
+**Performance Benefits:**
+- **Sharding**: Limits directory size to ~256 entries for optimal filesystem performance
+- **Organization**: Clear separation between originals and derived content
+- **Scalability**: Handles millions of objects efficiently
+- **Flexibility**: Easy to customize for specific deployment needs
+
+### Migration from Legacy Keys
+
+The system supports gradual migration:
+1. New objects use the configured generator
+2. Existing objects retain their current keys
+3. No disruption to existing functionality
+4. Optional bulk migration tools can be implemented
+
 ## Error Mapping (server-configured)
 
 - `ErrContentNotFound`, `ErrObjectNotFound` → 404 `not_found`
@@ -94,7 +172,9 @@ Base path: `/api/v1`
 - Build server: `go build ./cmd/server-configured`
 - Run server: `ENVIRONMENT=development PORT=8080 go run ./cmd/server-configured`
 - Unit tests: `go test ./pkg/simplecontent/...`
-- Example: `go run ./examples/basic`
+- Examples:
+  - Basic usage: `go run ./examples/basic`
+  - Object key generation: `go run ./examples/objectkey`
 - Docker compose (Postgres/MinIO) may be extended; see `REFACTORING_NEXT_STEPS.md`.
 
 ### Database migrations (Goose)
@@ -141,6 +221,14 @@ Server config:
 - Use and propagate typed errors; don't string-match error messages.
 - For new handlers, follow existing JSON helpers and error mapping.
 - Avoid adding new external deps unless necessary; use stdlib and existing libs.
+- **Object Key Generation**: Use the configured generator; avoid hardcoding key patterns.
+
+### Object Key Best Practices
+- **Use Git-like sharding** for new deployments (better filesystem performance)
+- **Separate originals from derived content** in key structure for clear organization
+- **Configure generators per environment**: legacy for compatibility, git-like for performance
+- **Custom generators** for specialized requirements (e.g., compliance, auditing)
+- **Avoid hardcoding keys** in business logic; use the pluggable generator system
 
 ### When to Use Each Interface
 - **Service Interface (Recommended)**: Content operations, unified workflows, server-side applications
@@ -151,7 +239,38 @@ Server config:
 - New storage backend: implement `BlobStore` in `pkg/simplecontent/storage/<name>`; wire via `config.BuildService()`.
 - New repository: implement `Repository` (use pgx or memory patterns) and add to config.
 - New derivation variants: add constants of type `DerivationVariant` or accept as lowercase strings from clients.
+- **New object key generator**: implement `objectkey.Generator` interface and add to config options.
 - Events/Previews: implement `EventSink`/`Previewer` and add via functional options.
+
+### Custom Object Key Generator Example
+```go
+// Custom generator for compliance/auditing requirements
+type ComplianceGenerator struct {
+    AuditPrefix string
+    Classifier  func(metadata *objectkey.KeyMetadata) string
+}
+
+func (g *ComplianceGenerator) GenerateKey(contentID, objectID uuid.UUID, metadata *objectkey.KeyMetadata) string {
+    classification := g.Classifier(metadata)
+    timestamp := time.Now().Format("2006/01/02")
+    return fmt.Sprintf("%s/%s/%s/%s/%s",
+        g.AuditPrefix, classification, timestamp,
+        contentID.String()[:8], objectID.String())
+}
+
+// Usage
+service, err := simplecontent.New(
+    simplecontent.WithObjectKeyGenerator(&ComplianceGenerator{
+        AuditPrefix: "audit",
+        Classifier: func(m *objectkey.KeyMetadata) string {
+            if m != nil && m.DerivationType != "" {
+                return "derived"
+            }
+            return "original"
+        },
+    }),
+)
+```
 
 ## Refactor Roadmap
 

@@ -37,6 +37,9 @@ func WithEnv(prefix string) Option {
 		}); err != nil {
 			return err
 		}
+		if v, ok := lookupEnv(prefix, "OBJECT_KEY_GENERATOR"); ok && v != "" {
+			c.ObjectKeyGenerator = v
+		}
 
 		fsBaseDir, _ := lookupEnv(prefix, "FS_BASE_DIR")
 		if fsBaseDir != "" {
