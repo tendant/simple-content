@@ -24,17 +24,21 @@ type Service interface {
 	// Content data access
 	DownloadContent(ctx context.Context, contentID uuid.UUID) (io.ReadCloser, error)
 
+	// Content metadata operations
+	SetContentMetadata(ctx context.Context, req SetContentMetadataRequest) error
+	GetContentMetadata(ctx context.Context, contentID uuid.UUID) (*ContentMetadata, error)
+
 	// Storage backend operations
-    RegisterBackend(name string, backend BlobStore)
-    GetBackend(name string) (BlobStore, error)
+	RegisterBackend(name string, backend BlobStore)
+	GetBackend(name string) (BlobStore, error)
 
-    // Derived content operations
-    CreateDerivedContent(ctx context.Context, req CreateDerivedContentRequest) (*Content, error)
-    GetDerivedRelationship(ctx context.Context, contentID uuid.UUID) (*DerivedContent, error)
-    ListDerivedContent(ctx context.Context, options ...ListDerivedContentOption) ([]*DerivedContent, error)
+	// Derived content operations
+	CreateDerivedContent(ctx context.Context, req CreateDerivedContentRequest) (*Content, error)
+	GetDerivedRelationship(ctx context.Context, contentID uuid.UUID) (*DerivedContent, error)
+	ListDerivedContent(ctx context.Context, options ...ListDerivedContentOption) ([]*DerivedContent, error)
 
-    // Content details operations (unified interface for clients)
-    GetContentDetails(ctx context.Context, contentID uuid.UUID, options ...ContentDetailsOption) (*ContentDetails, error)
+	// Content details operations (unified interface for clients)
+	GetContentDetails(ctx context.Context, contentID uuid.UUID, options ...ContentDetailsOption) (*ContentDetails, error)
 }
 
 // StorageService defines operations for advanced users who need direct object access.
@@ -57,5 +61,5 @@ type StorageService interface {
 	// Object metadata operations (internal use only)
 	SetObjectMetadata(ctx context.Context, objectID uuid.UUID, metadata map[string]interface{}) error
 	GetObjectMetadata(ctx context.Context, objectID uuid.UUID) (map[string]interface{}, error)
-    UpdateObjectMetaFromStorage(ctx context.Context, objectID uuid.UUID) (*ObjectMetadata, error)
+	UpdateObjectMetaFromStorage(ctx context.Context, objectID uuid.UUID) (*ObjectMetadata, error)
 }

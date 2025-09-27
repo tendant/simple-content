@@ -40,6 +40,12 @@ func Load(opts ...Option) (*ServerConfig, error) {
 	return &cfg, nil
 }
 
+// LoadServerConfig is a convenience function that loads configuration from environment variables.
+// It applies the default config and then overlays environment variable settings.
+func LoadServerConfig() (*ServerConfig, error) {
+	return Load(WithEnv(""))
+}
+
 func defaults() ServerConfig {
 	return ServerConfig{
 		Port:                  "8080",
