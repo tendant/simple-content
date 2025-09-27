@@ -56,7 +56,7 @@ func TestListDerivedAndGetRelationship(t *testing.T) {
     if len(rels) < 2 { t.Fatalf("expected >=2 derived, got %d", len(rels)) }
 
     // Check we can resolve one relationship by content id
-    rel, err := svc.GetDerivedRelationshipByContentID(ctx, rels[0].ContentID)
+    rel, err := svc.GetDerivedRelationship(ctx, rels[0].ContentID)
     if err != nil { t.Fatalf("get relationship: %v", err) }
     if rel.ParentID != parent.ID { t.Fatalf("parent mismatch") }
 }
@@ -112,8 +112,8 @@ func TestBackwardCompatibility_ListDerivedContentParams(t *testing.T) {
             ParentID: &parent.ID,
         }
 
-        results, err := svc.ListDerivedContentWithFilters(ctx, params)
-        if err != nil { t.Fatalf("ListDerivedContentWithFilters failed: %v", err) }
+        results, err := svc.ListDerivedContent(ctx, params)
+        if err != nil { t.Fatalf("ListDerivedContent failed: %v", err) }
         if len(results) != 3 { t.Fatalf("expected 3 results, got %d", len(results)) }
     })
 
@@ -128,7 +128,7 @@ func TestBackwardCompatibility_ListDerivedContentParams(t *testing.T) {
             Offset:         intPtr(0),
         }
 
-        results, err := svc.ListDerivedContentWithFilters(ctx, params)
+        results, err := svc.ListDerivedContent(ctx, params)
         if err != nil { t.Fatalf("filtering failed: %v", err) }
 
         // Should get 2 thumbnail results (128 and 256)
@@ -167,7 +167,7 @@ func TestBackwardCompatibility_DerivedContentStruct(t *testing.T) {
     if err != nil { t.Fatalf("create derived: %v", err) }
 
     // Get the derived relationship to test DerivedContent fields
-    derived, err := svc.GetDerivedRelationshipByContentID(ctx, derivedContent.ID)
+    derived, err := svc.GetDerivedRelationship(ctx, derivedContent.ID)
     if err != nil { t.Fatalf("get derived relationship: %v", err) }
 
     // Test that all existing fields are accessible and work as before
@@ -230,8 +230,8 @@ func TestBackwardCompatibility_ServiceInterface(t *testing.T) {
         if err != nil { t.Fatalf("ListDerivedByParent failed: %v", err) }
         if len(results) != 1 { t.Fatalf("expected 1 result, got %d", len(results)) }
 
-        relationship, err := svc.GetDerivedRelationshipByContentID(ctx, derived.ID)
-        if err != nil { t.Fatalf("GetDerivedRelationshipByContentID failed: %v", err) }
+        relationship, err := svc.GetDerivedRelationship(ctx, derived.ID)
+        if err != nil { t.Fatalf("GetDerivedRelationship failed: %v", err) }
         if relationship.ParentID != parent.ID { t.Errorf("ParentID mismatch") }
     })
 
@@ -239,10 +239,10 @@ func TestBackwardCompatibility_ServiceInterface(t *testing.T) {
     t.Run("Method_Signatures_Unchanged", func(t *testing.T) {
         // This test ensures the method signatures haven't changed
         var _ func(context.Context, uuid.UUID) ([]*simplecontent.DerivedContent, error) = svc.ListDerivedByParent
-        var _ func(context.Context, uuid.UUID) (*simplecontent.DerivedContent, error) = svc.GetDerivedRelationshipByContentID
+        var _ func(context.Context, uuid.UUID) (*simplecontent.DerivedContent, error) = svc.GetDerivedRelationship
 
         // New methods should be available but not break existing code
-        var _ func(context.Context, simplecontent.ListDerivedContentParams) ([]*simplecontent.DerivedContent, error) = svc.ListDerivedContentWithFilters
+        var _ func(context.Context, simplecontent.ListDerivedContentParams) ([]*simplecontent.DerivedContent, error) = svc.ListDerivedContent
     })
 }
 
@@ -335,7 +335,7 @@ func TestBackwardCompatibility_DataConsistency(t *testing.T) {
             ParentID:       &parent.ID,
             DerivationType: stringPtr("thumbnail"),
         }
-        filtered, err := svc.ListDerivedContentWithFilters(ctx, params)
+        filtered, err := svc.ListDerivedContent(ctx, params)
         if err != nil { t.Fatalf("filtering legacy data failed: %v", err) }
         if len(filtered) == 0 { t.Fatalf("legacy data not found in enhanced filtering") }
     })

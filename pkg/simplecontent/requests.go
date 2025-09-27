@@ -1,6 +1,10 @@
 package simplecontent
 
-import "github.com/google/uuid"
+import (
+	"io"
+
+	"github.com/google/uuid"
+)
 
 // Request/Response DTOs
 
@@ -62,7 +66,14 @@ type CreateObjectRequest struct {
 	ObjectKey          string
 }
 
-// UploadObjectWithMetadataRequest contains parameters for uploading object with metadata
+// UploadObjectRequest contains parameters for uploading an object
+type UploadObjectRequest struct {
+	ObjectID uuid.UUID
+	Reader   io.Reader
+	MimeType string // Optional - for metadata
+}
+
+// UploadObjectWithMetadataRequest is deprecated - use UploadObjectRequest instead
 type UploadObjectWithMetadataRequest struct {
 	ObjectID uuid.UUID
 	MimeType string

@@ -408,67 +408,43 @@ func (s *service) DeleteObject(ctx context.Context, id uuid.UUID) error {
 
 // Object upload/download operations
 
-func (s *service) UploadObject(ctx context.Context, id uuid.UUID, reader io.Reader) error {
-	object, err := s.repository.GetObject(ctx, id)
-	if err != nil {
-		return &ObjectError{ObjectID: id, Op: "upload", Err: err}
-	}
-
-	// Get the backend implementation
-	backend, err := s.GetBackend(object.StorageBackendName)
-	if err != nil {
-		return &ObjectError{ObjectID: id, Op: "upload", Err: err}
-	}
-
-	// Upload the object
-	if err := backend.Upload(ctx, object.ObjectKey, reader); err != nil {
-		return &StorageError{
-			Backend: object.StorageBackendName,
-			Key:     object.ObjectKey,
-			Op:      "upload",
-			Err:     err,
-		}
-	}
-
-	// Update object metadata from storage
-	if err := s.updateObjectFromStorage(ctx, id); err != nil {
-		return err
-	}
-
-	// Fire event
-	if s.eventSink != nil {
-		if err := s.eventSink.ObjectUploaded(ctx, object); err != nil {
-			// Log error but don't fail the operation
-		}
-	}
-
-	return nil
-}
-
-func (s *service) UploadObjectWithMetadata(ctx context.Context, reader io.Reader, req UploadObjectWithMetadataRequest) error {
+func (s *service) UploadObject(ctx context.Context, req UploadObjectRequest) error {
 	object, err := s.repository.GetObject(ctx, req.ObjectID)
 	if err != nil {
-		return &ObjectError{ObjectID: req.ObjectID, Op: "upload_with_metadata", Err: err}
+		return &ObjectError{ObjectID: req.ObjectID, Op: "upload", Err: err}
 	}
 
 	// Get the backend implementation
 	backend, err := s.GetBackend(object.StorageBackendName)
 	if err != nil {
-		return &ObjectError{ObjectID: req.ObjectID, Op: "upload_with_metadata", Err: err}
+		return &ObjectError{ObjectID: req.ObjectID, Op: "upload", Err: err}
 	}
 
-	// Upload the object with parameters
-	uploadParams := UploadParams{
-		ObjectKey: object.ObjectKey,
-		MimeType:  req.MimeType,
-	}
-	
-	if err := backend.UploadWithParams(ctx, reader, uploadParams); err != nil {
-		return &StorageError{
-			Backend: object.StorageBackendName,
-			Key:     object.ObjectKey,
-			Op:      "upload_with_params",
-			Err:     err,
+	// Upload the object with or without metadata
+	if req.MimeType != "" {
+		// Upload with metadata
+		uploadParams := UploadParams{
+			ObjectKey: object.ObjectKey,
+			MimeType:  req.MimeType,
+		}
+
+		if err := backend.UploadWithParams(ctx, req.Reader, uploadParams); err != nil {
+			return &StorageError{
+				Backend: object.StorageBackendName,
+				Key:     object.ObjectKey,
+				Op:      "upload_with_params",
+				Err:     err,
+			}
+		}
+	} else {
+		// Simple upload without metadata
+		if err := backend.Upload(ctx, object.ObjectKey, req.Reader); err != nil {
+			return &StorageError{
+				Backend: object.StorageBackendName,
+				Key:     object.ObjectKey,
+				Op:      "upload",
+				Err:     err,
+			}
 		}
 	}
 
@@ -699,7 +675,7 @@ func (s *service) updateObjectFromStorage(ctx context.Context, objectID uuid.UUI
 }
 
 // Derived content helpers
-func (s *service) GetDerivedRelationshipByContentID(ctx context.Context, contentID uuid.UUID) (*DerivedContent, error) {
+func (s *service) GetDerivedRelationship(ctx context.Context, contentID uuid.UUID) (*DerivedContent, error) {
     return s.repository.GetDerivedRelationshipByContentID(ctx, contentID)
 }
 
@@ -710,8 +686,7 @@ func (s *service) ListDerivedByParent(ctx context.Context, parentID uuid.UUID) (
     return s.repository.ListDerivedContent(ctx, params)
 }
 
-// NEW: Enhanced filtering methods with URL support
-func (s *service) ListDerivedContentWithFilters(ctx context.Context, params ListDerivedContentParams) ([]*DerivedContent, error) {
+func (s *service) ListDerivedContent(ctx context.Context, params ListDerivedContentParams) ([]*DerivedContent, error) {
     // Get base derived content from repository
     derived, err := s.repository.ListDerivedContent(ctx, params)
     if err != nil {
@@ -732,83 +707,6 @@ func (s *service) ListDerivedContentWithFilters(ctx context.Context, params List
     return derived, nil
 }
 
-func (s *service) CountDerivedContent(ctx context.Context, params ListDerivedContentParams) (int64, error) {
-    // For counting, we temporarily remove limits and get all matching records
-    countParams := params
-    countParams.Limit = nil
-    countParams.Offset = nil
-
-    results, err := s.repository.ListDerivedContent(ctx, countParams)
-    if err != nil {
-        return 0, err
-    }
-
-    return int64(len(results)), nil
-}
-
-// NEW: URL-enabled convenience methods
-func (s *service) ListDerivedByTypeAndVariant(ctx context.Context, parentID uuid.UUID, derivationType, variant string) ([]*DerivedContent, error) {
-    params := ListDerivedContentParams{
-        ParentID:       &parentID,
-        DerivationType: &derivationType,
-        Variant:        &variant,
-    }
-    return s.ListDerivedContentWithFilters(ctx, params)
-}
-
-func (s *service) ListDerivedByVariants(ctx context.Context, parentID uuid.UUID, variants []string) ([]*DerivedContent, error) {
-    params := ListDerivedContentParams{
-        ParentID: &parentID,
-        Variants: variants,
-    }
-    return s.ListDerivedContentWithFilters(ctx, params)
-}
-
-func (s *service) GetThumbnailsBySize(ctx context.Context, parentID uuid.UUID, sizes []string) ([]*DerivedContent, error) {
-    variants := make([]string, len(sizes))
-    for i, size := range sizes {
-        variants[i] = fmt.Sprintf("thumbnail_%s", size)
-    }
-
-    params := ListDerivedContentParams{
-        ParentID:       &parentID,
-        DerivationType: stringPtr("thumbnail"),
-        Variants:       variants,
-        IncludeURLs:    true, // Always include URLs for thumbnails
-    }
-    return s.ListDerivedContentWithFilters(ctx, params)
-}
-
-func (s *service) GetRecentDerived(ctx context.Context, parentID uuid.UUID, since time.Time) ([]*DerivedContent, error) {
-    params := ListDerivedContentParams{
-        ParentID:     &parentID,
-        CreatedAfter: &since,
-        SortBy:       stringPtr("created_at_desc"),
-    }
-    return s.ListDerivedContentWithFilters(ctx, params)
-}
-
-// NEW: URL-specific methods
-func (s *service) ListDerivedContentWithURLs(ctx context.Context, params ListDerivedContentParams) ([]*DerivedContent, error) {
-    params.IncludeURLs = true
-    return s.ListDerivedContentWithFilters(ctx, params)
-}
-
-func (s *service) GetDerivedContentWithURLs(ctx context.Context, contentID uuid.UUID) (*DerivedContent, error) {
-    // Get the derived content relationship
-    derived, err := s.repository.GetDerivedRelationshipByContentID(ctx, contentID)
-    if err != nil {
-        return nil, err
-    }
-
-    // Enhance with URLs
-    params := ListDerivedContentParams{IncludeURLs: true}
-    if err := s.enhanceDerivedContent(ctx, derived, params); err != nil {
-        return nil, fmt.Errorf("failed to enhance derived content with URLs: %w", err)
-    }
-
-    return derived, nil
-}
 
 // Helper methods for enhancement
 
@@ -906,7 +804,3 @@ func (s *service) extractVariant(derived *DerivedContent) string {
     return derived.DerivationType
 }
 
-// Helper functions for pointer creation
-func stringPtr(s string) *string {
-    return &s
-}

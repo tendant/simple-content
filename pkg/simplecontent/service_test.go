@@ -347,7 +347,11 @@ func TestObjectUploadDownload(t *testing.T) {
 
 	t.Run("UploadObject", func(t *testing.T) {
 		reader := strings.NewReader(testData)
-		err := svc.UploadObject(ctx, object.ID, reader)
+		req := simplecontent.UploadObjectRequest{
+			ObjectID: object.ID,
+			Reader:   reader,
+		}
+		err := svc.UploadObject(ctx, req)
 		assert.NoError(t, err)
 
 		// Verify object status was updated
@@ -377,13 +381,14 @@ func TestObjectUploadDownload(t *testing.T) {
 		object2, err := svc.CreateObject(ctx, objReq2)
 		require.NoError(t, err)
 
-		uploadReq := simplecontent.UploadObjectWithMetadataRequest{
+		reader := strings.NewReader("Test data with metadata")
+		uploadReq := simplecontent.UploadObjectRequest{
 			ObjectID: object2.ID,
+			Reader:   reader,
 			MimeType: "text/plain",
 		}
 
-		reader := strings.NewReader("Test data with metadata")
-		err = svc.UploadObjectWithMetadata(ctx, reader, uploadReq)
+		err = svc.UploadObject(ctx, uploadReq)
 		assert.NoError(t, err)
 	})
 }
@@ -422,7 +427,11 @@ func TestErrorHandling(t *testing.T) {
 
 	t.Run("UploadToNonExistentObject", func(t *testing.T) {
 		reader := strings.NewReader("test data")
-		err := svc.UploadObject(ctx, uuid.New(), reader)
+		req := simplecontent.UploadObjectRequest{
+			ObjectID: uuid.New(),
+			Reader:   reader,
+		}
+		err := svc.UploadObject(ctx, req)
 		assert.Error(t, err)
 	})
 }
@@ -532,7 +541,11 @@ func BenchmarkUploadDownload(b *testing.B) {
 
 		// Upload
 		reader := strings.NewReader(testData)
-		err = svc.UploadObject(ctx, object.ID, reader)
+		uploadReq := simplecontent.UploadObjectRequest{
+			ObjectID: object.ID,
+			Reader:   reader,
+		}
+		err = svc.UploadObject(ctx, uploadReq)
 		if err != nil {
 			b.Fatal(err)
 		}
