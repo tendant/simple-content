@@ -79,12 +79,12 @@ type ThumbnailInfo struct {
 // UploadImageWithThumbnails uploads an image and generates thumbnails
 func (ts *ThumbnailService) UploadImageWithThumbnails(ctx context.Context, req UploadImageRequest) (*UploadImageResponse, error) {
 	// 1. Upload the original image
-	content, object, err := ts.uploadOriginalImage(ctx, req)
+	content, err := ts.uploadOriginalImage(ctx, req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to upload original image: %w", err)
 	}
 
-	log.Printf("Uploaded original image: content=%s, object=%s", content.ID, object.ID)
+	log.Printf("Uploaded original image: content=%s", content.ID)
 
 	// 2. Generate thumbnails in multiple sizes
 	thumbnailSizes := []int{128, 256, 512}
@@ -97,29 +97,29 @@ func (ts *ThumbnailService) UploadImageWithThumbnails(ctx context.Context, req U
 			continue
 		}
 		thumbnails = append(thumbnails, *thumbnail)
-		log.Printf("Generated %dpx thumbnail: content=%s, object=%s", size, thumbnail.Content.ID, thumbnail.Object.ID)
+		log.Printf("Generated %dpx thumbnail: content=%s", size, thumbnail.Content.ID)
 	}
 
 	return &UploadImageResponse{
 		Content:    content,
-		Object:     object,
+		Object:     nil, // Object is no longer exposed
 		Thumbnails: thumbnails,
 	}, nil
 }
 
-// uploadOriginalImage uploads the original image file
-func (ts *ThumbnailService) uploadOriginalImage(ctx context.Context, req UploadImageRequest) (*simplecontent.Content, *simplecontent.Object, error) {
+// uploadOriginalImage uploads the original image file using the unified API
+func (ts *ThumbnailService) uploadOriginalImage(ctx context.Context, req UploadImageRequest) (*simplecontent.Content, error) {
 	// Open and read the file
 	file, err := os.Open(req.FilePath)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to open file: %w", err)
+		return nil, fmt.Errorf("failed to open file: %w", err)
 	}
 	defer file.Close()
 
 	// Get file info
-	_, err = file.Stat()
+	fileInfo, err := file.Stat()
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to get file info: %w", err)
+		return nil, fmt.Errorf("failed to get file info: %w", err)
 	}
 
 	// Determine MIME type based on extension
@@ -136,46 +136,31 @@ func (ts *ThumbnailService) uploadOriginalImage(ctx context.Context, req UploadI
 		mimeType = "application/octet-stream"
 	}
 
-	// Create content
-	content, err := ts.svc.CreateContent(ctx, simplecontent.CreateContentRequest{
-		OwnerID:      req.OwnerID,
-		TenantID:     req.TenantID,
-		Name:         req.Name,
-		Description:  req.Description,
-		DocumentType: mimeType,
-	})
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to create content: %w", err)
-	}
-
-	// Note: Content metadata is now handled automatically through object storage
-	// Custom metadata can be set on the object level if needed
-
-	// Create object
-	object, err := ts.svc.CreateObject(ctx, simplecontent.CreateObjectRequest{
-		ContentID:          content.ID,
+	// Upload content with data in one step
+	content, err := ts.svc.UploadContent(ctx, simplecontent.UploadContentRequest{
+		OwnerID:            req.OwnerID,
+		TenantID:           req.TenantID,
+		Name:               req.Name,
+		Description:        req.Description,
+		DocumentType:       mimeType,
 		StorageBackendName: "filesystem",
-		Version:            1,
+		Reader:             file,
+		FileName:           filepath.Base(req.FilePath),
+		FileSize:           fileInfo.Size(),
+		Tags:               append(req.Tags, "original", "image"),
+		CustomMetadata: map[string]interface{}{
+			"file_extension":  ext,
+			"upload_source":   "thumbnail_generation_example",
+		},
 	})
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to create object: %w", err)
+		return nil, fmt.Errorf("failed to upload content: %w", err)
 	}
 
-	// Reset file pointer and upload
-	file.Seek(0, 0)
-	err = ts.svc.UploadObject(ctx, simplecontent.UploadObjectRequest{
-		ObjectID: object.ID,
-		Reader:   file,
-		MimeType: "image/jpeg", // Detect or pass through
-	})
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to upload object: %w", err)
-	}
-
-	return content, object, nil
+	return content, nil
 }
 
-// generateThumbnail generates a thumbnail of the specified size
+// generateThumbnail generates a thumbnail of the specified size using unified API
 func (ts *ThumbnailService) generateThumbnail(ctx context.Context, parentContentID uuid.UUID, originalFilePath string, size int) (*ThumbnailInfo, error) {
 	// Get parent content for metadata
 	parentContent, err := ts.svc.GetContent(ctx, parentContentID)
@@ -186,55 +171,39 @@ func (ts *ThumbnailService) generateThumbnail(ctx context.Context, parentContent
 	// Create thumbnail variant name
 	variant := fmt.Sprintf("thumbnail_%d", size)
 
-	// Create derived content
-	thumbnailContent, err := ts.svc.CreateDerivedContent(ctx, simplecontent.CreateDerivedContentRequest{
-		ParentID:       parentContentID,
-		OwnerID:        parentContent.OwnerID,
-		TenantID:       parentContent.TenantID,
-		DerivationType: "thumbnail",
-		Variant:        variant,
-		Metadata: map[string]interface{}{
-			"size":        size,
-			"source_type": "image_resize",
-			"algorithm":   "lanczos3",
-		},
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to create derived content: %w", err)
-	}
-
 	// Generate thumbnail image data
 	thumbnailData, err := ts.resizeImage(originalFilePath, size)
 	if err != nil {
 		return nil, fmt.Errorf("failed to resize image: %w", err)
 	}
 
-	// Create object for thumbnail
-	thumbnailObject, err := ts.svc.CreateObject(ctx, simplecontent.CreateObjectRequest{
-		ContentID:          thumbnailContent.ID,
+	// Upload derived content with thumbnail data in one step
+	thumbnailContent, err := ts.svc.UploadDerivedContent(ctx, simplecontent.UploadDerivedContentRequest{
+		ParentID:           parentContentID,
+		OwnerID:            parentContent.OwnerID,
+		TenantID:           parentContent.TenantID,
+		DerivationType:     "thumbnail",
+		Variant:            variant,
 		StorageBackendName: "filesystem",
-		Version:            1,
+		Reader:             bytes.NewReader(thumbnailData),
+		FileName:           fmt.Sprintf("thumbnail_%dpx.jpg", size),
+		FileSize:           int64(len(thumbnailData)),
+		Tags:               []string{"thumbnail", "derived", fmt.Sprintf("%dpx", size)},
+		Metadata: map[string]interface{}{
+			"thumbnail_size": size,
+			"parent_id":      parentContentID.String(),
+			"generated_by":   "thumbnail_generation_example",
+			"source_type":    "image_resize",
+			"algorithm":      "lanczos3",
+		},
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to create thumbnail object: %w", err)
+		return nil, fmt.Errorf("failed to upload derived content: %w", err)
 	}
-
-	// Upload thumbnail data
-	err = ts.svc.UploadObject(ctx, simplecontent.UploadObjectRequest{
-		ObjectID: thumbnailObject.ID,
-		Reader:   bytes.NewReader(thumbnailData),
-		MimeType: "image/jpeg",
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to upload thumbnail: %w", err)
-	}
-
-	// Note: Thumbnail metadata is now handled automatically
-	// Custom metadata was previously stored in the derivation relationship
 
 	return &ThumbnailInfo{
 		Content: thumbnailContent,
-		Object:  thumbnailObject,
+		Object:  nil, // Object is no longer exposed
 		Size:    size,
 	}, nil
 }
@@ -307,11 +276,7 @@ func (ts *ThumbnailService) ListContentWithThumbnails(ctx context.Context, owner
 			fmt.Printf("  Tags: %v\n", details.Tags)
 		}
 
-		// Get objects for this content
-		objects, err := ts.svc.GetObjectsByContentID(ctx, content.ID)
-		if err == nil {
-			fmt.Printf("  Objects: %d\n", len(objects))
-		}
+		// Note: Object details are now abstracted - use content details for URLs
 
 		// If this is original content, list derived content
 		if content.DerivationType == "" { // Original content
@@ -332,20 +297,10 @@ func (ts *ThumbnailService) ListContentWithThumbnails(ctx context.Context, owner
 
 // DownloadThumbnail downloads a thumbnail to a local file
 func (ts *ThumbnailService) DownloadThumbnail(ctx context.Context, contentID uuid.UUID, outputPath string) error {
-	// Get objects for the content
-	objects, err := ts.svc.GetObjectsByContentID(ctx, contentID)
+	// Download content data directly using content ID
+	reader, err := ts.svc.DownloadContent(ctx, contentID)
 	if err != nil {
-		return fmt.Errorf("failed to get objects: %w", err)
-	}
-
-	if len(objects) == 0 {
-		return fmt.Errorf("no objects found for content %s", contentID)
-	}
-
-	// Download the first object
-	reader, err := ts.svc.DownloadObject(ctx, objects[0].ID)
-	if err != nil {
-		return fmt.Errorf("failed to download object: %w", err)
+		return fmt.Errorf("failed to download content: %w", err)
 	}
 	defer reader.Close()
 

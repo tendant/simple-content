@@ -150,8 +150,9 @@ func CountDerivedContent(ctx context.Context, svc Service, params ListDerivedCon
 // Upload convenience functions for backward compatibility
 
 // UploadObjectSimple uploads an object without metadata (backward compatibility).
-// This is a convenience function that uses the service's UploadObject method.
-func UploadObjectSimple(ctx context.Context, svc Service, objectID uuid.UUID, reader io.Reader) error {
+// Deprecated: Use the unified UploadContent or UploadDerivedContent instead.
+// This function now requires a StorageService interface for object operations.
+func UploadObjectSimple(ctx context.Context, svc StorageService, objectID uuid.UUID, reader io.Reader) error {
 	req := UploadObjectRequest{
 		ObjectID: objectID,
 		Reader:   reader,
@@ -161,8 +162,9 @@ func UploadObjectSimple(ctx context.Context, svc Service, objectID uuid.UUID, re
 }
 
 // UploadObjectWithMimeType uploads an object with a specific MIME type.
-// This is a convenience function that uses the service's UploadObject method.
-func UploadObjectWithMimeType(ctx context.Context, svc Service, objectID uuid.UUID, reader io.Reader, mimeType string) error {
+// Deprecated: Use the unified UploadContent or UploadDerivedContent instead.
+// This function now requires a StorageService interface for object operations.
+func UploadObjectWithMimeType(ctx context.Context, svc StorageService, objectID uuid.UUID, reader io.Reader, mimeType string) error {
 	req := UploadObjectRequest{
 		ObjectID: objectID,
 		Reader:   reader,

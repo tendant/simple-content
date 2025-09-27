@@ -10,7 +10,7 @@ import (
     "github.com/google/uuid"
 )
 
-// service implements the Service interface
+// service implements both the Service and StorageService interfaces
 type service struct {
 	repository Repository
 	blobStores map[string]BlobStore
@@ -54,6 +54,23 @@ func WithPreviewer(previewer Previewer) Option {
 
 // New creates a new service instance with the given options
 func New(options ...Option) (Service, error) {
+	s := &service{
+		blobStores: make(map[string]BlobStore),
+	}
+
+	for _, option := range options {
+		option(s)
+	}
+
+	if s.repository == nil {
+		return nil, fmt.Errorf("repository is required")
+	}
+
+	return s, nil
+}
+
+// NewStorageService creates a new service instance that implements StorageService for advanced object operations
+func NewStorageService(options ...Option) (StorageService, error) {
 	s := &service{
 		blobStores: make(map[string]BlobStore),
 	}
@@ -225,6 +242,314 @@ func (s *service) DeleteContent(ctx context.Context, id uuid.UUID) error {
 
 func (s *service) ListContent(ctx context.Context, req ListContentRequest) ([]*Content, error) {
 	return s.repository.ListContent(ctx, req.OwnerID, req.TenantID)
+}
+
+// Unified content upload operations
+
+func (s *service) UploadContent(ctx context.Context, req UploadContentRequest) (*Content, error) {
+	// Step 1: Create the content
+	now := time.Now().UTC()
+	content := &Content{
+		ID:           uuid.New(),
+		TenantID:     req.TenantID,
+		OwnerID:      req.OwnerID,
+		Name:         req.Name,
+		Description:  req.Description,
+		DocumentType: req.DocumentType,
+		Status:       string(ContentStatusCreated),
+		CreatedAt:    now,
+		UpdatedAt:    now,
+	}
+
+	if err := s.repository.CreateContent(ctx, content); err != nil {
+		return nil, &ContentError{
+			ContentID: content.ID,
+			Op:        "upload_create",
+			Err:       err,
+		}
+	}
+
+	// Step 2: Determine storage backend
+	storageBackend := req.StorageBackendName
+	if storageBackend == "" {
+		// Use first available backend as default
+		for name := range s.blobStores {
+			storageBackend = name
+			break
+		}
+	}
+	if storageBackend == "" {
+		return nil, fmt.Errorf("no storage backend available")
+	}
+
+	// Step 3: Create the object
+	objectID := uuid.New()
+	objectKey := fmt.Sprintf("%s/%s", content.ID.String(), objectID.String())
+
+	object := &Object{
+		ID:                 objectID,
+		ContentID:          content.ID,
+		ObjectKey:          objectKey,
+		StorageBackendName: storageBackend,
+		Version:            1,
+		Status:             string(ObjectStatusCreated),
+		CreatedAt:          now,
+		UpdatedAt:          now,
+	}
+
+	if err := s.repository.CreateObject(ctx, object); err != nil {
+		return nil, &ObjectError{
+			ObjectID: objectID,
+			Op:       "upload_create_object",
+			Err:      err,
+		}
+	}
+
+	// Step 4: Upload the data
+	backend, err := s.GetBackend(storageBackend)
+	if err != nil {
+		return nil, &ObjectError{ObjectID: objectID, Op: "upload_get_backend", Err: err}
+	}
+
+	// Upload with metadata if provided
+	if req.DocumentType != "" || req.FileName != "" {
+		uploadParams := UploadParams{
+			ObjectKey: objectKey,
+			MimeType:  req.DocumentType,
+		}
+		if err := backend.UploadWithParams(ctx, req.Reader, uploadParams); err != nil {
+			return nil, &ObjectError{ObjectID: objectID, Op: "upload_data", Err: err}
+		}
+	} else {
+		// Simple upload without metadata
+		if err := backend.Upload(ctx, objectKey, req.Reader); err != nil {
+			return nil, &ObjectError{ObjectID: objectID, Op: "upload_data", Err: err}
+		}
+	}
+
+	// Step 5: Update object status
+	object.Status = string(ObjectStatusUploaded)
+	if err := s.repository.UpdateObject(ctx, object); err != nil {
+		return nil, &ObjectError{ObjectID: objectID, Op: "upload_update_status", Err: err}
+	}
+
+	// Step 6: Create content metadata if provided
+	if req.FileName != "" || req.FileSize > 0 || len(req.Tags) > 0 || len(req.CustomMetadata) > 0 {
+		metadata := &ContentMetadata{
+			ContentID: content.ID,
+			FileName:  req.FileName,
+			FileSize:  req.FileSize,
+			MimeType:  req.DocumentType,
+			Tags:      req.Tags,
+			Metadata:  req.CustomMetadata,
+			CreatedAt: now,
+			UpdatedAt: now,
+		}
+		if metadata.Metadata == nil {
+			metadata.Metadata = make(map[string]interface{})
+		}
+
+		if err := s.repository.SetContentMetadata(ctx, metadata); err != nil {
+			// Log warning but don't fail - content was uploaded successfully
+		}
+	}
+
+	// Step 7: Update content status to uploaded
+	content.Status = string(ContentStatusUploaded)
+	content.UpdatedAt = time.Now().UTC()
+	if err := s.repository.UpdateContent(ctx, content); err != nil {
+		// Log warning but don't fail - content was uploaded successfully
+	}
+
+	// Fire event
+	if s.eventSink != nil {
+		if err := s.eventSink.ContentCreated(ctx, content); err != nil {
+			// Log error but don't fail the operation
+		}
+	}
+
+	return content, nil
+}
+
+func (s *service) UploadDerivedContent(ctx context.Context, req UploadDerivedContentRequest) (*Content, error) {
+	// Step 1: Verify parent content exists
+	_, err := s.repository.GetContent(ctx, req.ParentID)
+	if err != nil {
+		return nil, fmt.Errorf("parent content not found: %w", err)
+	}
+
+	// Step 2: Infer derivation_type from variant if missing
+	derivationType := req.DerivationType
+	if derivationType == "" && req.Variant != "" {
+		derivationType = DerivationTypeFromVariant(req.Variant)
+	}
+
+	// Step 3: Create derived content
+	now := time.Now().UTC()
+	content := &Content{
+		ID:             uuid.New(),
+		TenantID:       req.TenantID,
+		OwnerID:        req.OwnerID,
+		Status:         string(ContentStatusCreated),
+		DerivationType: NormalizeDerivationType(derivationType),
+		CreatedAt:      now,
+		UpdatedAt:      now,
+	}
+
+	if err := s.repository.CreateContent(ctx, content); err != nil {
+		return nil, &ContentError{
+			ContentID: content.ID,
+			Op:        "upload_derived_create",
+			Err:       err,
+		}
+	}
+
+	// Step 4: Create derived content relationship
+	_, err = s.repository.CreateDerivedContentRelationship(ctx, CreateDerivedContentParams{
+		ParentID:           req.ParentID,
+		DerivedContentID:   content.ID,
+		DerivationType:     derivationType,
+		Variant:            req.Variant,
+		DerivationParams:   req.Metadata,
+		ProcessingMetadata: nil,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create derived content relationship: %w", err)
+	}
+
+	// Step 5: Determine storage backend
+	storageBackend := req.StorageBackendName
+	if storageBackend == "" {
+		// Use first available backend as default
+		for name := range s.blobStores {
+			storageBackend = name
+			break
+		}
+	}
+	if storageBackend == "" {
+		return nil, fmt.Errorf("no storage backend available")
+	}
+
+	// Step 6: Create the object
+	objectID := uuid.New()
+	objectKey := fmt.Sprintf("%s/%s", content.ID.String(), objectID.String())
+
+	object := &Object{
+		ID:                 objectID,
+		ContentID:          content.ID,
+		ObjectKey:          objectKey,
+		StorageBackendName: storageBackend,
+		Version:            1,
+		Status:             string(ObjectStatusCreated),
+		CreatedAt:          now,
+		UpdatedAt:          now,
+	}
+
+	if err := s.repository.CreateObject(ctx, object); err != nil {
+		return nil, &ObjectError{
+			ObjectID: objectID,
+			Op:       "upload_derived_create_object",
+			Err:      err,
+		}
+	}
+
+	// Step 7: Upload the data
+	backend, err := s.GetBackend(storageBackend)
+	if err != nil {
+		return nil, &ObjectError{ObjectID: objectID, Op: "upload_derived_get_backend", Err: err}
+	}
+
+	// Simple upload for derived content
+	if err := backend.Upload(ctx, objectKey, req.Reader); err != nil {
+		return nil, &ObjectError{ObjectID: objectID, Op: "upload_derived_data", Err: err}
+	}
+
+	// Step 8: Update object status
+	object.Status = string(ObjectStatusUploaded)
+	if err := s.repository.UpdateObject(ctx, object); err != nil {
+		return nil, &ObjectError{ObjectID: objectID, Op: "upload_derived_update_status", Err: err}
+	}
+
+	// Step 9: Create content metadata if provided
+	if req.FileName != "" || req.FileSize > 0 || len(req.Tags) > 0 {
+		metadata := &ContentMetadata{
+			ContentID: content.ID,
+			FileName:  req.FileName,
+			FileSize:  req.FileSize,
+			Tags:      req.Tags,
+			Metadata:  req.Metadata,
+			CreatedAt: now,
+			UpdatedAt: now,
+		}
+		if metadata.Metadata == nil {
+			metadata.Metadata = make(map[string]interface{})
+		}
+
+		if err := s.repository.SetContentMetadata(ctx, metadata); err != nil {
+			// Log warning but don't fail - content was uploaded successfully
+		}
+	}
+
+	// Step 10: Update content status to uploaded
+	content.Status = string(ContentStatusUploaded)
+	content.UpdatedAt = time.Now().UTC()
+	if err := s.repository.UpdateContent(ctx, content); err != nil {
+		// Log warning but don't fail - content was uploaded successfully
+	}
+
+	// Fire event
+	if s.eventSink != nil {
+		if err := s.eventSink.ContentCreated(ctx, content); err != nil {
+			// Log error but don't fail the operation
+		}
+	}
+
+	return content, nil
+}
+
+func (s *service) DownloadContent(ctx context.Context, contentID uuid.UUID) (io.ReadCloser, error) {
+	// Get objects for this content
+	objects, err := s.repository.GetObjectsByContentID(ctx, contentID)
+	if err != nil {
+		return nil, &ContentError{
+			ContentID: contentID,
+			Op:        "download_get_objects",
+			Err:       err,
+		}
+	}
+
+	if len(objects) == 0 {
+		return nil, &ContentError{
+			ContentID: contentID,
+			Op:        "download",
+			Err:       fmt.Errorf("no objects found for content"),
+		}
+	}
+
+	// Use the first uploaded object
+	var targetObject *Object
+	for _, obj := range objects {
+		if obj.Status == string(ObjectStatusUploaded) {
+			targetObject = obj
+			break
+		}
+	}
+
+	if targetObject == nil {
+		return nil, &ContentError{
+			ContentID: contentID,
+			Op:        "download",
+			Err:       fmt.Errorf("no uploaded objects found for content"),
+		}
+	}
+
+	// Download from storage
+	backend, err := s.GetBackend(targetObject.StorageBackendName)
+	if err != nil {
+		return nil, &ObjectError{ObjectID: targetObject.ID, Op: "download_get_backend", Err: err}
+	}
+
+	return backend.Download(ctx, targetObject.ObjectKey)
 }
 
 // Content metadata operations
@@ -534,7 +859,12 @@ func (s *service) GetPreviewURL(ctx context.Context, id uuid.UUID) (string, erro
 
 // GetContentDetails returns all details for a content including URLs and metadata.
 // This provides the simplest interface for clients to get everything they need in one call.
-func (s *service) GetContentDetails(ctx context.Context, contentID uuid.UUID) (*ContentDetails, error) {
+func (s *service) GetContentDetails(ctx context.Context, contentID uuid.UUID, options ...ContentDetailsOption) (*ContentDetails, error) {
+	// Apply options
+	cfg := &ContentDetailsConfig{}
+	for _, opt := range options {
+		opt(cfg)
+	}
 	// Initialize the result
 	result := &ContentDetails{
 		ID:         contentID.String(),
@@ -573,6 +903,18 @@ func (s *service) GetContentDetails(ctx context.Context, contentID uuid.UUID) (*
 		// Generate preview URL
 		if previewURL, err := s.GetPreviewURL(ctx, primaryObject.ID); err == nil {
 			result.Preview = previewURL
+		}
+
+		// Generate upload URL if requested
+		if cfg.IncludeUploadURL {
+			if uploadURL, err := s.GetUploadURL(ctx, primaryObject.ID); err == nil {
+				result.Upload = uploadURL
+				// Set expiry time if upload URL was generated
+				if cfg.URLExpiryTime > 0 {
+					expiryTime := time.Now().Add(time.Duration(cfg.URLExpiryTime) * time.Second)
+					result.ExpiresAt = &expiryTime
+				}
+			}
 		}
 	}
 

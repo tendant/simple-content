@@ -78,3 +78,60 @@ type UploadObjectWithMetadataRequest struct {
 	ObjectID uuid.UUID
 	MimeType string
 }
+
+// UploadContentRequest contains parameters for uploading content with data.
+// This replaces the multi-step workflow of CreateContent + CreateObject + UploadObject.
+type UploadContentRequest struct {
+	OwnerID            uuid.UUID
+	TenantID           uuid.UUID
+	Name               string
+	Description        string
+	DocumentType       string
+	StorageBackendName string // Optional - uses default if empty
+	Reader             io.Reader
+	FileName           string // Optional - for metadata
+	FileSize           int64  // Optional - for metadata
+	Tags               []string // Optional - for metadata
+	CustomMetadata     map[string]interface{} // Optional - additional metadata
+}
+
+// UploadDerivedContentRequest contains parameters for uploading derived content.
+// This replaces the workflow of CreateDerivedContent + CreateObject + UploadObject.
+type UploadDerivedContentRequest struct {
+	ParentID           uuid.UUID
+	OwnerID            uuid.UUID
+	TenantID           uuid.UUID
+	DerivationType     string
+	Variant            string
+	StorageBackendName string // Optional - uses default if empty
+	Reader             io.Reader
+	FileName           string // Optional - for metadata
+	FileSize           int64  // Optional - for metadata
+	Tags               []string // Optional - for metadata
+	Metadata           map[string]interface{} // Derivation metadata
+}
+
+// ContentDetailsOption provides configuration for GetContentDetails calls
+type ContentDetailsOption func(*ContentDetailsConfig)
+
+// ContentDetailsConfig holds configuration for content details retrieval
+type ContentDetailsConfig struct {
+	IncludeUploadURL bool
+	URLExpiryTime    int // Seconds
+}
+
+// WithUploadAccess configures GetContentDetails to include upload URLs for content that needs data
+func WithUploadAccess() ContentDetailsOption {
+	return func(cfg *ContentDetailsConfig) {
+		cfg.IncludeUploadURL = true
+		cfg.URLExpiryTime = 1800 // 30 minutes default
+	}
+}
+
+// WithUploadAccessExpiry configures GetContentDetails to include upload URLs with custom expiry
+func WithUploadAccessExpiry(expirySeconds int) ContentDetailsOption {
+	return func(cfg *ContentDetailsConfig) {
+		cfg.IncludeUploadURL = true
+		cfg.URLExpiryTime = expirySeconds
+	}
+}

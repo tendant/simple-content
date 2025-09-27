@@ -211,14 +211,10 @@ func (ecs *ExtendedContentService) getDerivedContentsWithDetails(ctx context.Con
 			ProcessingMetadata: rel.ProcessingMetadata,
 		}
 
-		// Include objects if requested
+		// Note: Objects are now internal implementation details
+		// Use GetContentDetails() for access URLs instead
 		if opts.IncludeObjects {
-			objects, err := ecs.svc.GetObjectsByContentID(ctx, derivedContent.ID)
-			if err != nil {
-				log.Printf("Warning: failed to get objects for content %s: %v", derivedContent.ID, err)
-			} else {
-				item.Objects = objects
-			}
+			log.Printf("Note: Object access has been moved to internal interface. Use GetContentDetails() for URLs.")
 		}
 
 		// Include metadata if requested

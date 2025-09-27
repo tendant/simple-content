@@ -30,65 +30,43 @@ func main() {
 	ctx := context.Background()
 	
 	fmt.Println("=== Simple Content Library Example ===")
-	
-	// Create content
-	fmt.Println("1. Creating content...")
-	content, err := svc.CreateContent(ctx, simplecontent.CreateContentRequest{
-		OwnerID:     uuid.New(),
-		TenantID:    uuid.New(),
-		Name:        "My Document",
-		Description: "A sample document",
-		DocumentType: "text/plain",
-	})
-	if err != nil {
-		log.Fatal(err)
-	}
-	fmt.Printf("   Created content: %s\n", content.ID)
-	
-	// Note: Metadata can be set using the storage object metadata
-	fmt.Println("2. Skipping metadata setup (will be handled via object upload)...")
-	
-	// Create object for storage
-	fmt.Println("3. Creating object...")
-	object, err := svc.CreateObject(ctx, simplecontent.CreateObjectRequest{
-		ContentID:          content.ID,
-		StorageBackendName: "memory",
-		Version:            1,
-	})
-	if err != nil {
-		log.Fatal(err)
-	}
-	fmt.Printf("   Created object: %s\n", object.ID)
-	
-	// Upload data
-	fmt.Println("4. Uploading data...")
+
+	// Upload content with data in one step
+	fmt.Println("1. Uploading content with data...")
 	data := strings.NewReader("Hello, World!")
-	err = svc.UploadObject(ctx, simplecontent.UploadObjectRequest{
-		ObjectID: object.ID,
-		Reader:   data,
-		MimeType: "text/plain",
+	content, err := svc.UploadContent(ctx, simplecontent.UploadContentRequest{
+		OwnerID:            uuid.New(),
+		TenantID:           uuid.New(),
+		Name:               "My Document",
+		Description:        "A sample document",
+		DocumentType:       "text/plain",
+		StorageBackendName: "memory",
+		Reader:             data,
+		FileName:           "sample.txt",
+		FileSize:           13, // "Hello, World!" length
+		Tags:               []string{"sample", "test", "document"},
 	})
 	if err != nil {
 		log.Fatal(err)
 	}
-	fmt.Println("   Data uploaded successfully")
+	fmt.Printf("   Content uploaded successfully: %s\n", content.ID)
 	
-	// Get object metadata
-	fmt.Println("5. Retrieving object metadata...")
-	metadata, err := svc.GetObjectMetadata(ctx, object.ID)
+	// Get content details (includes metadata and URLs)
+	fmt.Println("2. Retrieving content details...")
+	details, err := svc.GetContentDetails(ctx, content.ID)
 	if err != nil {
 		log.Fatal(err)
 	}
-	fmt.Printf("   Object metadata: %+v\n", metadata)
-	
-	// Download data  
-	fmt.Println("6. Downloading data...")
-	reader, err := svc.DownloadObject(ctx, object.ID)
+	fmt.Printf("   Content details: %+v\n", details)
+
+	// Download data using content ID
+	fmt.Println("3. Downloading data...")
+	reader, err := svc.DownloadContent(ctx, content.ID)
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer reader.Close()
-	
+
 	// Read downloaded content
 	downloadedContent, err := io.ReadAll(reader)
 	if err != nil {
@@ -97,7 +75,7 @@ func main() {
 	fmt.Printf("   Downloaded content: %s\n", string(downloadedContent))
 	
 	// List content
-	fmt.Println("7. Listing content...")
+	fmt.Println("4. Listing content...")
 	contents, err := svc.ListContent(ctx, simplecontent.ListContentRequest{
 		OwnerID:  content.OwnerID,
 		TenantID: content.TenantID,
@@ -106,14 +84,6 @@ func main() {
 		log.Fatal(err)
 	}
 	fmt.Printf("   Found %d contents\n", len(contents))
-	
-	// Get objects by content ID
-	fmt.Println("8. Getting objects for content...")
-	objects, err := svc.GetObjectsByContentID(ctx, content.ID)
-	if err != nil {
-		log.Fatal(err)
-	}
-	fmt.Printf("   Found %d objects\n", len(objects))
 	
 	fmt.Println("=== Example completed successfully! ===")
 }

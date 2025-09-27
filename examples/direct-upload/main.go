@@ -18,7 +18,8 @@ import (
 
 // DirectUploadService wraps the simple-content service for direct upload workflows
 type DirectUploadService struct {
-	svc simplecontent.Service
+	svc         simplecontent.Service
+	storageSvc  simplecontent.StorageService  // For object operations
 }
 
 // NewDirectUploadService creates a service configured for direct uploads
@@ -59,7 +60,17 @@ func NewDirectUploadService() (*DirectUploadService, error) {
 		return nil, fmt.Errorf("failed to build service: %w", err)
 	}
 
-	return &DirectUploadService{svc: svc}, nil
+	// Cast the same service instance to StorageService interface
+	// since our service implementation supports both interfaces
+	storageSvc, ok := svc.(simplecontent.StorageService)
+	if !ok {
+		return nil, fmt.Errorf("service does not implement StorageService interface")
+	}
+
+	return &DirectUploadService{
+		svc:        svc,
+		storageSvc: storageSvc,
+	}, nil
 }
 
 // PrepareUploadRequest contains parameters for preparing a direct upload
@@ -123,7 +134,7 @@ func (dus *DirectUploadService) PrepareDirectUpload(ctx context.Context, req Pre
 	// Tags and custom metadata can be set on object level if needed
 
 	// 3. Create object for storage
-	object, err := dus.svc.CreateObject(ctx, simplecontent.CreateObjectRequest{
+	object, err := dus.storageSvc.CreateObject(ctx, simplecontent.CreateObjectRequest{
 		ContentID:          content.ID,
 		StorageBackendName: "s3",
 		Version:            1,
@@ -133,7 +144,7 @@ func (dus *DirectUploadService) PrepareDirectUpload(ctx context.Context, req Pre
 	}
 
 	// 4. Get presigned upload URL
-	uploadURL, err := dus.svc.GetUploadURL(ctx, object.ID)
+	uploadURL, err := dus.storageSvc.GetUploadURL(ctx, object.ID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get upload URL: %w", err)
 	}
@@ -158,20 +169,20 @@ func (dus *DirectUploadService) ConfirmUpload(ctx context.Context, req ConfirmUp
 	}
 
 	// Get the object to update its status
-	object, err := dus.svc.GetObject(ctx, objectID)
+	object, err := dus.storageSvc.GetObject(ctx, objectID)
 	if err != nil {
 		return fmt.Errorf("failed to get object: %w", err)
 	}
 
 	// Update object status to indicate upload completion
 	object.Status = string(simplecontent.ObjectStatusUploaded)
-	err = dus.svc.UpdateObject(ctx, object)
+	err = dus.storageSvc.UpdateObject(ctx, object)
 	if err != nil {
 		return fmt.Errorf("failed to update object status: %w", err)
 	}
 
 	// Sync metadata from storage backend
-	_, err = dus.svc.UpdateObjectMetaFromStorage(ctx, objectID)
+	_, err = dus.storageSvc.UpdateObjectMetaFromStorage(ctx, objectID)
 	if err != nil {
 		log.Printf("Warning: failed to sync object metadata from storage: %v", err)
 		// Don't fail the confirmation for metadata sync issues
@@ -188,7 +199,7 @@ func (dus *DirectUploadService) GetUploadStatus(ctx context.Context, objectID st
 		return nil, fmt.Errorf("invalid object_id: %w", err)
 	}
 
-	object, err := dus.svc.GetObject(ctx, id)
+	object, err := dus.storageSvc.GetObject(ctx, id)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get object: %w", err)
 	}

@@ -7,7 +7,8 @@ import (
 	"github.com/google/uuid"
 )
 
-// Service defines the main interface for the simple-content library
+// Service defines the main interface for the simple-content library.
+// This interface focuses on content operations and hides storage implementation details.
 type Service interface {
 	// Content operations
 	CreateContent(ctx context.Context, req CreateContentRequest) (*Content, error)
@@ -15,26 +16,14 @@ type Service interface {
 	UpdateContent(ctx context.Context, req UpdateContentRequest) error
 	DeleteContent(ctx context.Context, id uuid.UUID) error
 	ListContent(ctx context.Context, req ListContentRequest) ([]*Content, error)
-	
-	// Object operations
-	CreateObject(ctx context.Context, req CreateObjectRequest) (*Object, error)
-	GetObject(ctx context.Context, id uuid.UUID) (*Object, error)
-	GetObjectsByContentID(ctx context.Context, contentID uuid.UUID) ([]*Object, error)
-	UpdateObject(ctx context.Context, object *Object) error
-	DeleteObject(ctx context.Context, id uuid.UUID) error
-	
-	// Object upload/download operations
-	UploadObject(ctx context.Context, req UploadObjectRequest) error
-	DownloadObject(ctx context.Context, id uuid.UUID) (io.ReadCloser, error)
-	GetUploadURL(ctx context.Context, id uuid.UUID) (string, error)
-	GetDownloadURL(ctx context.Context, id uuid.UUID) (string, error)
-	GetPreviewURL(ctx context.Context, id uuid.UUID) (string, error)
-	
-	// Object metadata operations
-	SetObjectMetadata(ctx context.Context, objectID uuid.UUID, metadata map[string]interface{}) error
-	GetObjectMetadata(ctx context.Context, objectID uuid.UUID) (map[string]interface{}, error)
-    UpdateObjectMetaFromStorage(ctx context.Context, objectID uuid.UUID) (*ObjectMetadata, error)
-	
+
+	// Unified content upload operations (replaces object-based workflow)
+	UploadContent(ctx context.Context, req UploadContentRequest) (*Content, error)
+	UploadDerivedContent(ctx context.Context, req UploadDerivedContentRequest) (*Content, error)
+
+	// Content data access
+	DownloadContent(ctx context.Context, contentID uuid.UUID) (io.ReadCloser, error)
+
 	// Storage backend operations
     RegisterBackend(name string, backend BlobStore)
     GetBackend(name string) (BlobStore, error)
@@ -45,5 +34,28 @@ type Service interface {
     ListDerivedContent(ctx context.Context, options ...ListDerivedContentOption) ([]*DerivedContent, error)
 
     // Content details operations (unified interface for clients)
-    GetContentDetails(ctx context.Context, contentID uuid.UUID) (*ContentDetails, error)
+    GetContentDetails(ctx context.Context, contentID uuid.UUID, options ...ContentDetailsOption) (*ContentDetails, error)
+}
+
+// StorageService defines operations for advanced users who need direct object access.
+// This is an internal interface for storage implementation details.
+type StorageService interface {
+	// Object operations (internal use only)
+	CreateObject(ctx context.Context, req CreateObjectRequest) (*Object, error)
+	GetObject(ctx context.Context, id uuid.UUID) (*Object, error)
+	GetObjectsByContentID(ctx context.Context, contentID uuid.UUID) ([]*Object, error)
+	UpdateObject(ctx context.Context, object *Object) error
+	DeleteObject(ctx context.Context, id uuid.UUID) error
+
+	// Object upload/download operations (internal use only)
+	UploadObject(ctx context.Context, req UploadObjectRequest) error
+	DownloadObject(ctx context.Context, objectID uuid.UUID) (io.ReadCloser, error)
+	GetUploadURL(ctx context.Context, objectID uuid.UUID) (string, error)
+	GetDownloadURL(ctx context.Context, objectID uuid.UUID) (string, error)
+	GetPreviewURL(ctx context.Context, objectID uuid.UUID) (string, error)
+
+	// Object metadata operations (internal use only)
+	SetObjectMetadata(ctx context.Context, objectID uuid.UUID, metadata map[string]interface{}) error
+	GetObjectMetadata(ctx context.Context, objectID uuid.UUID) (map[string]interface{}, error)
+    UpdateObjectMetaFromStorage(ctx context.Context, objectID uuid.UUID) (*ObjectMetadata, error)
 }

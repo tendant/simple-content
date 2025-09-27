@@ -163,6 +163,7 @@ type ContentDetails struct {
 
 	// Access URLs
 	Download    string            `json:"download,omitempty"`        // Primary download URL
+	Upload      string            `json:"upload,omitempty"`          // Upload URL (when WithUploadAccess option used)
 	Preview     string            `json:"preview,omitempty"`         // Primary preview URL
 	Thumbnail   string            `json:"thumbnail,omitempty"`       // Primary thumbnail URL
 	Thumbnails  map[string]string `json:"thumbnails,omitempty"`      // size -> URL (256, 512, etc.)
