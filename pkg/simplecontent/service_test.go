@@ -78,6 +78,14 @@ func setupTestService(t *testing.T) simplecontent.Service {
 	return svc
 }
 
+// setupTestServiceWithStorage returns both Service and StorageService interfaces
+func setupTestServiceWithStorage(t *testing.T) (simplecontent.Service, simplecontent.StorageService) {
+	svc := setupTestService(t)
+	storageSvc, ok := svc.(simplecontent.StorageService)
+	require.True(t, ok, "Service should implement StorageService interface")
+	return svc, storageSvc
+}
+
 func TestContentOperations(t *testing.T) {
 	svc := setupTestService(t)
 	ctx := context.Background()
@@ -215,7 +223,7 @@ func TestContentOperations(t *testing.T) {
 
 
 func TestObjectOperations(t *testing.T) {
-	svc := setupTestService(t)
+	svc, storageSvc := setupTestServiceWithStorage(t)
 	ctx := context.Background()
 
 	// Create a content first
@@ -234,7 +242,7 @@ func TestObjectOperations(t *testing.T) {
 			Version:            1,
 		}
 
-		object, err := svc.CreateObject(ctx, objReq)
+		object, err := storageSvc.CreateObject(ctx, objReq)
 		assert.NoError(t, err)
 		assert.NotNil(t, object)
 		assert.Equal(t, content.ID, object.ContentID)
@@ -251,11 +259,11 @@ func TestObjectOperations(t *testing.T) {
 			StorageBackendName: "memory",
 			Version:            1,
 		}
-		created, err := svc.CreateObject(ctx, objReq)
+		created, err := storageSvc.CreateObject(ctx, objReq)
 		require.NoError(t, err)
 
 		// Retrieve object
-		retrieved, err := svc.GetObject(ctx, created.ID)
+		retrieved, err := storageSvc.GetObject(ctx, created.ID)
 		assert.NoError(t, err)
 		assert.NotNil(t, retrieved)
 		assert.Equal(t, created.ID, retrieved.ID)
@@ -270,19 +278,19 @@ func TestObjectOperations(t *testing.T) {
 				StorageBackendName: "memory",
 				Version:            i + 2, // Start from version 2
 			}
-			_, err := svc.CreateObject(ctx, objReq)
+			_, err := storageSvc.CreateObject(ctx, objReq)
 			require.NoError(t, err)
 		}
 
 		// Get objects by content ID
-		objects, err := svc.GetObjectsByContentID(ctx, content.ID)
+		objects, err := storageSvc.GetObjectsByContentID(ctx, content.ID)
 		assert.NoError(t, err)
 		assert.GreaterOrEqual(t, len(objects), 3) // At least 3, might be more from other tests
 	})
 }
 
 func TestObjectUploadDownload(t *testing.T) {
-	svc := setupTestService(t)
+	svc, storageSvc := setupTestServiceWithStorage(t)
 	ctx := context.Background()
 
 	// Create content and object
@@ -299,7 +307,7 @@ func TestObjectUploadDownload(t *testing.T) {
 		StorageBackendName: "memory",
 		Version:            1,
 	}
-	object, err := svc.CreateObject(ctx, objReq)
+	object, err := storageSvc.CreateObject(ctx, objReq)
 	require.NoError(t, err)
 
 	testData := "Hello, World! This is test data for upload/download."
@@ -310,17 +318,17 @@ func TestObjectUploadDownload(t *testing.T) {
 			ObjectID: object.ID,
 			Reader:   reader,
 		}
-		err := svc.UploadObject(ctx, req)
+		err := storageSvc.UploadObject(ctx, req)
 		assert.NoError(t, err)
 
 		// Verify object status was updated
-		updated, err := svc.GetObject(ctx, object.ID)
+		updated, err := storageSvc.GetObject(ctx, object.ID)
 		assert.NoError(t, err)
         assert.Equal(t, string(simplecontent.ObjectStatusUploaded), updated.Status)
 	})
 
 	t.Run("DownloadObject", func(t *testing.T) {
-		reader, err := svc.DownloadObject(ctx, object.ID)
+		reader, err := storageSvc.DownloadObject(ctx, object.ID)
 		assert.NoError(t, err)
 		assert.NotNil(t, reader)
 		defer reader.Close()
@@ -337,7 +345,7 @@ func TestObjectUploadDownload(t *testing.T) {
 			StorageBackendName: "memory",
 			Version:            2,
 		}
-		object2, err := svc.CreateObject(ctx, objReq2)
+		object2, err := storageSvc.CreateObject(ctx, objReq2)
 		require.NoError(t, err)
 
 		reader := strings.NewReader("Test data with metadata")
@@ -347,13 +355,13 @@ func TestObjectUploadDownload(t *testing.T) {
 			MimeType: "text/plain",
 		}
 
-		err = svc.UploadObject(ctx, uploadReq)
+		err = storageSvc.UploadObject(ctx, uploadReq)
 		assert.NoError(t, err)
 	})
 }
 
 func TestErrorHandling(t *testing.T) {
-	svc := setupTestService(t)
+	svc, storageSvc := setupTestServiceWithStorage(t)
 	ctx := context.Background()
 
 	t.Run("GetNonExistentContent", func(t *testing.T) {
@@ -379,7 +387,7 @@ func TestErrorHandling(t *testing.T) {
 			Version:            1,
 		}
 
-		object, err := svc.CreateObject(ctx, objReq)
+		object, err := storageSvc.CreateObject(ctx, objReq)
 		assert.Error(t, err)
 		assert.Nil(t, object)
 	})
@@ -390,7 +398,7 @@ func TestErrorHandling(t *testing.T) {
 			ObjectID: uuid.New(),
 			Reader:   reader,
 		}
-		err := svc.UploadObject(ctx, req)
+		err := storageSvc.UploadObject(ctx, req)
 		assert.Error(t, err)
 	})
 }
@@ -472,6 +480,10 @@ func BenchmarkCreateContent(b *testing.B) {
 
 func BenchmarkUploadDownload(b *testing.B) {
 	svc := setupBenchmarkService(b)
+	storageSvc, ok := svc.(simplecontent.StorageService)
+	if !ok {
+		b.Fatal("Service should implement StorageService interface")
+	}
 	ctx := context.Background()
 
 	// Setup
@@ -493,7 +505,7 @@ func BenchmarkUploadDownload(b *testing.B) {
 			StorageBackendName: "memory",
 			Version:            i + 1,
 		}
-		object, err := svc.CreateObject(ctx, objReq)
+		object, err := storageSvc.CreateObject(ctx, objReq)
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -504,13 +516,13 @@ func BenchmarkUploadDownload(b *testing.B) {
 			ObjectID: object.ID,
 			Reader:   reader,
 		}
-		err = svc.UploadObject(ctx, uploadReq)
+		err = storageSvc.UploadObject(ctx, uploadReq)
 		if err != nil {
 			b.Fatal(err)
 		}
 
 		// Download
-		downloadReader, err := svc.DownloadObject(ctx, object.ID)
+		downloadReader, err := storageSvc.DownloadObject(ctx, object.ID)
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -554,7 +566,7 @@ func setupBenchmarkService(b *testing.B) simplecontent.Service {
 
 func TestGetContentDetails(t *testing.T) {
 	ctx := context.Background()
-	svc := setupTestService(t)
+	svc, storageSvc := setupTestServiceWithStorage(t)
 
 	// Create owner and tenant IDs
 	ownerID := uuid.New()
@@ -602,7 +614,7 @@ func TestGetContentDetails(t *testing.T) {
 			Version:            1,
 			ObjectKey:          "test-object-key",
 		}
-		object, err := svc.CreateObject(ctx, objReq)
+		object, err := storageSvc.CreateObject(ctx, objReq)
 		require.NoError(t, err)
 
 		// Upload some content to the object
@@ -611,7 +623,7 @@ func TestGetContentDetails(t *testing.T) {
 			Reader:   strings.NewReader("test content"),
 			MimeType: "text/plain",
 		}
-		err = svc.UploadObject(ctx, uploadReq)
+		err = storageSvc.UploadObject(ctx, uploadReq)
 		require.NoError(t, err)
 
 		// Get details
@@ -641,7 +653,7 @@ func TestGetContentDetails(t *testing.T) {
 			Version:            1,
 			ObjectKey:          "parent-object-key",
 		}
-		parentObject, err := svc.CreateObject(ctx, objReq)
+		parentObject, err := storageSvc.CreateObject(ctx, objReq)
 		require.NoError(t, err)
 
 		// Upload content
@@ -650,7 +662,7 @@ func TestGetContentDetails(t *testing.T) {
 			Reader:   strings.NewReader("parent content"),
 			MimeType: "image/jpeg",
 		}
-		err = svc.UploadObject(ctx, uploadReq)
+		err = storageSvc.UploadObject(ctx, uploadReq)
 		require.NoError(t, err)
 
 		// Create derived content (thumbnail)
@@ -671,7 +683,7 @@ func TestGetContentDetails(t *testing.T) {
 			Version:            1,
 			ObjectKey:          "thumbnail-256-key",
 		}
-		derivedObject, err := svc.CreateObject(ctx, derivedObjReq)
+		derivedObject, err := storageSvc.CreateObject(ctx, derivedObjReq)
 		require.NoError(t, err)
 
 		// Upload thumbnail content
@@ -680,7 +692,7 @@ func TestGetContentDetails(t *testing.T) {
 			Reader:   strings.NewReader("thumbnail content"),
 			MimeType: "image/jpeg",
 		}
-		err = svc.UploadObject(ctx, thumbUploadReq)
+		err = storageSvc.UploadObject(ctx, thumbUploadReq)
 		require.NoError(t, err)
 
 		// Get details - should include both original and thumbnail URLs

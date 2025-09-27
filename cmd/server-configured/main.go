@@ -92,15 +92,23 @@ func main() {
 
 // HTTPServer wraps the simple-content service for HTTP access
 type HTTPServer struct {
-	service simplecontent.Service
-	config  *config.ServerConfig
+	service        simplecontent.Service
+	storageService simplecontent.StorageService // For object operations
+	config         *config.ServerConfig
 }
 
 // NewHTTPServer creates a new HTTP server wrapper
 func NewHTTPServer(service simplecontent.Service, serverConfig *config.ServerConfig) *HTTPServer {
+	// Cast to StorageService for object operations
+	storageService, ok := service.(simplecontent.StorageService)
+	if !ok {
+		log.Fatalf("Service does not implement StorageService interface - object operations will not be available")
+	}
+
 	return &HTTPServer{
-		service: service,
-		config:  serverConfig,
+		service:        service,
+		storageService: storageService,
+		config:         serverConfig,
 	}
 }
 
@@ -202,7 +210,7 @@ func (s *HTTPServer) handleDemo(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Create an object for the content
-	object, err := s.service.CreateObject(ctx, simplecontent.CreateObjectRequest{
+	object, err := s.storageService.CreateObject(ctx, simplecontent.CreateObjectRequest{
 		ContentID:          content.ID,
 		StorageBackendName: s.config.DefaultStorageBackend,
 		Version:            1,
@@ -519,7 +527,7 @@ func (s *HTTPServer) handleCreateObject(w http.ResponseWriter, r *http.Request) 
 	if backend == "" {
 		backend = s.config.DefaultStorageBackend
 	}
-	obj, err := s.service.CreateObject(r.Context(), simplecontent.CreateObjectRequest{
+	obj, err := s.storageService.CreateObject(r.Context(), simplecontent.CreateObjectRequest{
 		ContentID:          contentID,
 		StorageBackendName: backend,
 		Version:            req.Version,
@@ -539,7 +547,7 @@ func (s *HTTPServer) handleGetObject(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid_object_id", "objectID must be a UUID", nil)
 		return
 	}
-	obj, err := s.service.GetObject(r.Context(), id)
+	obj, err := s.storageService.GetObject(r.Context(), id)
 	if err != nil {
 		writeServiceError(w, err)
 		return
@@ -554,7 +562,7 @@ func (s *HTTPServer) handleDeleteObject(w http.ResponseWriter, r *http.Request) 
 		writeError(w, http.StatusBadRequest, "invalid_object_id", "objectID must be a UUID", nil)
 		return
 	}
-	if err := s.service.DeleteObject(r.Context(), id); err != nil {
+	if err := s.storageService.DeleteObject(r.Context(), id); err != nil {
 		writeServiceError(w, err)
 		return
 	}
@@ -568,7 +576,7 @@ func (s *HTTPServer) handleListObjects(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid_content_id", "contentID must be a UUID", nil)
 		return
 	}
-	objs, err := s.service.GetObjectsByContentID(r.Context(), contentID)
+	objs, err := s.storageService.GetObjectsByContentID(r.Context(), contentID)
 	if err != nil {
 		writeServiceError(w, err)
 		return
@@ -593,7 +601,7 @@ func (s *HTTPServer) handleUploadObject(w http.ResponseWriter, r *http.Request) 
 		Reader:   r.Body,
 		MimeType: mimeType,
 	}
-	if err := s.service.UploadObject(r.Context(), req); err != nil {
+	if err := s.storageService.UploadObject(r.Context(), req); err != nil {
 		writeServiceError(w, err)
 		return
 	}
@@ -607,13 +615,13 @@ func (s *HTTPServer) handleDownloadObject(w http.ResponseWriter, r *http.Request
 		writeError(w, http.StatusBadRequest, "invalid_object_id", "objectID must be a UUID", nil)
 		return
 	}
-	rc, err := s.service.DownloadObject(r.Context(), id)
+	rc, err := s.storageService.DownloadObject(r.Context(), id)
 	if err != nil {
 		writeServiceError(w, err)
 		return
 	}
 	defer rc.Close()
-	if md, mdErr := s.service.GetObjectMetadata(r.Context(), id); mdErr == nil {
+	if md, mdErr := s.storageService.GetObjectMetadata(r.Context(), id); mdErr == nil {
 		if mt, ok := md["mime_type"].(string); ok && mt != "" {
 			w.Header().Set("Content-Type", mt)
 		}
@@ -633,7 +641,7 @@ func (s *HTTPServer) handleGetUploadURL(w http.ResponseWriter, r *http.Request) 
 		writeError(w, http.StatusBadRequest, "invalid_object_id", "objectID must be a UUID", nil)
 		return
 	}
-	url, err := s.service.GetUploadURL(r.Context(), id)
+	url, err := s.storageService.GetUploadURL(r.Context(), id)
 	if err != nil {
 		writeServiceError(w, err)
 		return
@@ -648,7 +656,7 @@ func (s *HTTPServer) handleGetDownloadURL(w http.ResponseWriter, r *http.Request
 		writeError(w, http.StatusBadRequest, "invalid_object_id", "objectID must be a UUID", nil)
 		return
 	}
-	url, err := s.service.GetDownloadURL(r.Context(), id)
+	url, err := s.storageService.GetDownloadURL(r.Context(), id)
 	if err != nil {
 		writeServiceError(w, err)
 		return
@@ -663,7 +671,7 @@ func (s *HTTPServer) handleGetPreviewURL(w http.ResponseWriter, r *http.Request)
 		writeError(w, http.StatusBadRequest, "invalid_object_id", "objectID must be a UUID", nil)
 		return
 	}
-	url, err := s.service.GetPreviewURL(r.Context(), id)
+	url, err := s.storageService.GetPreviewURL(r.Context(), id)
 	if err != nil {
 		writeServiceError(w, err)
 		return
