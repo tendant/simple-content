@@ -342,7 +342,7 @@ func (ts *ThumbnailService) ListContentWithThumbnails(ctx context.Context, owner
 
 		// If this is original content, list derived content
 		if content.DerivationType == "" { // Original content
-			derived, err := ts.svc.ListDerivedByParent(ctx, content.ID)
+			derived, err := ts.svc.ListDerivedContent(ctx, simplecontent.WithParentID(content.ID))
 			if err == nil && len(derived) > 0 {
 				fmt.Printf("  Derived Content:\n")
 				for _, d := range derived {

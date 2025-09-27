@@ -95,14 +95,14 @@ func (eds *EnhancedDerivedContentService) ListDerivedContentWithFilters(ctx cont
 	var err error
 
 	if params.ParentID != nil {
-		allDerived, err = eds.svc.ListDerivedByParent(ctx, *params.ParentID)
+		allDerived, err = eds.svc.ListDerivedContent(ctx, simplecontent.WithParentID(*params.ParentID))
 		if err != nil {
 			return nil, fmt.Errorf("failed to list derived content: %w", err)
 		}
 	} else if len(params.ParentIDs) > 0 {
 		// For multiple parents, we'll query each one (in a real implementation, you'd optimize this)
 		for _, parentID := range params.ParentIDs {
-			derived, err := eds.svc.ListDerivedByParent(ctx, parentID)
+			derived, err := eds.svc.ListDerivedContent(ctx, simplecontent.WithParentID(parentID))
 			if err != nil {
 				log.Printf("Warning: failed to get derived content for parent %s: %v", parentID, err)
 				continue

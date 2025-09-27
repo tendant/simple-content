@@ -178,7 +178,7 @@ func (ecs *ExtendedContentService) getDerivedContentsWithDetails(ctx context.Con
 	}
 
 	// Get derived relationships
-	relationships, err := ecs.svc.ListDerivedByParent(ctx, parentID)
+	relationships, err := ecs.svc.ListDerivedContent(ctx, simplecontent.WithParentID(parentID))
 	if err != nil {
 		return nil, err
 	}

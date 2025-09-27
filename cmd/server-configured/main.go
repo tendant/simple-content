@@ -305,7 +305,7 @@ func (s *HTTPServer) handleGetContent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	variant := ""
-	if rel, err := s.service.GetDerivedRelationshipByContentID(r.Context(), id); err == nil && rel != nil {
+	if rel, err := s.service.GetDerivedRelationship(r.Context(), id); err == nil && rel != nil {
 		variant = rel.DerivationType
 	}
 	writeJSON(w, http.StatusOK, contentResponse(content, variant))
@@ -354,7 +354,7 @@ func (s *HTTPServer) handleCreateDerivedContent(w http.ResponseWriter, r *http.R
 		return
 	}
 	variant := ""
-	if rel, err := s.service.GetDerivedRelationshipByContentID(r.Context(), derived.ID); err == nil && rel != nil {
+	if rel, err := s.service.GetDerivedRelationship(r.Context(), derived.ID); err == nil && rel != nil {
 		variant = rel.DerivationType
 	}
 	writeJSON(w, http.StatusCreated, contentResponse(derived, variant))
@@ -436,7 +436,7 @@ func (s *HTTPServer) handleListContents(w http.ResponseWriter, r *http.Request) 
 	out := make([]map[string]interface{}, 0, len(contents))
 	for _, c := range contents {
 		v := ""
-		if rel, err := s.service.GetDerivedRelationshipByContentID(r.Context(), c.ID); err == nil && rel != nil {
+		if rel, err := s.service.GetDerivedRelationship(r.Context(), c.ID); err == nil && rel != nil {
 			v = rel.DerivationType
 		}
 		out = append(out, contentResponse(c, v))
@@ -455,7 +455,7 @@ func (s *HTTPServer) handleListDerivedForParent(w http.ResponseWriter, r *http.R
 	}
 
 	// List derived relationships filtered by parent via service
-	rels, err := s.service.ListDerivedByParent(r.Context(), parentID)
+	rels, err := s.service.ListDerivedContent(r.Context(), simplecontent.WithParentID(parentID))
 	if err != nil {
 		writeServiceError(w, err)
 		return
@@ -620,16 +620,18 @@ func (s *HTTPServer) handleUploadObject(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	mimeType := r.Header.Get("Content-Type")
-	if mimeType != "" && !strings.HasPrefix(mimeType, "multipart/") {
-		if err := s.service.UploadObjectWithMetadata(r.Context(), r.Body, simplecontent.UploadObjectWithMetadataRequest{ObjectID: id, MimeType: mimeType}); err != nil {
-			writeServiceError(w, err)
-			return
-		}
-	} else {
-		if err := s.service.UploadObject(r.Context(), id, r.Body); err != nil {
-			writeServiceError(w, err)
-			return
-		}
+	if strings.HasPrefix(mimeType, "multipart/") {
+		mimeType = "" // Don't store multipart MIME type
+	}
+
+	req := simplecontent.UploadObjectRequest{
+		ObjectID: id,
+		Reader:   r.Body,
+		MimeType: mimeType,
+	}
+	if err := s.service.UploadObject(r.Context(), req); err != nil {
+		writeServiceError(w, err)
+		return
 	}
 	w.WriteHeader(http.StatusNoContent)
 }
