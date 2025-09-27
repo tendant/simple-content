@@ -6,6 +6,7 @@ import (
 	"io"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -170,6 +171,9 @@ func TestContentOperations(t *testing.T) {
 		}
 		content, err := svc.CreateContent(ctx, req)
 		require.NoError(t, err)
+
+		// Small delay to ensure timestamp difference
+		time.Sleep(10 * time.Millisecond)
 
 		// Update content
 		content.Name = "Updated Name"

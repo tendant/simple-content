@@ -355,7 +355,7 @@ func (s *HTTPServer) handleCreateDerivedContent(w http.ResponseWriter, r *http.R
 	}
 	variant := ""
 	if rel, err := s.service.GetDerivedRelationship(r.Context(), derived.ID); err == nil && rel != nil {
-		variant = rel.DerivationType
+		variant = rel.Variant
 	}
 	writeJSON(w, http.StatusCreated, contentResponse(derived, variant))
 }
