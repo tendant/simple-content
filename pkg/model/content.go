@@ -48,10 +48,10 @@ const (
 const (
 	ContentCategoryOriginal                  = "original"
 	ContentCategoryThumbnail                 = "thumbnail"
-	ContentDerivedDerivationTypeTHUMBNAIL720 = "THUMBNAIL_720"
-	ContentDerivedDerivationTypeTHUMBNAIL480 = "THUMBNAIL_480"
-	ContentDerivedDerivationTypeTHUMBNAIL256 = "THUMBNAIL_256"
-	ContentDerivedDerivationTypeTHUMBNAIL128 = "THUMBNAIL_128"
+	ContentDerivedDerivationTypeTHUMBNAIL720 = "thumbnail_720"
+	ContentDerivedDerivationTypeTHUMBNAIL480 = "thumbnail_480"
+	ContentDerivedDerivationTypeTHUMBNAIL256 = "thumbnail_256"
+	ContentDerivedDerivationTypeTHUMBNAIL128 = "thumbnail_128"
 )
 
 // Object status constants
