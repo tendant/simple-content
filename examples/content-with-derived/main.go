@@ -153,7 +153,7 @@ func (ecs *ExtendedContentService) GetContentHierarchy(ctx context.Context, root
 // Helper methods
 
 func (ecs *ExtendedContentService) getParentReference(ctx context.Context, contentID uuid.UUID) (*ContentReference, error) {
-	relationship, err := ecs.svc.GetDerivedRelationshipByContentID(ctx, contentID)
+	relationship, err := ecs.svc.GetDerivedRelationship(ctx, contentID)
 	if err != nil {
 		return nil, err
 	}

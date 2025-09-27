@@ -176,7 +176,11 @@ func (ts *ThumbnailService) uploadOriginalImage(ctx context.Context, req UploadI
 
 	// Reset file pointer and upload
 	file.Seek(0, 0)
-	err = ts.svc.UploadObject(ctx, object.ID, file)
+	err = ts.svc.UploadObject(ctx, simplecontent.UploadObjectRequest{
+		ObjectID: object.ID,
+		Reader:   file,
+		MimeType: "image/jpeg", // Detect or pass through
+	})
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to upload object: %w", err)
 	}
@@ -229,7 +233,11 @@ func (ts *ThumbnailService) generateThumbnail(ctx context.Context, parentContent
 	}
 
 	// Upload thumbnail data
-	err = ts.svc.UploadObject(ctx, thumbnailObject.ID, bytes.NewReader(thumbnailData))
+	err = ts.svc.UploadObject(ctx, simplecontent.UploadObjectRequest{
+		ObjectID: thumbnailObject.ID,
+		Reader:   bytes.NewReader(thumbnailData),
+		MimeType: "image/jpeg",
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to upload thumbnail: %w", err)
 	}

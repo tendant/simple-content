@@ -111,7 +111,11 @@ func uploadContent(svc simplecontent.Service, data io.Reader, filename string, m
     }
 
     // 4. Upload data
-    err = svc.UploadObject(ctx, object.ID, data)
+    err = svc.UploadObject(ctx, simplecontent.UploadObjectRequest{
+        ObjectID: object.ID,
+        Reader:   data,
+        MimeType: mimeType, // Optional - for metadata
+    })
     if err != nil {
         return nil, nil, fmt.Errorf("failed to upload data: %w", err)
     }
@@ -195,7 +199,11 @@ func createThumbnailPipeline(svc simplecontent.Service, originalContentID uuid.U
     }
 
     // 3. Upload thumbnail data
-    err = svc.UploadObject(ctx, thumbnailObject.ID, thumbnailData)
+    err = svc.UploadObject(ctx, simplecontent.UploadObjectRequest{
+        ObjectID: thumbnailObject.ID,
+        Reader:   thumbnailData,
+        MimeType: "image/jpeg",
+    })
     if err != nil {
         return nil, nil, fmt.Errorf("failed to upload thumbnail: %w", err)
     }
@@ -212,6 +220,69 @@ func createThumbnailPipeline(svc simplecontent.Service, originalContentID uuid.U
     }
 
     return thumbnailContent, thumbnailObject, nil
+}
+```
+
+## Convenience Functions
+
+The library provides package-level convenience functions for common operations:
+
+### Thumbnail Operations
+
+```go
+// Get thumbnails of specific sizes
+thumbnails, err := simplecontent.GetThumbnailsBySize(ctx, svc, parentContentID, []string{"128", "256", "512"})
+if err != nil {
+    log.Fatal(err)
+}
+
+// List derived content by specific type and variant
+derived, err := simplecontent.ListDerivedByTypeAndVariant(ctx, svc, parentContentID, "thumbnail", "thumbnail_256")
+if err != nil {
+    log.Fatal(err)
+}
+
+// List by multiple variants
+variants := []string{"thumbnail_128", "thumbnail_256", "preview_720"}
+derived, err := simplecontent.ListDerivedByVariants(ctx, svc, parentContentID, variants)
+if err != nil {
+    log.Fatal(err)
+}
+```
+
+### Enhanced Listing with URLs
+
+```go
+// Get derived content with URLs populated
+params := simplecontent.ListDerivedContentParams{
+    ParentID:    &parentContentID,
+    IncludeURLs: true, // This will populate DownloadURL, PreviewURL, ThumbnailURL
+}
+derived, err := simplecontent.ListDerivedContentWithURLs(ctx, svc, params)
+if err != nil {
+    log.Fatal(err)
+}
+
+// Get single derived content with URLs
+derivedWithURLs, err := simplecontent.GetDerivedContentWithURLs(ctx, svc, derivedContentID)
+if err != nil {
+    log.Fatal(err)
+}
+```
+
+### Upload Convenience Functions
+
+```go
+// Simple upload without metadata
+err := simplecontent.UploadObjectSimple(ctx, svc, objectID, dataReader)
+if err != nil {
+    log.Fatal(err)
+}
+
+// Upload with MIME type
+err := simplecontent.UploadObjectWithMimeType(ctx, svc, objectID, dataReader, "image/jpeg")
+if err != nil {
+    log.Fatal(err)
 }
 ```
 
@@ -272,7 +343,7 @@ if err != nil {
 func getDerivedContent(svc simplecontent.Service, parentContentID uuid.UUID) ([]*simplecontent.DerivedContent, error) {
     ctx := context.Background()
 
-    // Get all derived content for a parent
+    // Method 1: Get all derived content for a parent (legacy)
     derived, err := svc.ListDerivedByParent(ctx, parentContentID)
     if err != nil {
         return nil, fmt.Errorf("failed to list derived content: %w", err)
@@ -280,6 +351,31 @@ func getDerivedContent(svc simplecontent.Service, parentContentID uuid.UUID) ([]
 
     return derived, nil
 }
+
+func getFilteredDerivedContent(svc simplecontent.Service, parentContentID uuid.UUID) ([]*simplecontent.DerivedContent, error) {
+    ctx := context.Background()
+
+    // Method 2: Enhanced filtering with advanced parameters
+    params := simplecontent.ListDerivedContentParams{
+        ParentID:       &parentContentID,
+        DerivationType: stringPtr("thumbnail"), // Only thumbnails
+        Variants:       []string{"thumbnail_256", "thumbnail_512"}, // Specific sizes
+        IncludeURLs:    true, // Include download/preview URLs
+        SortBy:         stringPtr("created_at_desc"),
+        Limit:          intPtr(10),
+    }
+
+    derived, err := svc.ListDerivedContent(ctx, params)
+    if err != nil {
+        return nil, fmt.Errorf("failed to list filtered derived content: %w", err)
+    }
+
+    return derived, nil
+}
+
+// Helper functions
+func stringPtr(s string) *string { return &s }
+func intPtr(i int) *int { return &i }
 
 // Usage
 derived, err := getDerivedContent(svc, originalContentID)
@@ -412,7 +508,10 @@ Always pass appropriate contexts with timeouts for long-running operations:
 ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 defer cancel()
 
-err := svc.UploadObject(ctx, objectID, largeFile)
+err := svc.UploadObject(ctx, simplecontent.UploadObjectRequest{
+    ObjectID: objectID,
+    Reader:   largeFile,
+})
 ```
 
 ### 2. Resource Cleanup

@@ -76,7 +76,11 @@ func main() {
 	// Upload data
 	fmt.Println("4. Uploading data...")
 	data := strings.NewReader("Hello, World!")
-	err = svc.UploadObject(ctx, object.ID, data)
+	err = svc.UploadObject(ctx, simplecontent.UploadObjectRequest{
+		ObjectID: object.ID,
+		Reader:   data,
+		MimeType: "text/plain",
+	})
 	if err != nil {
 		log.Fatal(err)
 	}
