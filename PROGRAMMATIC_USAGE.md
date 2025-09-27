@@ -276,7 +276,7 @@ The library also provides a modern functional options API for cleaner, more read
 
 ```go
 // Using functional options (modern approach)
-derived, err := svc.ListDerivedContentWithOptions(ctx,
+derived, err := svc.ListDerivedContent(ctx,
     simplecontent.WithParentID(parentContentID),
     simplecontent.WithDerivationType("thumbnail"),
     simplecontent.WithVariants("thumbnail_256", "thumbnail_512"),
@@ -302,20 +302,20 @@ derived, err := svc.ListDerivedContent(ctx, params)
 
 ```go
 // Get all thumbnails with URLs
-thumbnails, err := svc.ListDerivedContentWithOptions(ctx,
+thumbnails, err := svc.ListDerivedContent(ctx,
     simplecontent.WithParentID(parentContentID),
     simplecontent.WithDerivationType("thumbnail"),
     simplecontent.WithURLs(),
 )
 
 // Get multiple specific variants
-derived, err := svc.ListDerivedContentWithOptions(ctx,
+derived, err := svc.ListDerivedContent(ctx,
     simplecontent.WithParentID(parentContentID),
     simplecontent.WithVariants("thumbnail_256", "preview_720", "video_1080p"),
 )
 
 // Get recent derived content with pagination
-recent, err := svc.ListDerivedContentWithOptions(ctx,
+recent, err := svc.ListDerivedContent(ctx,
     simplecontent.WithParentID(parentContentID),
     simplecontent.WithCreatedAfter(time.Now().Add(-24*time.Hour)),
     simplecontent.WithSortBy("created_at_desc"),
@@ -323,14 +323,14 @@ recent, err := svc.ListDerivedContentWithOptions(ctx,
 )
 
 // Get content across multiple parents
-derived, err := svc.ListDerivedContentWithOptions(ctx,
+derived, err := svc.ListDerivedContent(ctx,
     simplecontent.WithParentIDs(parentID1, parentID2, parentID3),
     simplecontent.WithDerivationType("thumbnail"),
     simplecontent.WithMetadata(), // Include metadata
 )
 
 // Complex filtering with type-variant pairs
-derived, err := svc.ListDerivedContentWithOptions(ctx,
+derived, err := svc.ListDerivedContent(ctx,
     simplecontent.WithParentID(parentContentID),
     simplecontent.WithTypeVariantPairs(
         simplecontent.TypeVariantPair{DerivationType: "thumbnail", Variant: "thumbnail_256"},
@@ -369,7 +369,7 @@ if err != nil {
 }
 
 // Modern option pattern (recommended) - more flexible and readable
-thumbnails, err := svc.ListDerivedContentWithOptions(ctx,
+thumbnails, err := svc.ListDerivedContent(ctx,
     simplecontent.WithParentID(parentContentID),
     simplecontent.WithDerivationType("thumbnail"),
     simplecontent.WithVariants("thumbnail_256", "thumbnail_512"),
@@ -380,7 +380,7 @@ if err != nil {
 }
 
 // Get recent derived content using options
-recent, err := svc.ListDerivedContentWithOptions(ctx,
+recent, err := svc.ListDerivedContent(ctx,
     simplecontent.WithParentID(parentContentID),
     simplecontent.WithCreatedAfter(time.Now().Add(-24*time.Hour)),
     simplecontent.WithSortBy("created_at_desc"),
@@ -390,7 +390,7 @@ if err != nil {
 }
 
 // List by specific type and variant
-specific, err := svc.ListDerivedContentWithOptions(ctx,
+specific, err := svc.ListDerivedContent(ctx,
     simplecontent.WithParentID(parentContentID),
     simplecontent.WithDerivationType("thumbnail"),
     simplecontent.WithVariant("thumbnail_256"),
@@ -400,7 +400,7 @@ if err != nil {
 }
 
 // List by multiple variants
-variants, err := svc.ListDerivedContentWithOptions(ctx,
+variants, err := svc.ListDerivedContent(ctx,
     simplecontent.WithParentID(parentContentID),
     simplecontent.WithVariants("thumbnail_256", "preview_720"),
 )
@@ -466,8 +466,8 @@ if err != nil {
 func getDerivedContent(svc simplecontent.Service, parentContentID uuid.UUID) ([]*simplecontent.DerivedContent, error) {
     ctx := context.Background()
 
-    // Method 1: Get all derived content for a parent (legacy)
-    derived, err := svc.ListDerivedByParent(ctx, parentContentID)
+    // Method 1: Get all derived content for a parent using options
+    derived, err := svc.ListDerivedContent(ctx, simplecontent.WithParentID(parentContentID))
     if err != nil {
         return nil, fmt.Errorf("failed to list derived content: %w", err)
     }

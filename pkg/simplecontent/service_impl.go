@@ -679,14 +679,13 @@ func (s *service) GetDerivedRelationship(ctx context.Context, contentID uuid.UUI
     return s.repository.GetDerivedRelationshipByContentID(ctx, contentID)
 }
 
-func (s *service) ListDerivedByParent(ctx context.Context, parentID uuid.UUID) ([]*DerivedContent, error) {
-    params := ListDerivedContentParams{
-        ParentID: &parentID,
+func (s *service) ListDerivedContent(ctx context.Context, options ...ListDerivedContentOption) ([]*DerivedContent, error) {
+    // Build params from options
+    params := ListDerivedContentParams{}
+    for _, option := range options {
+        option(&params)
     }
-    return s.repository.ListDerivedContent(ctx, params)
-}
 
-func (s *service) ListDerivedContent(ctx context.Context, params ListDerivedContentParams) ([]*DerivedContent, error) {
     // Get base derived content from repository
     derived, err := s.repository.ListDerivedContent(ctx, params)
     if err != nil {
@@ -705,17 +704,6 @@ func (s *service) ListDerivedContent(ctx context.Context, params ListDerivedCont
     }
 
     return derived, nil
-}
-
-func (s *service) ListDerivedContentWithOptions(ctx context.Context, options ...ListDerivedContentOption) ([]*DerivedContent, error) {
-    // Build params from options
-    params := ListDerivedContentParams{}
-    for _, option := range options {
-        option(&params)
-    }
-
-    // Delegate to existing implementation
-    return s.ListDerivedContent(ctx, params)
 }
 
 

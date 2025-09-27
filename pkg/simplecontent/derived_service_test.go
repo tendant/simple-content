@@ -52,7 +52,7 @@ func TestListDerivedAndGetRelationship(t *testing.T) {
         }
     }
 
-    rels, err := svc.ListDerivedByParent(ctx, parent.ID)
+    rels, err := svc.ListDerivedContent(ctx, simplecontent.WithParentID(parent.ID))
     if err != nil { t.Fatalf("list derived: %v", err) }
     if len(rels) < 2 { t.Fatalf("expected >=2 derived, got %d", len(rels)) }
 
@@ -86,10 +86,10 @@ func TestBackwardCompatibility_ListDerivedContentParams(t *testing.T) {
         if err != nil { t.Fatalf("create derived %s: %v", variant, err) }
     }
 
-    // Test 1: Legacy ListDerivedByParent method should work unchanged
-    t.Run("Legacy_ListDerivedByParent", func(t *testing.T) {
-        results, err := svc.ListDerivedByParent(ctx, parent.ID)
-        if err != nil { t.Fatalf("ListDerivedByParent failed: %v", err) }
+    // Test 1: New ListDerivedContent method with options
+    t.Run("Options_ListDerivedContent", func(t *testing.T) {
+        results, err := svc.ListDerivedContent(ctx, simplecontent.WithParentID(parent.ID))
+        if err != nil { t.Fatalf("ListDerivedContent failed: %v", err) }
         if len(results) != 3 { t.Fatalf("expected 3 results, got %d", len(results)) }
 
         // Verify existing fields are still populated
@@ -106,30 +106,23 @@ func TestBackwardCompatibility_ListDerivedContentParams(t *testing.T) {
         }
     })
 
-    // Test 2: Legacy repository interface methods should work unchanged
-    t.Run("Legacy_Repository_ListDerivedContent", func(t *testing.T) {
-        // Test existing parameter patterns
-        params := simplecontent.ListDerivedContentParams{
-            ParentID: &parent.ID,
-        }
-
-        results, err := svc.ListDerivedContent(ctx, params)
+    // Test 2: Options pattern works equivalently to old parameters
+    t.Run("Options_Pattern_Equivalent", func(t *testing.T) {
+        // Test options pattern equivalent to old parameters
+        results, err := svc.ListDerivedContent(ctx, simplecontent.WithParentID(parent.ID))
         if err != nil { t.Fatalf("ListDerivedContent failed: %v", err) }
         if len(results) != 3 { t.Fatalf("expected 3 results, got %d", len(results)) }
     })
 
-    // Test 3: Legacy parameter structure should be unaffected
-    t.Run("Legacy_Parameter_Structure", func(t *testing.T) {
-        // These should compile and work exactly as before
-        derivationType := "thumbnail"
-        params := simplecontent.ListDerivedContentParams{
-            ParentID:       &parent.ID,
-            DerivationType: &derivationType,
-            Limit:          intPtr(10),
-            Offset:         intPtr(0),
-        }
-
-        results, err := svc.ListDerivedContent(ctx, params)
+    // Test 3: Options pattern with filtering
+    t.Run("Options_Pattern_Filtering", func(t *testing.T) {
+        // Test equivalent filtering with options pattern
+        results, err := svc.ListDerivedContent(ctx,
+            simplecontent.WithParentID(parent.ID),
+            simplecontent.WithDerivationType("thumbnail"),
+            simplecontent.WithLimit(10),
+            simplecontent.WithOffset(0),
+        )
         if err != nil { t.Fatalf("filtering failed: %v", err) }
 
         // Should get 2 thumbnail results (128 and 256)
@@ -227,8 +220,8 @@ func TestBackwardCompatibility_ServiceInterface(t *testing.T) {
     // Test 1: Existing service methods should work unchanged
     t.Run("Existing_Service_Methods", func(t *testing.T) {
         // These methods should compile and work exactly as before
-        results, err := svc.ListDerivedByParent(ctx, parent.ID)
-        if err != nil { t.Fatalf("ListDerivedByParent failed: %v", err) }
+        results, err := svc.ListDerivedContent(ctx, simplecontent.WithParentID(parent.ID))
+        if err != nil { t.Fatalf("ListDerivedContent failed: %v", err) }
         if len(results) != 1 { t.Fatalf("expected 1 result, got %d", len(results)) }
 
         relationship, err := svc.GetDerivedRelationship(ctx, derived.ID)
@@ -236,14 +229,13 @@ func TestBackwardCompatibility_ServiceInterface(t *testing.T) {
         if relationship.ParentID != parent.ID { t.Errorf("ParentID mismatch") }
     })
 
-    // Test 2: Method signatures should be unchanged
-    t.Run("Method_Signatures_Unchanged", func(t *testing.T) {
-        // This test ensures the method signatures haven't changed
-        var _ func(context.Context, uuid.UUID) ([]*simplecontent.DerivedContent, error) = svc.ListDerivedByParent
+    // Test 2: Method signatures for simplified API
+    t.Run("Method_Signatures_Simplified", func(t *testing.T) {
+        // This test ensures the simplified API signatures work correctly
         var _ func(context.Context, uuid.UUID) (*simplecontent.DerivedContent, error) = svc.GetDerivedRelationship
 
-        // New methods should be available but not break existing code
-        var _ func(context.Context, simplecontent.ListDerivedContentParams) ([]*simplecontent.DerivedContent, error) = svc.ListDerivedContent
+        // Single method with options pattern
+        var _ func(context.Context, ...simplecontent.ListDerivedContentOption) ([]*simplecontent.DerivedContent, error) = svc.ListDerivedContent
     })
 }
 
@@ -326,17 +318,16 @@ func TestBackwardCompatibility_DataConsistency(t *testing.T) {
         })
         if err != nil { t.Fatalf("legacy creation failed: %v", err) }
 
-        // Should still be findable via existing methods
-        results, err := svc.ListDerivedByParent(ctx, parent.ID)
+        // Should still be findable via new options method
+        results, err := svc.ListDerivedContent(ctx, simplecontent.WithParentID(parent.ID))
         if err != nil { t.Fatalf("listing legacy data failed: %v", err) }
         if len(results) == 0 { t.Fatalf("legacy data not found") }
 
         // Should work with enhanced filtering too
-        params := simplecontent.ListDerivedContentParams{
-            ParentID:       &parent.ID,
-            DerivationType: stringPtr("thumbnail"),
-        }
-        filtered, err := svc.ListDerivedContent(ctx, params)
+        filtered, err := svc.ListDerivedContent(ctx,
+            simplecontent.WithParentID(parent.ID),
+            simplecontent.WithDerivationType("thumbnail"),
+        )
         if err != nil { t.Fatalf("filtering legacy data failed: %v", err) }
         if len(filtered) == 0 { t.Fatalf("legacy data not found in enhanced filtering") }
     })
@@ -361,7 +352,7 @@ func stringPtr(s string) *string {
 
 // Tests for the new option pattern
 
-func TestListDerivedContentWithOptions_BasicFiltering(t *testing.T) {
+func TestListDerivedContent_BasicFiltering(t *testing.T) {
     svc := mustService(t)
     ctx := context.Background()
 
@@ -383,7 +374,7 @@ func TestListDerivedContentWithOptions_BasicFiltering(t *testing.T) {
     }
 
     // Test option pattern - get all thumbnails
-    results, err := svc.ListDerivedContentWithOptions(ctx,
+    results, err := svc.ListDerivedContent(ctx,
         simplecontent.WithParentID(parent.ID),
         simplecontent.WithDerivationType("thumbnail"),
     )
@@ -391,7 +382,7 @@ func TestListDerivedContentWithOptions_BasicFiltering(t *testing.T) {
     if len(results) != 2 { t.Fatalf("expected 2 thumbnails, got %d", len(results)) }
 
     // Test specific variant
-    results, err = svc.ListDerivedContentWithOptions(ctx,
+    results, err = svc.ListDerivedContent(ctx,
         simplecontent.WithParentID(parent.ID),
         simplecontent.WithVariant("thumbnail_256"),
     )
@@ -400,7 +391,7 @@ func TestListDerivedContentWithOptions_BasicFiltering(t *testing.T) {
     if results[0].Variant != "thumbnail_256" { t.Fatalf("expected variant thumbnail_256, got %s", results[0].Variant) }
 }
 
-func TestListDerivedContentWithOptions_MultipleVariants(t *testing.T) {
+func TestListDerivedContent_MultipleVariants(t *testing.T) {
     svc := mustService(t)
     ctx := context.Background()
 
@@ -422,7 +413,7 @@ func TestListDerivedContentWithOptions_MultipleVariants(t *testing.T) {
     }
 
     // Test multiple variants
-    results, err := svc.ListDerivedContentWithOptions(ctx,
+    results, err := svc.ListDerivedContent(ctx,
         simplecontent.WithParentID(parent.ID),
         simplecontent.WithVariants("thumbnail_256", "preview_1080"),
     )
@@ -439,7 +430,7 @@ func TestListDerivedContentWithOptions_MultipleVariants(t *testing.T) {
     }
 }
 
-func TestListDerivedContentWithOptions_WithURLsAndMetadata(t *testing.T) {
+func TestListDerivedContent_WithURLsAndMetadata(t *testing.T) {
     svc := mustService(t)
     ctx := context.Background()
 
@@ -457,7 +448,7 @@ func TestListDerivedContentWithOptions_WithURLsAndMetadata(t *testing.T) {
     if err != nil { t.Fatalf("create derived: %v", err) }
 
     // Test with URLs option
-    results, err := svc.ListDerivedContentWithOptions(ctx,
+    results, err := svc.ListDerivedContent(ctx,
         simplecontent.WithParentID(parent.ID),
         simplecontent.WithURLs(),
     )
@@ -468,7 +459,7 @@ func TestListDerivedContentWithOptions_WithURLsAndMetadata(t *testing.T) {
     // For memory backend, they'll be empty but the option should work
 }
 
-func TestListDerivedContentWithOptions_Pagination(t *testing.T) {
+func TestListDerivedContent_Pagination(t *testing.T) {
     svc := mustService(t)
     ctx := context.Background()
 
@@ -489,7 +480,7 @@ func TestListDerivedContentWithOptions_Pagination(t *testing.T) {
     }
 
     // Test pagination
-    results, err := svc.ListDerivedContentWithOptions(ctx,
+    results, err := svc.ListDerivedContent(ctx,
         simplecontent.WithParentID(parent.ID),
         simplecontent.WithLimit(2),
         simplecontent.WithOffset(1),
@@ -498,7 +489,7 @@ func TestListDerivedContentWithOptions_Pagination(t *testing.T) {
     if len(results) != 2 { t.Fatalf("expected 2 results with limit, got %d", len(results)) }
 
     // Test combined pagination option
-    results, err = svc.ListDerivedContentWithOptions(ctx,
+    results, err = svc.ListDerivedContent(ctx,
         simplecontent.WithParentID(parent.ID),
         simplecontent.WithPagination(3, 2),
     )
@@ -506,12 +497,12 @@ func TestListDerivedContentWithOptions_Pagination(t *testing.T) {
     if len(results) != 3 { t.Fatalf("expected 3 results with combined pagination, got %d", len(results)) }
 }
 
-func TestListDerivedContentWithOptions_EmptyOptions(t *testing.T) {
+func TestListDerivedContent_EmptyOptions(t *testing.T) {
     svc := mustService(t)
     ctx := context.Background()
 
     // Test with no options - should return empty list since no parent specified
-    results, err := svc.ListDerivedContentWithOptions(ctx)
+    results, err := svc.ListDerivedContent(ctx)
     if err != nil { t.Fatalf("list with no options: %v", err) }
     // Should return empty or all derived content depending on implementation
     // The key is that it shouldn't crash
@@ -540,7 +531,7 @@ func TestOptionPatternVsLegacyConvenienceFunctions(t *testing.T) {
     }
 
     // Test option pattern replacing GetThumbnailsBySize
-    results, err := svc.ListDerivedContentWithOptions(ctx,
+    results, err := svc.ListDerivedContent(ctx,
         simplecontent.WithParentID(parent.ID),
         simplecontent.WithDerivationType("thumbnail"),
         simplecontent.WithVariants("thumbnail_256", "thumbnail_512"),
@@ -550,7 +541,7 @@ func TestOptionPatternVsLegacyConvenienceFunctions(t *testing.T) {
     if len(results) != 2 { t.Fatalf("expected 2 thumbnails, got %d", len(results)) }
 
     // Test option pattern replacing ListDerivedByTypeAndVariant
-    results, err = svc.ListDerivedContentWithOptions(ctx,
+    results, err = svc.ListDerivedContent(ctx,
         simplecontent.WithParentID(parent.ID),
         simplecontent.WithDerivationType("thumbnail"),
         simplecontent.WithVariant("thumbnail_256"),

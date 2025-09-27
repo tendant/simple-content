@@ -46,7 +46,5 @@ type Service interface {
     // Derived content operations
     CreateDerivedContent(ctx context.Context, req CreateDerivedContentRequest) (*Content, error)
     GetDerivedRelationship(ctx context.Context, contentID uuid.UUID) (*DerivedContent, error)
-    ListDerivedByParent(ctx context.Context, parentID uuid.UUID) ([]*DerivedContent, error)
-    ListDerivedContent(ctx context.Context, params ListDerivedContentParams) ([]*DerivedContent, error)
-    ListDerivedContentWithOptions(ctx context.Context, options ...ListDerivedContentOption) ([]*DerivedContent, error)
+    ListDerivedContent(ctx context.Context, options ...ListDerivedContentOption) ([]*DerivedContent, error)
 }

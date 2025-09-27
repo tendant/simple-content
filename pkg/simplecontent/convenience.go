@@ -21,52 +21,70 @@ func GetThumbnailsBySize(ctx context.Context, svc Service, parentID uuid.UUID, s
 		variants[i] = fmt.Sprintf("thumbnail_%s", size)
 	}
 
-	params := ListDerivedContentParams{
-		ParentID:       &parentID,
-		DerivationType: stringPtr("thumbnail"),
-		Variants:       variants,
-		IncludeURLs:    true, // Always include URLs for thumbnails
-	}
-	return svc.ListDerivedContent(ctx, params)
+	return svc.ListDerivedContent(ctx,
+		WithParentID(parentID),
+		WithDerivationType("thumbnail"),
+		WithVariants(variants...),
+		WithURLs(),
+	)
 }
 
 // GetRecentDerived retrieves derived content created after a specific time.
 // This is a convenience function that uses the service's ListDerivedContent method.
 func GetRecentDerived(ctx context.Context, svc Service, parentID uuid.UUID, since time.Time) ([]*DerivedContent, error) {
-	params := ListDerivedContentParams{
-		ParentID:     &parentID,
-		CreatedAfter: &since,
-		SortBy:       stringPtr("created_at_desc"),
-	}
-	return svc.ListDerivedContent(ctx, params)
+	return svc.ListDerivedContent(ctx,
+		WithParentID(parentID),
+		WithCreatedAfter(since),
+		WithSortBy("created_at_desc"),
+	)
 }
 
 // ListDerivedByTypeAndVariant retrieves derived content by specific type and variant.
 // This is a convenience function that uses the service's ListDerivedContent method.
 func ListDerivedByTypeAndVariant(ctx context.Context, svc Service, parentID uuid.UUID, derivationType, variant string) ([]*DerivedContent, error) {
-	params := ListDerivedContentParams{
-		ParentID:       &parentID,
-		DerivationType: &derivationType,
-		Variant:        &variant,
-	}
-	return svc.ListDerivedContent(ctx, params)
+	return svc.ListDerivedContent(ctx,
+		WithParentID(parentID),
+		WithDerivationType(derivationType),
+		WithVariant(variant),
+	)
 }
 
 // ListDerivedByVariants retrieves derived content by specific variants.
 // This is a convenience function that uses the service's ListDerivedContent method.
 func ListDerivedByVariants(ctx context.Context, svc Service, parentID uuid.UUID, variants []string) ([]*DerivedContent, error) {
-	params := ListDerivedContentParams{
-		ParentID: &parentID,
-		Variants: variants,
-	}
-	return svc.ListDerivedContent(ctx, params)
+	return svc.ListDerivedContent(ctx,
+		WithParentID(parentID),
+		WithVariants(variants...),
+	)
 }
 
 // ListDerivedContentWithURLs retrieves derived content with URLs populated.
 // This is a convenience function that uses the service's ListDerivedContent method.
+// Deprecated: Use svc.ListDerivedContent with WithURLs() option instead.
 func ListDerivedContentWithURLs(ctx context.Context, svc Service, params ListDerivedContentParams) ([]*DerivedContent, error) {
-	params.IncludeURLs = true
-	return svc.ListDerivedContent(ctx, params)
+	// Convert params to options and add URLs
+	options := []ListDerivedContentOption{WithURLs()}
+
+	if params.ParentID != nil {
+		options = append(options, WithParentID(*params.ParentID))
+	}
+	if params.DerivationType != nil {
+		options = append(options, WithDerivationType(*params.DerivationType))
+	}
+	if params.Variant != nil {
+		options = append(options, WithVariant(*params.Variant))
+	}
+	if len(params.Variants) > 0 {
+		options = append(options, WithVariants(params.Variants...))
+	}
+	if params.Limit != nil {
+		options = append(options, WithLimit(*params.Limit))
+	}
+	if params.Offset != nil {
+		options = append(options, WithOffset(*params.Offset))
+	}
+
+	return svc.ListDerivedContent(ctx, options...)
 }
 
 // GetDerivedContentWithURLs retrieves a single derived content with URLs populated.
@@ -79,14 +97,12 @@ func GetDerivedContentWithURLs(ctx context.Context, svc Service, contentID uuid.
 	}
 
 	// Enhance with URLs using the ListDerivedContent method
-	params := ListDerivedContentParams{
-		ParentID:       &derived.ParentID,
-		DerivationType: &derived.DerivationType,
-		Variant:        &derived.Variant,
-		IncludeURLs:    true,
-	}
-
-	results, err := svc.ListDerivedContent(ctx, params)
+	results, err := svc.ListDerivedContent(ctx,
+		WithParentID(derived.ParentID),
+		WithDerivationType(derived.DerivationType),
+		WithVariant(derived.Variant),
+		WithURLs(),
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -104,16 +120,26 @@ func GetDerivedContentWithURLs(ctx context.Context, svc Service, contentID uuid.
 
 // CountDerivedContent counts derived content matching the given parameters.
 // This is a convenience function that uses the service's ListDerivedContent method.
+// Deprecated: Use svc.ListDerivedContent with appropriate options instead.
 func CountDerivedContent(ctx context.Context, svc Service, params ListDerivedContentParams) (int64, error) {
-	// For counting, we temporarily remove limits and get all matching records
-	countParams := params
-	countParams.Limit = nil
-	countParams.Offset = nil
-	countParams.IncludeURLs = false    // Don't need URLs for counting
-	countParams.IncludeObjects = false // Don't need objects for counting
-	countParams.IncludeMetadata = false // Don't need metadata for counting
+	// Convert params to options (without limits for counting)
+	var options []ListDerivedContentOption
 
-	results, err := svc.ListDerivedContent(ctx, countParams)
+	if params.ParentID != nil {
+		options = append(options, WithParentID(*params.ParentID))
+	}
+	if params.DerivationType != nil {
+		options = append(options, WithDerivationType(*params.DerivationType))
+	}
+	if params.Variant != nil {
+		options = append(options, WithVariant(*params.Variant))
+	}
+	if len(params.Variants) > 0 {
+		options = append(options, WithVariants(params.Variants...))
+	}
+	// Note: Deliberately not including URLs, objects, metadata for counting
+
+	results, err := svc.ListDerivedContent(ctx, options...)
 	if err != nil {
 		return 0, err
 	}
@@ -157,8 +183,8 @@ func intPtr(i int) *int {
 	return &i
 }
 
-// Note: With the introduction of ListDerivedContentWithOptions, most specific convenience
+// Note: With the introduction of the option pattern in ListDerivedContent, most specific convenience
 // functions are no longer needed since the option pattern provides a cleaner, more flexible API.
 // Users can simply call:
-//   svc.ListDerivedContentWithOptions(ctx, simplecontent.WithParentID(id), simplecontent.WithDerivationType("thumbnail"))
+//   svc.ListDerivedContent(ctx, simplecontent.WithParentID(id), simplecontent.WithDerivationType("thumbnail"))
 // instead of creating separate wrapper functions.
