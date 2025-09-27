@@ -19,7 +19,7 @@ This document gives AI coding assistants (Claude, ChatGPT, etc.) the context and
 
 - `pkg/simplecontent` (core library)
   - **Unified Service Interface**: Content-focused operations (`UploadContent`, `UploadDerivedContent`, `GetContentDetails`)
-  - **StorageService Interface**: Advanced object operations for direct uploads and presigned URLs
+  - **StorageService Interface**: Advanced object operations for presigned uploads and presigned URLs
   - Service implementation (`service.go`, `service_impl.go`)
   - Domain types and typed enums (`types.go`)
     - ContentStatus, ObjectStatus (typed string enums)
@@ -75,7 +75,7 @@ Base path: `/api/v1`
   - `GET /contents/{contentID}/objects` list objects by content
 
 - Upload/Download (object-level)
-  - `POST /objects/{objectID}/upload` direct upload to object
+  - `POST /objects/{objectID}/upload` presigned upload to object
   - `GET /objects/{objectID}/download` download from object
   - `GET /objects/{objectID}/upload-url` presigned upload
   - `GET /objects/{objectID}/download-url` presigned download
@@ -144,7 +144,7 @@ Server config:
 
 ### When to Use Each Interface
 - **Service Interface (Recommended)**: Content operations, unified workflows, server-side applications
-- **StorageService Interface (Advanced)**: Direct uploads, presigned URLs, object-level control
+- **StorageService Interface (Advanced)**: Presigned uploads, presigned URLs, object-level control
 
 ## Extensibility Tips
 

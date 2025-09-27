@@ -244,7 +244,7 @@ thumbnail, err := svc.UploadDerivedContent(ctx, derivedReq)
 
 **Use StorageService Interface (Advanced) when:**
 - Need direct object access for presigned URLs
-- Implementing direct client uploads to storage
+- Implementing presigned client uploads to storage
 - Large files requiring specialized upload patterns
 - Need fine-grained control over storage operations
 
@@ -256,7 +256,7 @@ thumbnail, err := svc.UploadDerivedContent(ctx, derivedReq)
 - Content delivery platforms
 - Multi-tenant SaaS applications
 - Thumbnail and preview generation systems
-- Direct client upload applications
+- Presigned client upload applications
 
 ## Testing
 

@@ -364,7 +364,7 @@ func setupDirectUpload(svc simplecontent.Service) error {
         return err
     }
 
-    // Create object for direct upload
+    // Create object for presigned upload
     object, err := storageSvc.CreateObject(ctx, simplecontent.CreateObjectRequest{
         ContentID:          content.ID,
         StorageBackendName: "s3",

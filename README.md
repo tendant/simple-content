@@ -316,13 +316,13 @@ See the `examples/` directory for complete working examples:
 
 - **`examples/basic/`**: Simple content upload and download
 - **`examples/thumbnail-generation/`**: Image thumbnails with derived content
-- **`examples/direct-upload/`**: Client direct-to-storage uploads
+- **`examples/presigned-upload/`**: Client presigned upload to storage
 - **`examples/content-with-derived/`**: Working with derived content
 
 ## Documentation
 
 - **`PROGRAMMATIC_USAGE.md`**: Library usage patterns
-- **`DIRECT_CLIENT_UPLOAD.md`**: Direct upload workflows
+- **`PRESIGNED_CLIENT_UPLOAD.md`**: Presigned upload workflows
 - **`examples/*/README.md`**: Example-specific documentation
 
 ## License
