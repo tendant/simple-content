@@ -5,7 +5,7 @@ This guide demonstrates how to implement presigned client uploads to storage ser
 ## Overview
 
 Presigned client uploads offer several advantages:
-- **Performance**: Files upload directly to storage, reducing server load
+- **Performance**: Files upload to storage, reducing server load
 - **Scalability**: No bandwidth limitations from your application server
 - **Cost**: Lower server resource usage and network costs
 - **Speed**: Parallel uploads and better CDN integration
@@ -13,7 +13,7 @@ Presigned client uploads offer several advantages:
 The workflow involves:
 1. Client requests upload permission from your service
 2. Service creates content/object metadata and returns presigned URL
-3. Client uploads directly to storage using the presigned URL
+3. Client uploads to storage using the presigned URL
 4. Optional: Service updates object status after successful upload
 
 ## Architecture
@@ -26,7 +26,7 @@ The workflow involves:
 │         │ ◀───────────────────────│                 │
 └─────────┘                         └─────────────────┘
      │                                       │
-     │ 3. Direct Upload                      │ 4. Update Status
+     │ 3. Upload                             │ 4. Update Status
      │                                       │    (Optional)
      ▼                                       ▼
 ┌─────────────────┐                 ┌─────────────────┐
