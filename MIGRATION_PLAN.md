@@ -67,6 +67,58 @@ Note: New greenfield DBs created via migrations/postgres already use content_der
 
 Replace legacy usages with pkg/simplecontent. The new service consolidates content, object, and storage operations.
 
+### API Simplification Migration (v2024.12+)
+
+If you're migrating from earlier versions of pkg/simplecontent that had the old API methods, update your code as follows:
+
+**Old → New API mapping:**
+
+```go
+// OLD: Multiple methods for derived content listing
+svc.ListDerivedByParent(ctx, parentID)
+svc.ListDerivedContentWithOptions(ctx, options...)
+
+// NEW: Single unified method with functional options
+svc.ListDerivedContent(ctx, simplecontent.WithParentID(parentID))
+
+// OLD: Method name for getting relationships
+svc.GetDerivedRelationshipByContentID(ctx, contentID)
+
+// NEW: Simplified method name
+svc.GetDerivedRelationship(ctx, contentID)
+
+// OLD: Upload methods with different signatures
+svc.UploadObjectWithMetadata(ctx, reader, req)
+svc.UploadObject(ctx, objectID, reader)
+
+// NEW: Unified upload method
+svc.UploadObject(ctx, simplecontent.UploadObjectRequest{
+  ObjectID: objectID,
+  Reader:   reader,
+  MimeType: mimeType, // optional
+})
+```
+
+**Functional Options Pattern:**
+
+The new API uses functional options for maximum flexibility:
+
+```go
+// Basic listing
+derived, err := svc.ListDerivedContent(ctx, simplecontent.WithParentID(parentID))
+
+// Advanced filtering with URLs
+derived, err := svc.ListDerivedContent(ctx,
+  simplecontent.WithParentID(parentID),
+  simplecontent.WithDerivationType("thumbnail"),
+  simplecontent.WithVariants("thumbnail_256", "thumbnail_512"),
+  simplecontent.WithURLs(),
+  simplecontent.WithLimit(10),
+)
+```
+
+### Core Service Setup
+
 - Build service
 
 ```
@@ -91,7 +143,7 @@ svc.ListContent(ctx, ListContentRequest{ OwnerID, TenantID }) // excludes soft-d
 
 - Derived Content
 
-```
+```go
 // Create (either pass both or just variant; derivation_type inferred from variant prefix)
 svc.CreateDerivedContent(ctx, CreateDerivedContentRequest{
   ParentID, OwnerID, TenantID,
@@ -100,18 +152,32 @@ svc.CreateDerivedContent(ctx, CreateDerivedContentRequest{
   Metadata:       map[string]any{"width":256},
 })
 
-// List relationships for a parent; each has .DerivationType = variant value
-svc.ListDerivedByParent(ctx, parentID)
+// List relationships for a parent using the new functional options API
+svc.ListDerivedContent(ctx, simplecontent.WithParentID(parentID))
+
+// List with filtering and URL enhancement
+svc.ListDerivedContent(ctx,
+  simplecontent.WithParentID(parentID),
+  simplecontent.WithDerivationType("thumbnail"),
+  simplecontent.WithURLs(), // Populates DownloadURL, PreviewURL, ThumbnailURL
+)
 
 // Get relationship by derived content ID
-svc.GetDerivedRelationshipByContentID(ctx, derivedID)
+svc.GetDerivedRelationship(ctx, derivedID)
 ```
 
 - Objects (blobs)
 
-```
+```go
 svc.CreateObject(ctx, CreateObjectRequest{ ContentID, StorageBackendName:"default", Version:1 })
-svc.UploadObject(ctx, objectID, reader)
+
+// Upload with unified API
+svc.UploadObject(ctx, simplecontent.UploadObjectRequest{
+  ObjectID: objectID,
+  Reader:   reader,
+  MimeType: "image/jpeg", // Optional - for metadata
+})
+
 svc.DownloadObject(ctx, objectID)
 svc.DeleteObject(ctx, objectID) // soft-delete
 svc.GetObjectByObjectKeyAndStorageBackendName(ctx, key, backend)
@@ -186,9 +252,12 @@ Error mapping is consistent and typed (not_found, invalid_status, storage_error,
   - Derived create works with variant-only input (derivation_type inferred)
   - Soft-deleted content/objects not listed or retrievable
   - Presigned URLs function for s3 if configured
+  - New functional options API works for derived content listing
+  - Unified UploadObject method handles both simple and metadata uploads
 - App
   - No compile-time references to legacy packages
-  - All flows use pkg/simplecontent
+  - No references to removed methods (ListDerivedByParent, GetDerivedRelationshipByContentID, UploadObjectWithMetadata)
+  - All flows use pkg/simplecontent with simplified API
 
 ## Rollback Strategy (minimal)
 
