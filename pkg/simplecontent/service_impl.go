@@ -707,6 +707,17 @@ func (s *service) ListDerivedContent(ctx context.Context, params ListDerivedCont
     return derived, nil
 }
 
+func (s *service) ListDerivedContentWithOptions(ctx context.Context, options ...ListDerivedContentOption) ([]*DerivedContent, error) {
+    // Build params from options
+    params := ListDerivedContentParams{}
+    for _, option := range options {
+        option(&params)
+    }
+
+    // Delegate to existing implementation
+    return s.ListDerivedContent(ctx, params)
+}
+
 
 // Helper methods for enhancement
 

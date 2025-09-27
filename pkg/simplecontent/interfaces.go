@@ -148,6 +148,131 @@ type ListDerivedContentParams struct {
 	IncludeMetadata  bool                 `json:"include_metadata"`
 }
 
+// ListDerivedContentOption represents a functional option for listing derived content
+type ListDerivedContentOption func(*ListDerivedContentParams)
+
+// Functional options for derived content filtering
+
+// WithParentID sets the parent ID to filter by
+func WithParentID(parentID uuid.UUID) ListDerivedContentOption {
+	return func(p *ListDerivedContentParams) {
+		p.ParentID = &parentID
+	}
+}
+
+// WithParentIDs sets multiple parent IDs to filter by
+func WithParentIDs(parentIDs ...uuid.UUID) ListDerivedContentOption {
+	return func(p *ListDerivedContentParams) {
+		p.ParentIDs = parentIDs
+	}
+}
+
+// WithDerivationType sets the derivation type to filter by
+func WithDerivationType(derivationType string) ListDerivedContentOption {
+	return func(p *ListDerivedContentParams) {
+		p.DerivationType = &derivationType
+	}
+}
+
+// WithDerivationTypes sets multiple derivation types to filter by
+func WithDerivationTypes(derivationTypes ...string) ListDerivedContentOption {
+	return func(p *ListDerivedContentParams) {
+		p.DerivationTypes = derivationTypes
+	}
+}
+
+// WithVariant sets the variant to filter by
+func WithVariant(variant string) ListDerivedContentOption {
+	return func(p *ListDerivedContentParams) {
+		p.Variant = &variant
+	}
+}
+
+// WithVariants sets multiple variants to filter by
+func WithVariants(variants ...string) ListDerivedContentOption {
+	return func(p *ListDerivedContentParams) {
+		p.Variants = variants
+	}
+}
+
+// WithTypeVariantPairs sets type-variant pairs to filter by
+func WithTypeVariantPairs(pairs ...TypeVariantPair) ListDerivedContentOption {
+	return func(p *ListDerivedContentParams) {
+		p.TypeVariantPairs = pairs
+	}
+}
+
+// WithContentStatus sets the content status to filter by
+func WithContentStatus(status string) ListDerivedContentOption {
+	return func(p *ListDerivedContentParams) {
+		p.ContentStatus = &status
+	}
+}
+
+// WithCreatedAfter sets the created after time filter
+func WithCreatedAfter(t time.Time) ListDerivedContentOption {
+	return func(p *ListDerivedContentParams) {
+		p.CreatedAfter = &t
+	}
+}
+
+// WithCreatedBefore sets the created before time filter
+func WithCreatedBefore(t time.Time) ListDerivedContentOption {
+	return func(p *ListDerivedContentParams) {
+		p.CreatedBefore = &t
+	}
+}
+
+// WithSortBy sets the sort field and order
+func WithSortBy(sortBy string) ListDerivedContentOption {
+	return func(p *ListDerivedContentParams) {
+		p.SortBy = &sortBy
+	}
+}
+
+// WithLimit sets the maximum number of results
+func WithLimit(limit int) ListDerivedContentOption {
+	return func(p *ListDerivedContentParams) {
+		p.Limit = &limit
+	}
+}
+
+// WithOffset sets the offset for pagination
+func WithOffset(offset int) ListDerivedContentOption {
+	return func(p *ListDerivedContentParams) {
+		p.Offset = &offset
+	}
+}
+
+// WithURLs includes URLs in the response (DownloadURL, PreviewURL, ThumbnailURL)
+func WithURLs() ListDerivedContentOption {
+	return func(p *ListDerivedContentParams) {
+		p.IncludeURLs = true
+	}
+}
+
+// WithObjects includes object details in the response
+func WithObjects() ListDerivedContentOption {
+	return func(p *ListDerivedContentParams) {
+		p.IncludeObjects = true
+	}
+}
+
+// WithMetadata includes metadata in the response
+func WithMetadata() ListDerivedContentOption {
+	return func(p *ListDerivedContentParams) {
+		p.IncludeMetadata = true
+	}
+}
+
+// WithPagination sets both limit and offset for pagination
+func WithPagination(limit, offset int) ListDerivedContentOption {
+	return func(p *ListDerivedContentParams) {
+		p.Limit = &limit
+		p.Offset = &offset
+	}
+}
+
 // TypeVariantPair represents a specific derivation type and variant combination
 type TypeVariantPair struct {
 	DerivationType string `json:"derivation_type"`

@@ -270,6 +270,77 @@ if err != nil {
 }
 ```
 
+### Modern Option Pattern API
+
+The library also provides a modern functional options API for cleaner, more readable code:
+
+```go
+// Using functional options (modern approach)
+derived, err := svc.ListDerivedContentWithOptions(ctx,
+    simplecontent.WithParentID(parentContentID),
+    simplecontent.WithDerivationType("thumbnail"),
+    simplecontent.WithVariants("thumbnail_256", "thumbnail_512"),
+    simplecontent.WithURLs(),
+    simplecontent.WithLimit(10),
+)
+if err != nil {
+    log.Fatal(err)
+}
+
+// Compared to struct-based approach (legacy, still supported)
+params := simplecontent.ListDerivedContentParams{
+    ParentID:       &parentContentID,
+    DerivationType: stringPtr("thumbnail"),
+    Variants:       []string{"thumbnail_256", "thumbnail_512"},
+    IncludeURLs:    true,
+    Limit:          intPtr(10),
+}
+derived, err := svc.ListDerivedContent(ctx, params)
+```
+
+#### Common Option Patterns
+
+```go
+// Get all thumbnails with URLs
+thumbnails, err := svc.ListDerivedContentWithOptions(ctx,
+    simplecontent.WithParentID(parentContentID),
+    simplecontent.WithDerivationType("thumbnail"),
+    simplecontent.WithURLs(),
+)
+
+// Get multiple specific variants
+derived, err := svc.ListDerivedContentWithOptions(ctx,
+    simplecontent.WithParentID(parentContentID),
+    simplecontent.WithVariants("thumbnail_256", "preview_720", "video_1080p"),
+)
+
+// Get recent derived content with pagination
+recent, err := svc.ListDerivedContentWithOptions(ctx,
+    simplecontent.WithParentID(parentContentID),
+    simplecontent.WithCreatedAfter(time.Now().Add(-24*time.Hour)),
+    simplecontent.WithSortBy("created_at_desc"),
+    simplecontent.WithPagination(20, 0), // limit 20, offset 0
+)
+
+// Get content across multiple parents
+derived, err := svc.ListDerivedContentWithOptions(ctx,
+    simplecontent.WithParentIDs(parentID1, parentID2, parentID3),
+    simplecontent.WithDerivationType("thumbnail"),
+    simplecontent.WithMetadata(), // Include metadata
+)
+
+// Complex filtering with type-variant pairs
+derived, err := svc.ListDerivedContentWithOptions(ctx,
+    simplecontent.WithParentID(parentContentID),
+    simplecontent.WithTypeVariantPairs(
+        simplecontent.TypeVariantPair{DerivationType: "thumbnail", Variant: "thumbnail_256"},
+        simplecontent.TypeVariantPair{DerivationType: "preview", Variant: "preview_web"},
+    ),
+    simplecontent.WithObjects(), // Include object details
+    simplecontent.WithURLs(),
+)
+```
+
 ### Upload Convenience Functions
 
 ```go
@@ -281,6 +352,42 @@ if err != nil {
 
 // Upload with MIME type
 err := simplecontent.UploadObjectWithMimeType(ctx, svc, objectID, dataReader, "image/jpeg")
+if err != nil {
+    log.Fatal(err)
+}
+```
+
+### Enhanced Convenience Functions with Options
+
+The library provides both traditional and option-based convenience functions:
+
+```go
+// Traditional convenience functions (still supported)
+thumbnails, err := simplecontent.GetThumbnailsBySize(ctx, svc, parentContentID, []string{"128", "256", "512"})
+if err != nil {
+    log.Fatal(err)
+}
+
+// Modern option-based convenience functions
+thumbnails, err := simplecontent.GetThumbnailsBySizeWithOptions(ctx, svc, parentContentID, []string{"256", "512"})
+if err != nil {
+    log.Fatal(err)
+}
+
+// Get recent derived content using options
+recent, err := simplecontent.GetRecentDerivedWithOptions(ctx, svc, parentContentID, time.Now().Add(-24*time.Hour))
+if err != nil {
+    log.Fatal(err)
+}
+
+// List by specific type and variant
+specific, err := simplecontent.ListDerivedByTypeAndVariantWithOptions(ctx, svc, parentContentID, "thumbnail", "thumbnail_256")
+if err != nil {
+    log.Fatal(err)
+}
+
+// List by multiple variants
+variants, err := simplecontent.ListDerivedByVariantsWithOptions(ctx, svc, parentContentID, []string{"thumbnail_256", "preview_720"})
 if err != nil {
     log.Fatal(err)
 }

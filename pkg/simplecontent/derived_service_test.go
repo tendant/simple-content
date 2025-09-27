@@ -2,6 +2,7 @@ package simplecontent_test
 
 import (
     "context"
+    "fmt"
     "testing"
 
     "github.com/google/uuid"
@@ -356,4 +357,196 @@ func intPtr(i int) *int {
 
 func stringPtr(s string) *string {
     return &s
+}
+
+// Tests for the new option pattern
+
+func TestListDerivedContentWithOptions_BasicFiltering(t *testing.T) {
+    svc := mustService(t)
+    ctx := context.Background()
+
+    parent, err := svc.CreateContent(ctx, simplecontent.CreateContentRequest{
+        OwnerID: uuid.New(), TenantID: uuid.New(), Name: "parent",
+    })
+    if err != nil { t.Fatalf("create parent: %v", err) }
+
+    // Create some derived content
+    variants := []string{"thumbnail_128", "thumbnail_256", "preview_720"}
+    for _, variant := range variants {
+        _, err := svc.CreateDerivedContent(ctx, simplecontent.CreateDerivedContentRequest{
+            ParentID: parent.ID,
+            OwnerID: parent.OwnerID,
+            TenantID: parent.TenantID,
+            Variant:  variant,
+        })
+        if err != nil { t.Fatalf("create derived %s: %v", variant, err) }
+    }
+
+    // Test option pattern - get all thumbnails
+    results, err := svc.ListDerivedContentWithOptions(ctx,
+        simplecontent.WithParentID(parent.ID),
+        simplecontent.WithDerivationType("thumbnail"),
+    )
+    if err != nil { t.Fatalf("list with options: %v", err) }
+    if len(results) != 2 { t.Fatalf("expected 2 thumbnails, got %d", len(results)) }
+
+    // Test specific variant
+    results, err = svc.ListDerivedContentWithOptions(ctx,
+        simplecontent.WithParentID(parent.ID),
+        simplecontent.WithVariant("thumbnail_256"),
+    )
+    if err != nil { t.Fatalf("list with variant option: %v", err) }
+    if len(results) != 1 { t.Fatalf("expected 1 result, got %d", len(results)) }
+    if results[0].Variant != "thumbnail_256" { t.Fatalf("expected variant thumbnail_256, got %s", results[0].Variant) }
+}
+
+func TestListDerivedContentWithOptions_MultipleVariants(t *testing.T) {
+    svc := mustService(t)
+    ctx := context.Background()
+
+    parent, err := svc.CreateContent(ctx, simplecontent.CreateContentRequest{
+        OwnerID: uuid.New(), TenantID: uuid.New(), Name: "parent",
+    })
+    if err != nil { t.Fatalf("create parent: %v", err) }
+
+    // Create various derived content
+    variants := []string{"thumbnail_128", "thumbnail_256", "preview_720", "preview_1080"}
+    for _, variant := range variants {
+        _, err := svc.CreateDerivedContent(ctx, simplecontent.CreateDerivedContentRequest{
+            ParentID: parent.ID,
+            OwnerID: parent.OwnerID,
+            TenantID: parent.TenantID,
+            Variant:  variant,
+        })
+        if err != nil { t.Fatalf("create derived %s: %v", variant, err) }
+    }
+
+    // Test multiple variants
+    results, err := svc.ListDerivedContentWithOptions(ctx,
+        simplecontent.WithParentID(parent.ID),
+        simplecontent.WithVariants("thumbnail_256", "preview_1080"),
+    )
+    if err != nil { t.Fatalf("list with variants option: %v", err) }
+    if len(results) != 2 { t.Fatalf("expected 2 results, got %d", len(results)) }
+
+    // Verify we got the right variants
+    variants_found := make(map[string]bool)
+    for _, result := range results {
+        variants_found[result.Variant] = true
+    }
+    if !variants_found["thumbnail_256"] || !variants_found["preview_1080"] {
+        t.Fatalf("didn't get expected variants")
+    }
+}
+
+func TestListDerivedContentWithOptions_WithURLsAndMetadata(t *testing.T) {
+    svc := mustService(t)
+    ctx := context.Background()
+
+    parent, err := svc.CreateContent(ctx, simplecontent.CreateContentRequest{
+        OwnerID: uuid.New(), TenantID: uuid.New(), Name: "parent",
+    })
+    if err != nil { t.Fatalf("create parent: %v", err) }
+
+    _, err = svc.CreateDerivedContent(ctx, simplecontent.CreateDerivedContentRequest{
+        ParentID: parent.ID,
+        OwnerID: parent.OwnerID,
+        TenantID: parent.TenantID,
+        Variant:  "thumbnail_256",
+    })
+    if err != nil { t.Fatalf("create derived: %v", err) }
+
+    // Test with URLs option
+    results, err := svc.ListDerivedContentWithOptions(ctx,
+        simplecontent.WithParentID(parent.ID),
+        simplecontent.WithURLs(),
+    )
+    if err != nil { t.Fatalf("list with URLs option: %v", err) }
+    if len(results) != 1 { t.Fatalf("expected 1 result, got %d", len(results)) }
+
+    // Note: URLs would be populated if storage backend supports it
+    // For memory backend, they'll be empty but the option should work
+}
+
+func TestListDerivedContentWithOptions_Pagination(t *testing.T) {
+    svc := mustService(t)
+    ctx := context.Background()
+
+    parent, err := svc.CreateContent(ctx, simplecontent.CreateContentRequest{
+        OwnerID: uuid.New(), TenantID: uuid.New(), Name: "parent",
+    })
+    if err != nil { t.Fatalf("create parent: %v", err) }
+
+    // Create multiple derived content
+    for i := 0; i < 5; i++ {
+        _, err := svc.CreateDerivedContent(ctx, simplecontent.CreateDerivedContentRequest{
+            ParentID: parent.ID,
+            OwnerID: parent.OwnerID,
+            TenantID: parent.TenantID,
+            Variant:  fmt.Sprintf("thumbnail_%d", 128+i*32),
+        })
+        if err != nil { t.Fatalf("create derived %d: %v", i, err) }
+    }
+
+    // Test pagination
+    results, err := svc.ListDerivedContentWithOptions(ctx,
+        simplecontent.WithParentID(parent.ID),
+        simplecontent.WithLimit(2),
+        simplecontent.WithOffset(1),
+    )
+    if err != nil { t.Fatalf("list with pagination: %v", err) }
+    if len(results) != 2 { t.Fatalf("expected 2 results with limit, got %d", len(results)) }
+
+    // Test combined pagination option
+    results, err = svc.ListDerivedContentWithOptions(ctx,
+        simplecontent.WithParentID(parent.ID),
+        simplecontent.WithPagination(3, 2),
+    )
+    if err != nil { t.Fatalf("list with pagination option: %v", err) }
+    if len(results) != 3 { t.Fatalf("expected 3 results with combined pagination, got %d", len(results)) }
+}
+
+func TestListDerivedContentWithOptions_EmptyOptions(t *testing.T) {
+    svc := mustService(t)
+    ctx := context.Background()
+
+    // Test with no options - should return empty list since no parent specified
+    results, err := svc.ListDerivedContentWithOptions(ctx)
+    if err != nil { t.Fatalf("list with no options: %v", err) }
+    // Should return empty or all derived content depending on implementation
+    // The key is that it shouldn't crash
+    _ = results
+}
+
+func TestConvenienceFunctionsWithOptions(t *testing.T) {
+    svc := mustService(t)
+    ctx := context.Background()
+
+    parent, err := svc.CreateContent(ctx, simplecontent.CreateContentRequest{
+        OwnerID: uuid.New(), TenantID: uuid.New(), Name: "parent",
+    })
+    if err != nil { t.Fatalf("create parent: %v", err) }
+
+    // Create thumbnails
+    sizes := []string{"128", "256", "512"}
+    for _, size := range sizes {
+        _, err := svc.CreateDerivedContent(ctx, simplecontent.CreateDerivedContentRequest{
+            ParentID: parent.ID,
+            OwnerID: parent.OwnerID,
+            TenantID: parent.TenantID,
+            Variant:  "thumbnail_" + size,
+        })
+        if err != nil { t.Fatalf("create thumbnail %s: %v", size, err) }
+    }
+
+    // Test convenience function with options
+    results, err := simplecontent.GetThumbnailsBySizeWithOptions(ctx, svc, parent.ID, []string{"256", "512"})
+    if err != nil { t.Fatalf("get thumbnails with options: %v", err) }
+    if len(results) != 2 { t.Fatalf("expected 2 thumbnails, got %d", len(results)) }
+
+    // Test specific type and variant
+    results, err = simplecontent.ListDerivedByTypeAndVariantWithOptions(ctx, svc, parent.ID, "thumbnail", "thumbnail_256")
+    if err != nil { t.Fatalf("list by type and variant with options: %v", err) }
+    if len(results) != 1 { t.Fatalf("expected 1 result, got %d", len(results)) }
+    if results[0].Variant != "thumbnail_256" { t.Fatalf("expected variant thumbnail_256, got %s", results[0].Variant) }
 }
