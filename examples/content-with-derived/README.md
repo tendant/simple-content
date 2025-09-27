@@ -1,26 +1,25 @@
 # Content with Derived Service Example
 
-This example demonstrates how to implement and use a service that fetches content along with its derived contents in a single operation, providing more efficient API access for applications that need complete content hierarchies.
+This example demonstrates how to implement and use a service that fetches content along with its derived contents in a single operation, providing more efficient API access for applications that need complete content hierarchies. This example showcases advanced usage patterns building on the simple-content library's unified API.
 
 ## Problem Statement
 
-The current simple-content library requires multiple API calls to get a complete picture of content and its derived items:
+While the simple-content library now provides a unified `GetContentDetails()` API, applications often need complete content hierarchies with all derived content in a single operation. The standard library approach still requires multiple API calls for complete hierarchies:
 
-1. `GET /api/v1/contents/{id}` - Get the main content
+1. `GET /api/v1/contents/{id}/details` - Get the main content with metadata
 2. `GET /api/v1/contents/{id}/derived` - Get derived content relationships
-3. `GET /api/v1/contents/{derived-id}` - Get each derived content individually
-4. `GET /api/v1/contents/{derived-id}/metadata` - Get metadata for each derived content
-5. `GET /api/v1/contents/{derived-id}/objects` - Get objects for each derived content
+3. `GET /api/v1/contents/{derived-id}/details` - Get each derived content individually
 
-This results in **N+1 query problems** and increased latency.
+This results in **N+1 query problems** for large content hierarchies and increased latency.
 
 ## Solution
 
-This example implements an enhanced service that provides:
+This example implements an enhanced service that builds on the unified API to provide:
 - **Single API call** to get content with all derived contents
 - **Flexible options** for including metadata, objects, and controlling depth
 - **Filtering capabilities** by derivation type
 - **Hierarchical support** for nested derived content
+- **Integration** with the new `GetContentDetails()` unified API for consistent metadata
 
 ## Features
 
@@ -182,7 +181,7 @@ curl -X POST http://localhost:8080/api/v1/contents/batch/with-derived \
 ## Programmatic Usage
 
 ```go
-// Create the enhanced service
+// Create the enhanced service (builds on unified API)
 service, err := NewExtendedContentService()
 if err != nil {
     log.Fatal(err)
@@ -416,4 +415,46 @@ func (s *service) GetContentWithDerivedAsync(ctx context.Context, contentID uuid
 4. **Authorization**: Ensure proper access control for derived content
 5. **Versioning**: Consider API versioning for backward compatibility
 
-This enhanced service significantly improves efficiency and developer experience when working with content hierarchies while maintaining the flexibility and power of the underlying simple-content library.
+## Integration with Unified API
+
+This enhanced service leverages the simple-content library's new unified operations:
+
+### Content Creation Using Unified API
+```go
+// Original content upload
+content, err := svc.UploadContent(ctx, simplecontent.UploadContentRequest{
+    OwnerID:      ownerID,
+    TenantID:     tenantID,
+    Name:         "Original Photo",
+    DocumentType: "image/jpeg",
+    Reader:       imageReader,
+    FileName:     "photo.jpg",
+    Tags:         []string{"photo", "original"},
+})
+
+// Derived content (thumbnails) using unified API
+thumbnail, err := svc.UploadDerivedContent(ctx, simplecontent.UploadDerivedContentRequest{
+    ParentID:       content.ID,
+    OwnerID:        ownerID,
+    TenantID:       tenantID,
+    DerivationType: "thumbnail",
+    Variant:        "thumbnail_256",
+    Reader:         thumbnailReader,
+    FileName:       "thumb_256.jpg",
+    Tags:           []string{"thumbnail", "256px"},
+})
+```
+
+### Enhanced Service Benefits
+```go
+// Instead of multiple GetContentDetails calls:
+details, err := svc.GetContentDetails(ctx, contentID)           // Original
+derived, err := svc.ListDerivedContent(ctx, WithParentID(contentID)) // Derived list
+// Then N calls to GetContentDetails for each derived item...
+
+// Single enhanced call:
+result, err := enhancedSvc.GetContentWithDerived(ctx, contentID, &opts)
+// Gets everything in one optimized operation
+```
+
+This enhanced service significantly improves efficiency and developer experience when working with content hierarchies while maintaining the flexibility and power of the underlying simple-content library's new unified API.

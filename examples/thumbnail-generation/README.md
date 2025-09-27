@@ -1,15 +1,16 @@
 # Thumbnail Generation Example
 
-This example demonstrates how to use the simple-content library programmatically to upload images and automatically generate thumbnails in multiple sizes.
+This example demonstrates how to use the simple-content library's new unified API to upload images and automatically generate thumbnails in multiple sizes using the simplified content operations.
 
 ## Features
 
-- **Image Upload**: Upload original images to the content management system
+- **Unified Image Upload**: Upload original images using the new `UploadContent()` operation
 - **Automatic Thumbnail Generation**: Create thumbnails in multiple sizes (128px, 256px, 512px)
-- **Content Relationships**: Link derived thumbnails to their parent content
-- **Metadata Management**: Store comprehensive metadata for all content and objects
+- **Derived Content**: Use `UploadDerivedContent()` to link thumbnails to their parent
+- **Content-Focused API**: Work with content concepts instead of storage objects
 - **Storage Backend**: Uses filesystem storage for this example
 - **Image Processing**: Built-in image resizing using the Lanczos3 algorithm
+- **Simplified Workflow**: Single-call operations replace multi-step object workflows
 
 ## Prerequisites
 
@@ -41,10 +42,10 @@ Before running this example, ensure you have:
 - If no sample image exists, creates a colorful gradient image (`./data/sample_image.jpg`)
 
 ### 3. Image Upload with Thumbnails
-- Uploads the original image as a `Content` with associated `Object`
+- Uploads the original image using the unified `UploadContent()` operation
 - Automatically generates thumbnails in three sizes: 128px, 256px, and 512px
-- Each thumbnail is stored as derived content linked to the parent
-- Sets comprehensive metadata for all content
+- Each thumbnail uses `UploadDerivedContent()` for single-call derived content creation
+- Storage object details are handled internally by the service
 
 ### 4. Content Listing
 - Lists all content (original and derived) with their metadata
@@ -76,8 +77,9 @@ After running the example, you'll find:
 
 ### ThumbnailService
 Wraps the simple-content service with convenience methods for image processing:
-- `UploadImageWithThumbnails()` - Complete upload and thumbnail generation workflow
-- `generateThumbnail()` - Creates individual thumbnails with metadata
+- `UploadImageWithThumbnails()` - Complete upload and thumbnail generation workflow using unified API
+- `uploadOriginalImage()` - Uses `UploadContent()` for single-call image upload
+- `generateThumbnail()` - Uses `UploadDerivedContent()` for single-call thumbnail creation
 - `resizeImage()` - Handles actual image processing
 
 ### Content Relationships
@@ -87,13 +89,13 @@ Wraps the simple-content service with convenience methods for image processing:
   - `Variant`: "thumbnail_128", "thumbnail_256", etc. (specific size)
   - Metadata tracking processing parameters
 
-### Storage Pattern
-- All content (original + thumbnails) follows the same storage pattern:
-  1. Create `Content` entity
-  2. Set content metadata
-  3. Create `Object` for storage
-  4. Upload binary data
-  5. Link relationships (for derived content)
+### Unified API Pattern
+- Original images use the simplified upload workflow:
+  1. Single `UploadContent()` call handles content creation, object creation, and data upload
+- Thumbnails use the derived content workflow:
+  1. Single `UploadDerivedContent()` call handles derived content creation and upload
+  2. Automatic parent-child relationship linking
+- Object management is handled internally by the service
 
 ## Customization
 
@@ -104,19 +106,19 @@ thumbnailSizes := []int{64, 128, 256, 512, 1024} // Add more sizes
 ```
 
 ### Storage Backend
-Change from filesystem to S3 or memory:
+Change from filesystem to S3 or memory using the config system:
 ```go
 // For S3 storage
-s3Store, err := s3storage.New(s3storage.Config{
-    Region: "us-west-2",
-    Bucket: "my-thumbnails",
-    // ... other S3 config
-})
-
-svc, err := simplecontent.New(
-    simplecontent.WithRepository(repo),
-    simplecontent.WithBlobStore("s3", s3Store),
+cfg, err := config.Load(
+    config.WithStorageBackend("s3", map[string]interface{}{
+        "region": "us-west-2",
+        "bucket": "my-thumbnails",
+        "access_key_id": os.Getenv("AWS_ACCESS_KEY_ID"),
+        "secret_access_key": os.Getenv("AWS_SECRET_ACCESS_KEY"),
+    }),
 )
+
+svc, err := cfg.BuildService()
 ```
 
 ### Image Processing
@@ -164,4 +166,27 @@ For production use, consider implementing asynchronous thumbnail generation:
 - Implement caching for frequently accessed thumbnails
 - Consider using specialized image processing services
 
-This example provides a solid foundation for building production-ready image processing workflows using the simple-content library.
+## API Migration Notes
+
+This example showcases the new unified API design:
+
+### Old Multi-Step Workflow (Deprecated):
+```go
+// Old way (3 steps per upload):
+content := svc.CreateContent(...)
+object := svc.CreateObject(...)
+svc.UploadObject(...)
+```
+
+### New Unified Workflow (Current):
+```go
+// New way (1 step per upload):
+content, err := svc.UploadContent(ctx, req)
+
+// For derived content:
+thumbnail, err := svc.UploadDerivedContent(ctx, derivedReq)
+```
+
+The unified API significantly reduces complexity while providing the same functionality through content-focused operations.
+
+This example provides a solid foundation for building production-ready image processing workflows using the simple-content library's new simplified API.

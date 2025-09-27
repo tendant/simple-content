@@ -1,18 +1,54 @@
 # Simple Content Library - Programmatic Usage Guide
 
-This guide demonstrates how to use the simple-content library as a service library in your Go applications, focusing on content upload and thumbnail generation workflows.
+This guide demonstrates how to use the simple-content library's new simplified API for content management in your Go applications.
 
 ## Overview
 
-The simple-content library provides a clean, type-safe API for managing content and objects through its `Service` interface. Instead of using the REST API, you can directly integrate the library into your Go applications for better performance and type safety.
+The simple-content library provides a **content-focused API** that abstracts storage implementation details. Instead of managing objects manually, you work with content concepts directly through unified operations.
 
 ## Key Concepts
 
-- **Content**: A logical content entity representing a document, image, video, etc.
-- **Object**: A physical blob stored in a storage backend, associated with content
-- **Derived Content**: Generated content (thumbnails, previews) linked to original content
-- **Storage Backends**: Pluggable storage systems (memory, filesystem, S3)
-- **Repository**: Database persistence layer (memory, PostgreSQL)
+- **Content**: Logical entity representing documents, images, videos, etc.
+- **Derived Content**: Generated content (thumbnails, previews) linked to originals
+- **Service Interface**: Main API that hides storage implementation details
+- **StorageService**: Advanced interface for users who need direct object access
+- **Storage Backends**: Pluggable systems (memory, filesystem, S3)
+
+## API Architecture
+
+### Service Interface (Recommended)
+```go
+type Service interface {
+    // Unified upload operations (NEW!)
+    UploadContent(ctx, UploadContentRequest) (*Content, error)
+    UploadDerivedContent(ctx, UploadDerivedContentRequest) (*Content, error)
+
+    // Content data access
+    DownloadContent(ctx, contentID) (io.ReadCloser, error)
+
+    // Unified details API (NEW!)
+    GetContentDetails(ctx, contentID, ...ContentDetailsOption) (*ContentDetails, error)
+
+    // Standard content operations
+    CreateContent(ctx, CreateContentRequest) (*Content, error)
+    GetContent(ctx, uuid.UUID) (*Content, error)
+    ListContent(ctx, ListContentRequest) ([]*Content, error)
+
+    // Derived content operations
+    ListDerivedContent(ctx, ...ListDerivedContentOption) ([]*DerivedContent, error)
+}
+```
+
+### StorageService Interface (Advanced)
+```go
+type StorageService interface {
+    // Direct object operations (for advanced users)
+    CreateObject(ctx, CreateObjectRequest) (*Object, error)
+    UploadObject(ctx, UploadObjectRequest) error
+    GetUploadURL(ctx, objectID) (string, error)
+    // ... other object operations
+}
+```
 
 ## Basic Setup
 
@@ -22,23 +58,19 @@ The simple-content library provides a clean, type-safe API for managing content 
 import (
     "context"
     "io"
-    "log"
+    "strings"
 
     "github.com/google/uuid"
     "github.com/tendant/simple-content/pkg/simplecontent"
     "github.com/tendant/simple-content/pkg/simplecontent/config"
-    memorystorage "github.com/tendant/simple-content/pkg/simplecontent/storage/memory"
-    memoryrepo "github.com/tendant/simple-content/pkg/simplecontent/repo/memory"
 )
 ```
 
-### 2. Service Creation Methods
+### 2. Service Creation
 
-#### Method A: Using Config (Recommended)
+#### Using Config (Recommended)
 ```go
-// Load configuration from environment or defaults
 cfg, err := config.Load(
-    config.WithPort("8080"),
     config.WithDatabaseType("memory"), // or "postgres"
     config.WithStorageBackend("memory", map[string]interface{}{}),
 )
@@ -46,666 +78,454 @@ if err != nil {
     log.Fatal(err)
 }
 
-// Build service from config
 svc, err := cfg.BuildService()
 if err != nil {
     log.Fatal(err)
 }
 ```
 
-#### Method B: Manual Construction
+#### Manual Construction
 ```go
-// Create components manually
-repo := memoryrepo.New()
-store := memorystorage.New()
-
-// Create service with functional options
 svc, err := simplecontent.New(
-    simplecontent.WithRepository(repo),
-    simplecontent.WithBlobStore("memory", store),
+    simplecontent.WithRepository(memoryRepo),
+    simplecontent.WithBlobStore("memory", memoryStore),
 )
 if err != nil {
     log.Fatal(err)
 }
 ```
 
-## Content Upload Workflow
+## New Unified Content Operations
 
-### Complete Upload Example
+### Simple Content Upload (1-Step Process)
 
 ```go
-func uploadContent(svc simplecontent.Service, data io.Reader, filename string, mimeType string) (*simplecontent.Content, *simplecontent.Object, error) {
-    ctx := context.Background()
+// OLD WAY (3 steps):
+// content := svc.CreateContent(...)
+// object := svc.CreateObject(...)
+// svc.UploadObject(...)
 
-    // 1. Create content entity
-    content, err := svc.CreateContent(ctx, simplecontent.CreateContentRequest{
-        OwnerID:      uuid.New(), // Your user/owner ID
-        TenantID:     uuid.New(), // Your tenant/organization ID
-        Name:         filename,
-        Description:  "Uploaded content",
-        DocumentType: mimeType,
-    })
-    if err != nil {
-        return nil, nil, fmt.Errorf("failed to create content: %w", err)
-    }
-
-    // 2. Set content metadata
-    err = svc.SetContentMetadata(ctx, simplecontent.SetContentMetadataRequest{
-        ContentID:   content.ID,
-        ContentType: mimeType,
-        FileName:    filename,
-        Tags:        []string{"uploaded", "original"},
-    })
-    if err != nil {
-        return nil, nil, fmt.Errorf("failed to set metadata: %w", err)
-    }
-
-    // 3. Create object for storage
-    object, err := svc.CreateObject(ctx, simplecontent.CreateObjectRequest{
-        ContentID:          content.ID,
-        StorageBackendName: "memory", // or your configured backend
-        Version:            1,
-    })
-    if err != nil {
-        return nil, nil, fmt.Errorf("failed to create object: %w", err)
-    }
-
-    // 4. Upload data
-    err = svc.UploadObject(ctx, simplecontent.UploadObjectRequest{
-        ObjectID: object.ID,
-        Reader:   data,
-        MimeType: mimeType, // Optional - for metadata
-    })
-    if err != nil {
-        return nil, nil, fmt.Errorf("failed to upload data: %w", err)
-    }
-
-    return content, object, nil
+// NEW WAY (1 step):
+content, err := svc.UploadContent(ctx, simplecontent.UploadContentRequest{
+    OwnerID:            uuid.New(),
+    TenantID:           uuid.New(),
+    Name:               "My Document",
+    Description:        "Sample document",
+    DocumentType:       "text/plain",
+    StorageBackendName: "memory", // Optional - uses default
+    Reader:             strings.NewReader("Hello, World!"),
+    FileName:           "hello.txt",
+    FileSize:           13,
+    Tags:               []string{"sample", "text"},
+    CustomMetadata: map[string]interface{}{
+        "author":  "John Doe",
+        "project": "demo",
+    },
+})
+if err != nil {
+    log.Fatal(err)
 }
+
+fmt.Printf("Content uploaded: %s\n", content.ID)
 ```
 
-### Usage Example
+### Thumbnail Generation (Unified Derived Content)
 
 ```go
-// Upload an image file
-file, err := os.Open("image.jpg")
+// Generate thumbnail image data (your image processing logic)
+thumbnailData := generateThumbnail(originalImageData, 256)
+
+// Upload thumbnail as derived content (1 step)
+thumbnail, err := svc.UploadDerivedContent(ctx, simplecontent.UploadDerivedContentRequest{
+    ParentID:           originalContentID,
+    OwnerID:            ownerID,
+    TenantID:           tenantID,
+    DerivationType:     "thumbnail",
+    Variant:            "thumbnail_256",
+    StorageBackendName: "memory",
+    Reader:             bytes.NewReader(thumbnailData),
+    FileName:           "thumb_256.jpg",
+    FileSize:           int64(len(thumbnailData)),
+    Tags:               []string{"thumbnail", "256px"},
+    Metadata: map[string]interface{}{
+        "thumbnail_size": 256,
+        "algorithm":      "lanczos3",
+        "generated_by":   "image_processor",
+    },
+})
 if err != nil {
     log.Fatal(err)
 }
-defer file.Close()
 
-content, object, err := uploadContent(svc, file, "image.jpg", "image/jpeg")
-if err != nil {
-    log.Fatal(err)
-}
-
-fmt.Printf("Uploaded content: %s, object: %s\n", content.ID, object.ID)
+fmt.Printf("Thumbnail created: %s\n", thumbnail.ID)
 ```
 
-## Thumbnail Generation Workflow
-
-### Creating Derived Content (Thumbnails)
+### Download Content
 
 ```go
-func generateThumbnail(svc simplecontent.Service, parentContentID uuid.UUID, thumbnailSize string) (*simplecontent.Content, error) {
-    ctx := context.Background()
-
-    // Get parent content for metadata
-    parentContent, err := svc.GetContent(ctx, parentContentID)
-    if err != nil {
-        return nil, fmt.Errorf("failed to get parent content: %w", err)
-    }
-
-    // Create derived content for thumbnail
-    thumbnailContent, err := svc.CreateDerivedContent(ctx, simplecontent.CreateDerivedContentRequest{
-        ParentID:       parentContentID,
-        OwnerID:        parentContent.OwnerID,
-        TenantID:       parentContent.TenantID,
-        DerivationType: "thumbnail",        // User-facing type
-        Variant:        thumbnailSize,      // Specific variant (e.g., "thumbnail_256")
-        Metadata: map[string]interface{}{
-            "source_type": "image_resize",
-            "dimensions":  thumbnailSize,
-        },
-    })
-    if err != nil {
-        return nil, fmt.Errorf("failed to create derived content: %w", err)
-    }
-
-    return thumbnailContent, nil
+// Download content data directly using content ID
+reader, err := svc.DownloadContent(ctx, contentID)
+if err != nil {
+    log.Fatal(err)
 }
+defer reader.Close()
+
+data, err := io.ReadAll(reader)
+if err != nil {
+    log.Fatal(err)
+}
+
+fmt.Printf("Downloaded %d bytes\n", len(data))
 ```
 
-### Complete Thumbnail Pipeline
+### Get All Content Information
 
 ```go
-func createThumbnailPipeline(svc simplecontent.Service, originalContentID uuid.UUID, thumbnailData io.Reader) (*simplecontent.Content, *simplecontent.Object, error) {
-    ctx := context.Background()
+// Get everything in one call
+details, err := svc.GetContentDetails(ctx, contentID)
+if err != nil {
+    log.Fatal(err)
+}
 
-    // 1. Create derived content
-    thumbnailContent, err := generateThumbnail(svc, originalContentID, "thumbnail_256")
-    if err != nil {
-        return nil, nil, err
-    }
+fmt.Printf("Content Details:\n")
+fmt.Printf("  Download URL: %s\n", details.Download)
+fmt.Printf("  File Name: %s\n", details.FileName)
+fmt.Printf("  File Size: %d bytes\n", details.FileSize)
+fmt.Printf("  MIME Type: %s\n", details.MimeType)
+fmt.Printf("  Tags: %v\n", details.Tags)
+fmt.Printf("  Ready: %t\n", details.Ready)
 
-    // 2. Create object for thumbnail
-    thumbnailObject, err := svc.CreateObject(ctx, simplecontent.CreateObjectRequest{
-        ContentID:          thumbnailContent.ID,
-        StorageBackendName: "memory",
-        Version:            1,
-    })
-    if err != nil {
-        return nil, nil, fmt.Errorf("failed to create thumbnail object: %w", err)
-    }
-
-    // 3. Upload thumbnail data
-    err = svc.UploadObject(ctx, simplecontent.UploadObjectRequest{
-        ObjectID: thumbnailObject.ID,
-        Reader:   thumbnailData,
-        MimeType: "image/jpeg",
-    })
-    if err != nil {
-        return nil, nil, fmt.Errorf("failed to upload thumbnail: %w", err)
-    }
-
-    // 4. Set thumbnail metadata
-    err = svc.SetContentMetadata(ctx, simplecontent.SetContentMetadataRequest{
-        ContentID:   thumbnailContent.ID,
-        ContentType: "image/jpeg",
-        FileName:    "thumbnail_256.jpg",
-        Tags:        []string{"thumbnail", "derived", "256px"},
-    })
-    if err != nil {
-        return nil, nil, fmt.Errorf("failed to set thumbnail metadata: %w", err)
-    }
-
-    return thumbnailContent, thumbnailObject, nil
+// Access organized thumbnails
+for size, url := range details.Thumbnails {
+    fmt.Printf("  Thumbnail %s: %s\n", size, url)
 }
 ```
 
-## Convenience Functions
-
-The library provides package-level convenience functions for common operations:
-
-### Thumbnail Operations
+### Get Upload URLs (For Direct Client Upload)
 
 ```go
-// Get thumbnails of specific sizes
-thumbnails, err := simplecontent.GetThumbnailsBySize(ctx, svc, parentContentID, []string{"128", "256", "512"})
-if err != nil {
-    log.Fatal(err)
-}
-
-// List derived content by specific type and variant
-derived, err := simplecontent.ListDerivedByTypeAndVariant(ctx, svc, parentContentID, "thumbnail", "thumbnail_256")
-if err != nil {
-    log.Fatal(err)
-}
-
-// List by multiple variants
-variants := []string{"thumbnail_128", "thumbnail_256", "preview_720"}
-derived, err := simplecontent.ListDerivedByVariants(ctx, svc, parentContentID, variants)
-if err != nil {
-    log.Fatal(err)
-}
-```
-
-### Enhanced Listing with URLs
-
-```go
-// Get derived content with URLs populated
-derived, err := svc.ListDerivedContent(ctx,
-    simplecontent.WithParentID(parentContentID),
-    simplecontent.WithURLs(), // This will populate DownloadURL, PreviewURL, ThumbnailURL
+// Get content details with upload access
+details, err := svc.GetContentDetails(ctx, contentID,
+    simplecontent.WithUploadAccess(),
 )
 if err != nil {
     log.Fatal(err)
 }
 
-// Get single derived content with URLs
-derivedWithURLs, err := simplecontent.GetDerivedContentWithURLs(ctx, svc, derivedContentID)
-if err != nil {
-    log.Fatal(err)
-}
-```
-
-### Modern Option Pattern API
-
-The library also provides a modern functional options API for cleaner, more readable code:
-
-```go
-// Using functional options (modern approach)
-derived, err := svc.ListDerivedContent(ctx,
-    simplecontent.WithParentID(parentContentID),
-    simplecontent.WithDerivationType("thumbnail"),
-    simplecontent.WithVariants("thumbnail_256", "thumbnail_512"),
-    simplecontent.WithURLs(),
-    simplecontent.WithLimit(10),
-)
-if err != nil {
-    log.Fatal(err)
+if details.Upload != "" {
+    fmt.Printf("Upload URL: %s\n", details.Upload)
+    fmt.Printf("Expires at: %v\n", details.ExpiresAt)
 }
 
-// Compared to struct-based approach (legacy, still supported)
-params := simplecontent.ListDerivedContentParams{
-    ParentID:       &parentContentID,
-    DerivationType: stringPtr("thumbnail"),
-    Variants:       []string{"thumbnail_256", "thumbnail_512"},
-    IncludeURLs:    true,
-    Limit:          intPtr(10),
-}
-derived, err := svc.ListDerivedContent(ctx, params)
-```
-
-#### Common Option Patterns
-
-```go
-// Get all thumbnails with URLs
-thumbnails, err := svc.ListDerivedContent(ctx,
-    simplecontent.WithParentID(parentContentID),
-    simplecontent.WithDerivationType("thumbnail"),
-    simplecontent.WithURLs(),
-)
-
-// Get multiple specific variants
-derived, err := svc.ListDerivedContent(ctx,
-    simplecontent.WithParentID(parentContentID),
-    simplecontent.WithVariants("thumbnail_256", "preview_720", "video_1080p"),
-)
-
-// Get recent derived content with pagination
-recent, err := svc.ListDerivedContent(ctx,
-    simplecontent.WithParentID(parentContentID),
-    simplecontent.WithCreatedAfter(time.Now().Add(-24*time.Hour)),
-    simplecontent.WithSortBy("created_at_desc"),
-    simplecontent.WithPagination(20, 0), // limit 20, offset 0
-)
-
-// Get content across multiple parents
-derived, err := svc.ListDerivedContent(ctx,
-    simplecontent.WithParentIDs(parentID1, parentID2, parentID3),
-    simplecontent.WithDerivationType("thumbnail"),
-    simplecontent.WithMetadata(), // Include metadata
-)
-
-// Complex filtering with type-variant pairs
-derived, err := svc.ListDerivedContent(ctx,
-    simplecontent.WithParentID(parentContentID),
-    simplecontent.WithTypeVariantPairs(
-        simplecontent.TypeVariantPair{DerivationType: "thumbnail", Variant: "thumbnail_256"},
-        simplecontent.TypeVariantPair{DerivationType: "preview", Variant: "preview_web"},
-    ),
-    simplecontent.WithObjects(), // Include object details
-    simplecontent.WithURLs(),
+// With custom expiry time
+details, err := svc.GetContentDetails(ctx, contentID,
+    simplecontent.WithUploadAccessExpiry(3600), // 1 hour
 )
 ```
 
-### Upload Convenience Functions
-
-```go
-// Simple upload without metadata
-err := simplecontent.UploadObjectSimple(ctx, svc, objectID, dataReader)
-if err != nil {
-    log.Fatal(err)
-}
-
-// Upload with MIME type
-err := simplecontent.UploadObjectWithMimeType(ctx, svc, objectID, dataReader, "image/jpeg")
-if err != nil {
-    log.Fatal(err)
-}
-```
-
-### Enhanced Convenience Functions
-
-The library provides traditional convenience functions, but **the option pattern is now the recommended approach** for most use cases:
-
-```go
-// Traditional convenience functions (still supported for simple cases)
-thumbnails, err := simplecontent.GetThumbnailsBySize(ctx, svc, parentContentID, []string{"128", "256", "512"})
-if err != nil {
-    log.Fatal(err)
-}
-
-// Modern option pattern (recommended) - more flexible and readable
-thumbnails, err := svc.ListDerivedContent(ctx,
-    simplecontent.WithParentID(parentContentID),
-    simplecontent.WithDerivationType("thumbnail"),
-    simplecontent.WithVariants("thumbnail_256", "thumbnail_512"),
-    simplecontent.WithURLs(),
-)
-if err != nil {
-    log.Fatal(err)
-}
-
-// Get recent derived content using options
-recent, err := svc.ListDerivedContent(ctx,
-    simplecontent.WithParentID(parentContentID),
-    simplecontent.WithCreatedAfter(time.Now().Add(-24*time.Hour)),
-    simplecontent.WithSortBy("created_at_desc"),
-)
-if err != nil {
-    log.Fatal(err)
-}
-
-// List by specific type and variant
-specific, err := svc.ListDerivedContent(ctx,
-    simplecontent.WithParentID(parentContentID),
-    simplecontent.WithDerivationType("thumbnail"),
-    simplecontent.WithVariant("thumbnail_256"),
-)
-if err != nil {
-    log.Fatal(err)
-}
-
-// List by multiple variants
-variants, err := svc.ListDerivedContent(ctx,
-    simplecontent.WithParentID(parentContentID),
-    simplecontent.WithVariants("thumbnail_256", "preview_720"),
-)
-if err != nil {
-    log.Fatal(err)
-}
-```
-
-## Advanced Usage Patterns
+## Complete Examples
 
 ### Multi-Size Thumbnail Generation
 
 ```go
-func generateMultipleThumbnails(svc simplecontent.Service, originalContentID uuid.UUID, sizes []string) error {
+func generateThumbnails(svc simplecontent.Service, originalContentID uuid.UUID, sizes []int) error {
     ctx := context.Background()
 
-    // Get original content and its objects
-    objects, err := svc.GetObjectsByContentID(ctx, originalContentID)
+    // Get original content info
+    originalContent, err := svc.GetContent(ctx, originalContentID)
     if err != nil {
-        return fmt.Errorf("failed to get original objects: %w", err)
+        return fmt.Errorf("failed to get original content: %w", err)
     }
 
-    if len(objects) == 0 {
-        return fmt.Errorf("no objects found for content %s", originalContentID)
-    }
-
-    // Download original data
-    originalData, err := svc.DownloadObject(ctx, objects[0].ID)
+    // Download original for processing
+    reader, err := svc.DownloadContent(ctx, originalContentID)
     if err != nil {
         return fmt.Errorf("failed to download original: %w", err)
     }
-    defer originalData.Close()
+    defer reader.Close()
+
+    originalData, err := io.ReadAll(reader)
+    if err != nil {
+        return fmt.Errorf("failed to read original data: %w", err)
+    }
 
     // Generate thumbnails for each size
     for _, size := range sizes {
-        // Here you would typically use an image processing library
-        // to resize the image. For this example, we'll simulate it.
+        // Process image (your image processing logic)
+        thumbnailData := resizeImage(originalData, size)
 
-        thumbnailData := processImageResize(originalData, size) // Your image processing logic
-
-        _, _, err := createThumbnailPipeline(svc, originalContentID, thumbnailData)
+        // Upload as derived content
+        _, err := svc.UploadDerivedContent(ctx, simplecontent.UploadDerivedContentRequest{
+            ParentID:       originalContentID,
+            OwnerID:        originalContent.OwnerID,
+            TenantID:       originalContent.TenantID,
+            DerivationType: "thumbnail",
+            Variant:        fmt.Sprintf("thumbnail_%d", size),
+            Reader:         bytes.NewReader(thumbnailData),
+            FileName:       fmt.Sprintf("thumb_%dpx.jpg", size),
+            FileSize:       int64(len(thumbnailData)),
+            Tags:           []string{"thumbnail", fmt.Sprintf("%dpx", size)},
+            Metadata: map[string]interface{}{
+                "size":        size,
+                "source_type": "image_resize",
+            },
+        })
         if err != nil {
-            return fmt.Errorf("failed to create %s thumbnail: %w", size, err)
+            return fmt.Errorf("failed to create %dpx thumbnail: %w", size, err)
         }
 
-        log.Printf("Generated %s thumbnail for content %s", size, originalContentID)
+        log.Printf("Generated %dpx thumbnail\n", size)
     }
 
     return nil
 }
 
 // Usage
-sizes := []string{"thumbnail_128", "thumbnail_256", "thumbnail_512"}
-err := generateMultipleThumbnails(svc, contentID, sizes)
+sizes := []int{128, 256, 512}
+err := generateThumbnails(svc, contentID, sizes)
 if err != nil {
     log.Fatal(err)
 }
 ```
 
-### Querying Derived Content
+### Content Gallery with Thumbnails
 
 ```go
-func getDerivedContent(svc simplecontent.Service, parentContentID uuid.UUID) ([]*simplecontent.DerivedContent, error) {
+func getContentGallery(svc simplecontent.Service, ownerID, tenantID uuid.UUID) ([]*simplecontent.ContentDetails, error) {
     ctx := context.Background()
 
-    // Method 1: Get all derived content for a parent using options
-    derived, err := svc.ListDerivedContent(ctx, simplecontent.WithParentID(parentContentID))
+    // List all content for user
+    contents, err := svc.ListContent(ctx, simplecontent.ListContentRequest{
+        OwnerID:  ownerID,
+        TenantID: tenantID,
+    })
     if err != nil {
-        return nil, fmt.Errorf("failed to list derived content: %w", err)
+        return nil, fmt.Errorf("failed to list content: %w", err)
     }
 
-    return derived, nil
+    // Get details for each content (includes thumbnails)
+    var gallery []*simplecontent.ContentDetails
+    for _, content := range contents {
+        // Skip derived content, only show originals
+        if content.DerivationType != "" {
+            continue
+        }
+
+        details, err := svc.GetContentDetails(ctx, content.ID)
+        if err != nil {
+            log.Printf("Failed to get details for %s: %v", content.ID, err)
+            continue
+        }
+
+        gallery = append(gallery, details)
+    }
+
+    return gallery, nil
 }
-
-func getFilteredDerivedContent(svc simplecontent.Service, parentContentID uuid.UUID) ([]*simplecontent.DerivedContent, error) {
-    ctx := context.Background()
-
-    // Method 2: Enhanced filtering with advanced parameters
-    params := simplecontent.ListDerivedContentParams{
-        ParentID:       &parentContentID,
-        DerivationType: stringPtr("thumbnail"), // Only thumbnails
-        Variants:       []string{"thumbnail_256", "thumbnail_512"}, // Specific sizes
-        IncludeURLs:    true, // Include download/preview URLs
-        SortBy:         stringPtr("created_at_desc"),
-        Limit:          intPtr(10),
-    }
-
-    derived, err := svc.ListDerivedContent(ctx, params)
-    if err != nil {
-        return nil, fmt.Errorf("failed to list filtered derived content: %w", err)
-    }
-
-    return derived, nil
-}
-
-// Helper functions
-func stringPtr(s string) *string { return &s }
-func intPtr(i int) *int { return &i }
 
 // Usage
-derived, err := getDerivedContent(svc, originalContentID)
+gallery, err := getContentGallery(svc, userID, tenantID)
 if err != nil {
     log.Fatal(err)
 }
 
-for _, d := range derived {
-    fmt.Printf("Derived content: %s, type: %s\n", d.ContentID, d.DerivationType)
+for _, item := range gallery {
+    fmt.Printf("Content: %s\n", item.FileName)
+    fmt.Printf("  Download: %s\n", item.Download)
+    fmt.Printf("  Thumbnail: %s\n", item.Thumbnail)
 
-    // Get the actual content
-    content, err := svc.GetContent(ctx, d.ContentID)
-    if err != nil {
-        continue
+    // Show all available thumbnail sizes
+    for size, url := range item.Thumbnails {
+        fmt.Printf("  Thumb %s: %s\n", size, url)
+    }
+}
+```
+
+## Advanced Patterns
+
+### Working with StorageService (Advanced Users)
+
+```go
+// For advanced users who need direct object access
+func setupDirectUpload(svc simplecontent.Service) error {
+    // Cast to StorageService for object operations
+    storageSvc, ok := svc.(simplecontent.StorageService)
+    if !ok {
+        return fmt.Errorf("service doesn't support storage operations")
     }
 
-    // Get objects for this derived content
-    objects, err := svc.GetObjectsByContentID(ctx, content.ID)
+    // Create content first
+    content, err := svc.CreateContent(ctx, simplecontent.CreateContentRequest{
+        OwnerID:  ownerID,
+        TenantID: tenantID,
+        Name:     "Direct Upload",
+    })
     if err != nil {
-        continue
+        return err
     }
 
-    fmt.Printf("  Content: %s, Objects: %d\n", content.Name, len(objects))
+    // Create object for direct upload
+    object, err := storageSvc.CreateObject(ctx, simplecontent.CreateObjectRequest{
+        ContentID:          content.ID,
+        StorageBackendName: "s3",
+        Version:            1,
+    })
+    if err != nil {
+        return err
+    }
+
+    // Get presigned upload URL
+    uploadURL, err := storageSvc.GetUploadURL(ctx, object.ID)
+    if err != nil {
+        return err
+    }
+
+    fmt.Printf("Upload your file to: %s\n", uploadURL)
+    return nil
+}
+```
+
+### Batch Content Processing
+
+```go
+func processContentBatch(svc simplecontent.Service, contentIDs []uuid.UUID) error {
+    ctx := context.Background()
+
+    for _, contentID := range contentIDs {
+        // Get content details
+        details, err := svc.GetContentDetails(ctx, contentID)
+        if err != nil {
+            log.Printf("Failed to get details for %s: %v", contentID, err)
+            continue
+        }
+
+        // Process based on content type
+        switch {
+        case strings.HasPrefix(details.MimeType, "image/"):
+            err = processImage(svc, contentID, details)
+        case strings.HasPrefix(details.MimeType, "video/"):
+            err = processVideo(svc, contentID, details)
+        case strings.HasPrefix(details.MimeType, "audio/"):
+            err = processAudio(svc, contentID, details)
+        default:
+            log.Printf("Unsupported content type: %s", details.MimeType)
+            continue
+        }
+
+        if err != nil {
+            log.Printf("Failed to process %s: %v", contentID, err)
+        }
+    }
+
+    return nil
+}
+
+func processImage(svc simplecontent.Service, contentID uuid.UUID, details *simplecontent.ContentDetails) error {
+    // Generate thumbnails if not already present
+    if len(details.Thumbnails) == 0 {
+        return generateThumbnails(svc, contentID, []int{128, 256, 512})
+    }
+    return nil
 }
 ```
 
 ## Storage Backend Configuration
 
 ### Filesystem Storage
-
 ```go
-import (
-    fsstorage "github.com/tendant/simple-content/pkg/simplecontent/storage/fs"
-)
-
-// Configure filesystem storage
-fsStore, err := fsstorage.New(fsstorage.Config{
-    BaseDir:   "./uploads",
-    URLPrefix: "https://mysite.com/files/",
-})
-if err != nil {
-    log.Fatal(err)
-}
-
-svc, err := simplecontent.New(
-    simplecontent.WithRepository(repo),
-    simplecontent.WithBlobStore("filesystem", fsStore),
+cfg, err := config.Load(
+    config.WithStorageBackend("filesystem", map[string]interface{}{
+        "base_dir":   "./uploads",
+        "url_prefix": "https://example.com/files/",
+    }),
 )
 ```
 
 ### S3 Storage
-
 ```go
-import (
-    s3storage "github.com/tendant/simple-content/pkg/simplecontent/storage/s3"
-)
-
-// Configure S3 storage
-s3Store, err := s3storage.New(s3storage.Config{
-    Region:          "us-west-2",
-    Bucket:          "my-content-bucket",
-    AccessKeyID:     "your-access-key",
-    SecretAccessKey: "your-secret-key",
-})
-if err != nil {
-    log.Fatal(err)
-}
-
-svc, err := simplecontent.New(
-    simplecontent.WithRepository(repo),
-    simplecontent.WithBlobStore("s3", s3Store),
-)
-```
-
-### PostgreSQL Repository
-
-```go
-import (
-    "github.com/jackc/pgx/v5/pgxpool"
-    repopg "github.com/tendant/simple-content/pkg/simplecontent/repo/postgres"
-)
-
-// Configure PostgreSQL
-pool, err := pgxpool.New(context.Background(), "postgres://user:pass@localhost/dbname")
-if err != nil {
-    log.Fatal(err)
-}
-
-repo := repopg.NewWithPool(pool)
-
-svc, err := simplecontent.New(
-    simplecontent.WithRepository(repo),
-    simplecontent.WithBlobStore("s3", s3Store),
+cfg, err := config.Load(
+    config.WithStorageBackend("s3", map[string]interface{}{
+        "region":            "us-west-2",
+        "bucket":            "my-bucket",
+        "access_key_id":     "your-key",
+        "secret_access_key": "your-secret",
+    }),
 )
 ```
 
 ## Error Handling
 
-The library uses typed errors for consistent error handling:
-
 ```go
-import (
-    "errors"
-    "github.com/tendant/simple-content/pkg/simplecontent"
-)
+import "errors"
 
-content, err := svc.GetContent(ctx, contentID)
+content, err := svc.UploadContent(ctx, req)
 if err != nil {
     if errors.Is(err, simplecontent.ErrContentNotFound) {
-        // Handle content not found
-        return nil, fmt.Errorf("content does not exist")
+        return fmt.Errorf("content not found")
     }
-
-    if errors.Is(err, simplecontent.ErrInvalidContentStatus) {
-        // Handle invalid status
-        return nil, fmt.Errorf("invalid content status")
+    if errors.Is(err, simplecontent.ErrStorageBackendNotFound) {
+        return fmt.Errorf("storage backend not configured")
     }
-
-    // Handle other errors
-    return nil, fmt.Errorf("unexpected error: %w", err)
+    return fmt.Errorf("upload failed: %w", err)
 }
 ```
 
 ## Best Practices
 
-### 1. Context Management
-Always pass appropriate contexts with timeouts for long-running operations:
+### 1. Use Unified Operations
+```go
+// ✅ Good: Single operation
+content, err := svc.UploadContent(ctx, req)
 
+// ❌ Avoid: Multi-step process (use StorageService only if needed)
+content := svc.CreateContent(...)
+object := storageSvc.CreateObject(...)
+storageSvc.UploadObject(...)
+```
+
+### 2. Leverage ContentDetails
+```go
+// ✅ Good: Get everything in one call
+details, err := svc.GetContentDetails(ctx, contentID)
+
+// ❌ Avoid: Multiple API calls
+content := svc.GetContent(...)
+metadata := svc.GetContentMetadata(...)
+urls := svc.GetContentURLs(...)
+```
+
+### 3. Handle Resources Properly
+```go
+reader, err := svc.DownloadContent(ctx, contentID)
+if err != nil {
+    return err
+}
+defer reader.Close() // Always close readers
+
+// Process reader...
+```
+
+### 4. Use Context with Timeouts
 ```go
 ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 defer cancel()
 
-err := svc.UploadObject(ctx, simplecontent.UploadObjectRequest{
-    ObjectID: objectID,
-    Reader:   largeFile,
-})
-```
-
-### 2. Resource Cleanup
-Always close readers and handle cleanup:
-
-```go
-reader, err := svc.DownloadObject(ctx, objectID)
-if err != nil {
-    return err
-}
-defer reader.Close() // Important!
-
-// Process the reader...
-```
-
-### 3. Batch Operations
-For multiple operations, consider batching where possible:
-
-```go
-// Create multiple objects at once
-var objects []*simplecontent.Object
-for _, version := range versions {
-    obj, err := svc.CreateObject(ctx, simplecontent.CreateObjectRequest{
-        ContentID:          contentID,
-        StorageBackendName: "s3",
-        Version:            version,
-    })
-    if err != nil {
-        return err
-    }
-    objects = append(objects, obj)
-}
-```
-
-### 4. Metadata Management
-Use structured metadata for better querying and organization:
-
-```go
-err = svc.SetContentMetadata(ctx, simplecontent.SetContentMetadataRequest{
-    ContentID:   contentID,
-    ContentType: "image/jpeg",
-    FileName:    "photo.jpg",
-    Tags:        []string{"photo", "landscape", "2024"},
-    CustomMetadata: map[string]interface{}{
-        "camera":     "Canon EOS R5",
-        "location":   "Yosemite",
-        "iso":        100,
-        "f_stop":     "f/8",
-        "created_by": userID,
-    },
-})
+content, err := svc.UploadContent(ctx, req)
 ```
 
 ## Testing
 
-For testing, use the in-memory implementations:
-
 ```go
-import (
-    "testing"
-    memorystorage "github.com/tendant/simple-content/pkg/simplecontent/storage/memory"
-    memoryrepo "github.com/tendant/simple-content/pkg/simplecontent/repo/memory"
-)
-
 func setupTestService(t *testing.T) simplecontent.Service {
-    repo := memoryrepo.New()
-    store := memorystorage.New()
-
-    svc, err := simplecontent.New(
-        simplecontent.WithRepository(repo),
-        simplecontent.WithBlobStore("test", store),
+    cfg, err := config.Load(
+        config.WithDatabaseType("memory"),
+        config.WithStorageBackend("memory", map[string]interface{}{}),
     )
+    if err != nil {
+        t.Fatal(err)
+    }
+
+    svc, err := cfg.BuildService()
     if err != nil {
         t.Fatal(err)
     }
@@ -716,15 +536,36 @@ func setupTestService(t *testing.T) simplecontent.Service {
 func TestContentUpload(t *testing.T) {
     svc := setupTestService(t)
 
-    // Your test code here...
+    content, err := svc.UploadContent(context.Background(), simplecontent.UploadContentRequest{
+        OwnerID:      uuid.New(),
+        TenantID:     uuid.New(),
+        Name:         "Test",
+        DocumentType: "text/plain",
+        Reader:       strings.NewReader("test data"),
+    })
+
+    assert.NoError(t, err)
+    assert.NotNil(t, content)
 }
 ```
 
-## Performance Considerations
+## Migration from Old API
 
-1. **Connection Pooling**: Use connection pools for database repositories
-2. **Streaming**: Use streaming for large file uploads/downloads
-3. **Caching**: Consider adding caching layers for frequently accessed metadata
-4. **Async Processing**: For thumbnail generation, consider async processing patterns
+### Before: Object-based Workflow (3 steps)
+```go
+content := svc.CreateContent(ctx, createReq)
+object := svc.CreateObject(ctx, objectReq)
+err := svc.UploadObject(ctx, uploadReq)
+```
 
-This guide provides a comprehensive overview of using the simple-content library programmatically. The library's clean interface design makes it easy to integrate into existing Go applications while providing flexibility for various storage and processing workflows.
+### After: Content-focused Workflow (1 step)
+```go
+content, err := svc.UploadContent(ctx, uploadReq)
+```
+
+### Deprecated Operations:
+- `CreateObject()`, `UploadObject()` → Use `UploadContent()`
+- `GetContentMetadata()`, `GetContentURLs()` → Use `GetContentDetails()`
+- `DownloadObject()` → Use `DownloadContent()`
+
+The new unified API significantly reduces complexity while providing the same functionality through content-focused operations.

@@ -1,22 +1,23 @@
 # Enhanced Derived Content Filtering Demo
 
-This example demonstrates advanced filtering capabilities for derived content, allowing you to filter by derivation type, variant, or combinations of both.
+This example demonstrates advanced filtering capabilities for derived content built on the simple-content library's unified API, allowing you to filter by derivation type, variant, or combinations of both with enhanced performance and usability.
 
 ## Problem Statement
 
-The current simple-content library has limited filtering for derived content:
-- Only supports single derivation type filtering
-- No variant-specific filtering
-- No complex combination filtering
+While the simple-content library provides the `ListDerivedContent()` API with basic filtering, applications often need more sophisticated filtering for derived content:
+- Advanced variant-specific filtering beyond basic type filtering
+- Complex combination filtering (type + variant pairs)
+- Performance-optimized queries for large content sets
 
 This creates challenges when you need to:
 - Get specific thumbnail sizes (e.g., only 256px thumbnails)
 - Filter by multiple variants (e.g., all small thumbnails: 128px, 256px)
 - Get specific type+variant combinations (e.g., thumbnail:256px + preview:web)
+- Efficiently query large derived content datasets
 
 ## Solution
 
-This example implements comprehensive filtering with:
+This example implements comprehensive filtering that builds on the unified API's `ListDerivedContent()` foundation with:
 
 ### 1. **Enhanced Filter Parameters**
 ```go
@@ -259,7 +260,7 @@ The demo creates the following test data:
 
 ### Programmatic Usage
 ```go
-// Create service
+// Create service (builds on unified API)
 service, err := NewEnhancedDerivedContentService()
 
 // Filter by single variant
@@ -366,4 +367,54 @@ type Service interface {
 ### 3. HTTP Layer
 Implement advanced query parameter parsing and validation.
 
-This enhanced filtering system provides precise control over derived content queries while maintaining excellent performance and usability.
+## Integration with Unified API
+
+This enhanced filtering system builds on the simple-content library's unified operations:
+
+### Creating Derived Content for Testing
+```go
+// Using the unified API to create test data
+for _, size := range []int{128, 256, 512} {
+    thumbnail, err := svc.UploadDerivedContent(ctx, simplecontent.UploadDerivedContentRequest{
+        ParentID:       originalContentID,
+        OwnerID:        ownerID,
+        TenantID:       tenantID,
+        DerivationType: "thumbnail",
+        Variant:        fmt.Sprintf("thumbnail_%d", size),
+        Reader:         thumbnailReader,
+        FileName:       fmt.Sprintf("thumb_%dpx.jpg", size),
+        Tags:           []string{"thumbnail", fmt.Sprintf("%dpx", size)},
+        Metadata: map[string]interface{}{
+            "size": size,
+            "algorithm": "lanczos3",
+        },
+    })
+}
+```
+
+### Enhanced vs Basic Filtering
+```go
+// Basic unified API filtering
+derived, err := svc.ListDerivedContent(ctx,
+    simplecontent.WithParentID(parentID),
+    simplecontent.WithDerivationType("thumbnail"),
+)
+
+// Enhanced filtering (this example)
+results, err := enhancedSvc.ListDerivedContentWithFilters(ctx, EnhancedListDerivedContentParams{
+    ParentID: &parentID,
+    Variants: []string{"thumbnail_256", "thumbnail_512"},
+    TypeVariantPairs: []TypeVariantPair{
+        {DerivationType: "thumbnail", Variant: "thumbnail_256"},
+        {DerivationType: "preview", Variant: "preview_web"},
+    },
+})
+```
+
+### Performance Benefits
+- **Optimized Queries**: Single database query instead of client-side filtering
+- **Precise Filtering**: Database-level variant matching
+- **Scalable**: Handles large derived content datasets efficiently
+- **Unified Integration**: Works seamlessly with content created via `UploadDerivedContent()`
+
+This enhanced filtering system provides precise control over derived content queries while maintaining excellent performance and usability, building on the foundation of the simple-content library's unified API.

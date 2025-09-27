@@ -1,13 +1,14 @@
 # Direct Upload Example
 
-This example demonstrates how to implement direct client uploads to storage backends using presigned URLs. Instead of uploading through the service, clients upload directly to the storage backend (S3/MinIO) for better performance and scalability.
+This example demonstrates how to implement direct client uploads to storage backends using presigned URLs with the StorageService interface. Instead of uploading through the service, clients upload directly to the storage backend (S3/MinIO) for better performance and scalability.
 
 ## Features
 
-- **Direct Upload Workflow**: Prepare → Upload → Confirm pattern
+- **Direct Upload Workflow**: Prepare → Upload → Confirm pattern using StorageService
 - **Presigned URL Generation**: Secure, time-limited URLs for direct storage access
 - **Web Interface**: Interactive demo with progress tracking
 - **Content Management**: Full integration with simple-content library
+- **Advanced Interface Usage**: Demonstrates both Service and StorageService interfaces
 - **Real-time Progress**: Upload progress tracking with JavaScript
 - **Error Handling**: Comprehensive error handling and retry logic
 
@@ -133,6 +134,28 @@ err := client.UploadFile(context.Background(), "./myfile.pdf", map[string]interf
     "description": "Uploaded via direct client",
     "tags": []string{"direct", "upload"},
 })
+```
+
+### 4. Interface Usage Pattern
+
+This example demonstrates the advanced usage pattern where you need both interfaces:
+
+```go
+// Main service for content operations
+svc, err := cfg.BuildService()
+
+// Cast to StorageService for object operations (required for direct uploads)
+storageSvc, ok := svc.(simplecontent.StorageService)
+if !ok {
+    return fmt.Errorf("service doesn't support storage operations")
+}
+
+// Use Service interface for content management
+content, err := svc.CreateContent(ctx, req)
+
+// Use StorageService interface for object operations
+object, err := storageSvc.CreateObject(ctx, objectReq)
+uploadURL, err := storageSvc.GetUploadURL(ctx, object.ID)
 ```
 
 ## Configuration
@@ -326,4 +349,37 @@ For browser clients, configure CORS on your storage backend:
 - Add webhook notifications for upload events
 - Implement upload quotas and rate limiting
 
-This example provides a solid foundation for implementing direct client uploads in production environments while maintaining all the benefits of the simple-content library for metadata and content management.
+## API Design Notes
+
+### When to Use Direct Upload
+
+**Use Direct Upload (StorageService) when:**
+- Large files (>100MB) that benefit from client-side upload
+- Need to minimize server bandwidth usage
+- Implementing file upload from browser/mobile clients
+- Need presigned URL functionality
+
+**Use Unified API (Service) when:**
+- Files uploaded from server-side applications
+- Simpler implementation requirements
+- Files under 100MB
+- Don't need presigned URL complexity
+
+### Alternative: Unified API with Upload URLs
+
+For simpler use cases, consider the unified API approach:
+
+```go
+// Create content first
+content, err := svc.CreateContent(ctx, req)
+
+// Get upload URL through content details
+details, err := svc.GetContentDetails(ctx, content.ID,
+    simplecontent.WithUploadAccess(),
+)
+
+// Client uploads to details.Upload URL
+// No confirmation step needed
+```
+
+This example provides a solid foundation for implementing direct client uploads in production environments while maintaining all the benefits of the simple-content library for metadata and content management. It demonstrates the advanced StorageService interface usage for cases where you need direct object access.

@@ -6,6 +6,7 @@ This document gives AI coding assistants (Claude, ChatGPT, etc.) the context and
 
 - Language: Go
 - Library-first design under `pkg/simplecontent` with a thin HTTP server in `cmd/server-configured`.
+- **New Unified API Design**: Content-focused operations that hide storage implementation details
 - Goals: clean architecture, pluggable storage/repository backends, strong typing, clear errors, easy testing.
 
 ## Core Concepts
@@ -17,12 +18,15 @@ This document gives AI coding assistants (Claude, ChatGPT, etc.) the context and
 ## Key Packages
 
 - `pkg/simplecontent` (core library)
-  - Service interface and implementation (`service.go`, `service_impl.go`)
+  - **Unified Service Interface**: Content-focused operations (`UploadContent`, `UploadDerivedContent`, `GetContentDetails`)
+  - **StorageService Interface**: Advanced object operations for direct uploads and presigned URLs
+  - Service implementation (`service.go`, `service_impl.go`)
   - Domain types and typed enums (`types.go`)
     - ContentStatus, ObjectStatus (typed string enums)
     - DerivationVariant (specific)
-  - Requests/DTOs (`requests.go`)
-  - Interfaces (`interfaces.go`): Repository, BlobStore, EventSink, Previewer
+    - ContentDetails (unified metadata structure)
+  - Requests/DTOs (`requests.go`): UploadContentRequest, UploadDerivedContentRequest
+  - Interfaces (`interfaces.go`): Service, StorageService, Repository, BlobStore, EventSink, Previewer
   - Errors (`errors.go`): typed sentinel errors for mapping
   - Storage backends: `storage/memory`, `storage/fs`, `storage/s3`
   - Repositories: `repo/memory`, `repo/postgres` (+ `schema.sql`)
@@ -46,27 +50,33 @@ This document gives AI coding assistants (Claude, ChatGPT, etc.) the context and
 
 Base path: `/api/v1`
 
-- Content
-  - `POST /contents` create
-  - `POST /contents/{parentID}/derived` create derived (body: owner_id, tenant_id, derivation_type, variant, metadata)
-  - `GET /contents/{contentID}` get
-  - `PUT /contents/{contentID}` update (partial)
-  - `DELETE /contents/{contentID}` delete
-  - `GET /contents?owner_id=&tenant_id=` list
+### Unified Content API (Recommended)
+- Content Operations
+  - `POST /contents` create content (can include upload data)
+  - `POST /contents/{parentID}/derived` create derived content
+  - `GET /contents/{contentID}` get content
+  - `PUT /contents/{contentID}` update content (partial)
+  - `DELETE /contents/{contentID}` delete content
+  - `GET /contents?owner_id=&tenant_id=` list contents
 
-- Content metadata
-  - `POST /contents/{contentID}/metadata` set
-  - `GET /contents/{contentID}/metadata` get
+- **Unified Content Details (NEW!)**
+  - `GET /contents/{contentID}/details` get all content information (URLs + metadata)
+  - `GET /contents/{contentID}/details?upload_access=true` include upload URLs
 
-- Objects
-  - `POST /contents/{contentID}/objects` create (also accepts `content_id` in JSON)
-  - `GET /objects/{objectID}` get
-  - `DELETE /objects/{objectID}` delete
-  - `GET /contents/{contentID}/objects` list by content
+- Content Data Access
+  - `GET /contents/{contentID}/download` download content data directly
+  - `POST /contents/{contentID}/upload` upload content data directly
 
-- Upload/Download
-  - `POST /objects/{objectID}/upload` (direct upload; uses Content-Type if provided)
-  - `GET /objects/{objectID}/download` (streams; sets Content-Type/Disposition when available)
+### Legacy Object API (Advanced Users)
+- Objects (for StorageService interface users)
+  - `POST /contents/{contentID}/objects` create object
+  - `GET /objects/{objectID}` get object
+  - `DELETE /objects/{objectID}` delete object
+  - `GET /contents/{contentID}/objects` list objects by content
+
+- Upload/Download (object-level)
+  - `POST /objects/{objectID}/upload` direct upload to object
+  - `GET /objects/{objectID}/download` download from object
   - `GET /objects/{objectID}/upload-url` presigned upload
   - `GET /objects/{objectID}/download-url` presigned download
   - `GET /objects/{objectID}/preview-url` preview URL
@@ -118,12 +128,23 @@ Server config:
 
 ## Coding Guidelines
 
+### API Design Principles
+- **Prefer Unified Operations**: Use `UploadContent()` and `UploadDerivedContent()` over multi-step object workflows
+- **Content-Focused Design**: Work with content concepts, not storage objects in main APIs
+- **Interface Separation**: Use Service interface for most cases, StorageService only for advanced object access
+- **Single-Call Operations**: Replace multi-step workflows with unified operations
+
+### Implementation Guidelines
 - Keep changes minimal and scoped; respect existing structure and naming.
 - Prefer typed enums from `pkg/simplecontent/types.go` for statuses/variants.
 - Normalize user-provided categories/variants to lowercase.
-- Use and propagate typed errors; don’t string-match error messages.
+- Use and propagate typed errors; don't string-match error messages.
 - For new handlers, follow existing JSON helpers and error mapping.
 - Avoid adding new external deps unless necessary; use stdlib and existing libs.
+
+### When to Use Each Interface
+- **Service Interface (Recommended)**: Content operations, unified workflows, server-side applications
+- **StorageService Interface (Advanced)**: Direct uploads, presigned URLs, object-level control
 
 ## Extensibility Tips
 
@@ -136,8 +157,45 @@ Server config:
 
 - See `REFACTORING_NEXT_STEPS.md` for the current plan, milestones, and definition of done.
 
+## API Migration Notes
+
+### Recommended Patterns (Current)
+```go
+// Unified content upload (1 step)
+content, err := svc.UploadContent(ctx, simplecontent.UploadContentRequest{
+    OwnerID:      ownerID,
+    TenantID:     tenantID,
+    Name:         "Document",
+    DocumentType: "text/plain",
+    Reader:       dataReader,
+    FileName:     "doc.txt",
+})
+
+// Derived content creation (1 step)
+thumbnail, err := svc.UploadDerivedContent(ctx, simplecontent.UploadDerivedContentRequest{
+    ParentID:       contentID,
+    DerivationType: "thumbnail",
+    Variant:        "thumbnail_256",
+    Reader:         thumbReader,
+})
+
+// Get all content info (1 call)
+details, err := svc.GetContentDetails(ctx, contentID)
+```
+
+### Legacy Patterns (Still Supported)
+```go
+// Multi-step object workflow (3 steps) - use StorageService interface
+content := svc.CreateContent(ctx, req)
+storageSvc := svc.(simplecontent.StorageService)
+object := storageSvc.CreateObject(ctx, objReq)
+storageSvc.UploadObject(ctx, uploadReq)
+```
+
 ## Safe Ops for AI
 
+- **Prefer unified operations** over legacy object workflows when implementing new features
+- Use StorageService interface casting only when advanced object operations are truly needed
 - Do not remove legacy packages until the configured server is fully validated.
 - Keep API responses stable and documented before broad changes.
 - When in doubt, open a small PR with clear rationale and tests.

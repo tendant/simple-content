@@ -1,16 +1,19 @@
 # Simple Content Library
 
-A reusable Go library for content management with pluggable storage backends and repository implementations.
+A reusable Go library for content management with a unified API that simplifies content operations while providing pluggable storage backends and repository implementations.
 
 ## Overview
 
-The `simplecontent` package provides a clean, pluggable architecture for content management systems. It separates concerns between:
+The `simplecontent` package provides a clean, pluggable architecture for content management systems with a content-focused API design. It separates concerns between:
 
 - **Domain types**: Content, Object, metadata types
-- **Interfaces**: Service, Repository, BlobStore, EventSink, Previewer  
-- **Implementations**: Memory, PostgreSQL, S3, filesystem storage backends
+- **Unified Service Interface**: Content-focused operations that hide storage implementation details
+- **Advanced StorageService Interface**: Object-level operations for advanced users
+- **Repository & Storage**: Memory, PostgreSQL, S3, filesystem backends
 
 ## Quick Start
+
+### Simple Unified API (Recommended)
 
 ```go
 package main
@@ -18,66 +21,81 @@ package main
 import (
     "context"
     "log"
-    
+    "strings"
+
+    "github.com/google/uuid"
     "github.com/tendant/simple-content/pkg/simplecontent"
-    "github.com/tendant/simple-content/pkg/simplecontent/repo/memory"
-    "github.com/tendant/simple-content/pkg/simplecontent/storage/memory"
+    "github.com/tendant/simple-content/pkg/simplecontent/config"
 )
 
 func main() {
-    // Create repository and storage backends
-    repo := memory.New()
-    store := memorystorage.New()
-    
-    // Create service with functional options
-    svc, err := simplecontent.New(
-        simplecontent.WithRepository(repo),
-        simplecontent.WithBlobStore("memory", store),
+    // Configure service using config system
+    cfg, err := config.Load(
+        config.WithDatabaseType("memory"),
+        config.WithStorageBackend("memory", map[string]interface{}{}),
     )
     if err != nil {
         log.Fatal(err)
     }
-    
+
+    svc, err := cfg.BuildService()
+    if err != nil {
+        log.Fatal(err)
+    }
+
     ctx := context.Background()
-    
-    // Create content
-    content, err := svc.CreateContent(ctx, simplecontent.CreateContentRequest{
-        OwnerID:     uuid.New(),
-        TenantID:    uuid.New(), 
-        Name:        "My Document",
-        Description: "A sample document",
+
+    // Upload content with data in one operation (NEW!)
+    content, err := svc.UploadContent(ctx, simplecontent.UploadContentRequest{
+        OwnerID:      uuid.New(),
+        TenantID:     uuid.New(),
+        Name:         "My Document",
+        Description:  "A sample document",
+        DocumentType: "text/plain",
+        Reader:       strings.NewReader("Hello, World!"),
+        FileName:     "hello.txt",
+        Tags:         []string{"sample", "document"},
     })
     if err != nil {
         log.Fatal(err)
     }
-    
-    // Create object for storage
-    object, err := svc.CreateObject(ctx, simplecontent.CreateObjectRequest{
-        ContentID:          content.ID,
-        StorageBackendName: "memory",
-        Version:            1,
-    })
-    if err != nil {
-        log.Fatal(err)
-    }
-    
-    // Upload data
-    data := strings.NewReader("Hello, World!")
-    err = svc.UploadObject(ctx, object.ID, data)
-    if err != nil {
-        log.Fatal(err)
-    }
-    
-    // Download data  
-    reader, err := svc.DownloadObject(ctx, object.ID)
+
+    // Download content data directly
+    reader, err := svc.DownloadContent(ctx, content.ID)
     if err != nil {
         log.Fatal(err)
     }
     defer reader.Close()
-    
-    // Read downloaded content
-    content, err := io.ReadAll(reader)
-    fmt.Printf("Downloaded: %s\\n", content)
+
+    // Get all content information in one call
+    details, err := svc.GetContentDetails(ctx, content.ID)
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    fmt.Printf("Content: %s (%s)\\n", details.FileName, details.MimeType)
+    fmt.Printf("Download URL: %s\\n", details.Download)
+}
+```
+
+### Manual Construction (Advanced)
+
+```go
+// For advanced users who need custom configuration
+repo := memory.New()
+store := memorystorage.New()
+
+svc, err := simplecontent.New(
+    simplecontent.WithRepository(repo),
+    simplecontent.WithBlobStore("memory", store),
+)
+
+// Cast to StorageService for object operations if needed
+storageSvc, ok := svc.(simplecontent.StorageService)
+if ok {
+    // Use object-level operations
+    object, err := storageSvc.CreateObject(ctx, req)
+    uploadURL, err := storageSvc.GetUploadURL(ctx, object.ID)
 }
 ```
 
@@ -85,7 +103,41 @@ func main() {
 
 ### Core Interfaces
 
-- **Service**: Main interface providing all content management operations
+#### Main Service Interface (Recommended)
+```go
+type Service interface {
+    // Unified upload operations (NEW!)
+    UploadContent(ctx, UploadContentRequest) (*Content, error)
+    UploadDerivedContent(ctx, UploadDerivedContentRequest) (*Content, error)
+
+    // Content data access
+    DownloadContent(ctx, contentID) (io.ReadCloser, error)
+
+    // Unified details API (NEW!)
+    GetContentDetails(ctx, contentID, ...ContentDetailsOption) (*ContentDetails, error)
+
+    // Standard content operations
+    CreateContent(ctx, CreateContentRequest) (*Content, error)
+    GetContent(ctx, uuid.UUID) (*Content, error)
+    ListContent(ctx, ListContentRequest) ([]*Content, error)
+
+    // Derived content operations
+    ListDerivedContent(ctx, ...ListDerivedContentOption) ([]*DerivedContent, error)
+}
+```
+
+#### StorageService Interface (Advanced)
+```go
+type StorageService interface {
+    // Object operations (for advanced users who need direct object access)
+    CreateObject(ctx, CreateObjectRequest) (*Object, error)
+    UploadObject(ctx, UploadObjectRequest) error
+    GetUploadURL(ctx, objectID) (string, error)
+    // ... other object operations
+}
+```
+
+#### Backend Interfaces
 - **Repository**: Data persistence abstraction for contents, objects, and metadata
 - **BlobStore**: Storage backend abstraction for binary data
 - **EventSink**: Event handling for lifecycle events
@@ -119,10 +171,13 @@ svc, err := simplecontent.New(
 
 ## Features
 
+- **Unified Content Operations**: Single-call upload/download operations replace multi-step workflows
+- **Content-Focused API**: Work with content concepts, not storage objects
+- **Interface Separation**: Service interface for most users, StorageService for advanced use cases
 - **Pluggable architecture**: Swap repositories and storage backends easily
-- **Multi-tenant**: Built-in tenant isolation  
-- **Versioning**: Support for content versions
-- **Metadata management**: Rich metadata support for content and objects
+- **Multi-tenant**: Built-in tenant isolation
+- **Derived Content**: Built-in support for thumbnails, previews, and transcodes
+- **Metadata management**: Rich metadata support with unified details API
 - **Event system**: Lifecycle event notifications
 - **Preview generation**: Extensible preview system
 - **Error handling**: Typed errors for better error handling
@@ -160,6 +215,39 @@ const VariantThumbnail1024 simplecontent.DerivationVariant = "thumbnail_1024"
 
 
 
+## API Migration Guide
+
+### Before: Multi-Step Object Workflow
+```go
+// Old way (3 steps):
+content := svc.CreateContent(ctx, createReq)
+object := svc.CreateObject(ctx, objectReq)  // StorageService required
+err := svc.UploadObject(ctx, uploadReq)     // StorageService required
+```
+
+### After: Unified Content Workflow
+```go
+// New way (1 step):
+content, err := svc.UploadContent(ctx, uploadReq)
+
+// For derived content:
+thumbnail, err := svc.UploadDerivedContent(ctx, derivedReq)
+```
+
+### When to Use Each Interface
+
+**Use Service Interface (Recommended) when:**
+- Uploading content from server-side applications
+- Working with content concepts (documents, images, videos)
+- Need simplified workflow with minimal complexity
+- Files under 100MB
+
+**Use StorageService Interface (Advanced) when:**
+- Need direct object access for presigned URLs
+- Implementing direct client uploads to storage
+- Large files requiring specialized upload patterns
+- Need fine-grained control over storage operations
+
 ## Use Cases
 
 - Document management systems
@@ -167,6 +255,8 @@ const VariantThumbnail1024 simplecontent.DerivationVariant = "thumbnail_1024"
 - File storage services
 - Content delivery platforms
 - Multi-tenant SaaS applications
+- Thumbnail and preview generation systems
+- Direct client upload applications
 
 ## Testing
 
@@ -174,14 +264,25 @@ The library includes in-memory implementations perfect for testing:
 
 ```go
 func TestMyFeature(t *testing.T) {
-    repo := memory.New()
-    store := memorystorage.New()
-    
-    svc, _ := simplecontent.New(
-        simplecontent.WithRepository(repo),
-        simplecontent.WithBlobStore("test", store),
+    cfg, err := config.Load(
+        config.WithDatabaseType("memory"),
+        config.WithStorageBackend("memory", map[string]interface{}{}),
     )
-    
+    require.NoError(t, err)
+
+    svc, err := cfg.BuildService()
+    require.NoError(t, err)
+
+    // Test unified operations
+    content, err := svc.UploadContent(ctx, simplecontent.UploadContentRequest{
+        OwnerID:      uuid.New(),
+        TenantID:     uuid.New(),
+        Name:         "Test Content",
+        DocumentType: "text/plain",
+        Reader:       strings.NewReader("test data"),
+    })
+    require.NoError(t, err)
+
     // Test your code...
 }
 ```

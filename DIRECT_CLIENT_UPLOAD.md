@@ -39,7 +39,7 @@ The workflow involves:
 
 ### Pattern 1: Basic Direct Upload (Programmatic)
 
-This pattern creates the content/object metadata first, then provides a presigned URL for direct upload.
+This pattern creates the content metadata first, then provides a presigned URL for direct upload. Note that direct uploads require the advanced StorageService interface for object operations.
 
 ```go
 package main
@@ -58,7 +58,8 @@ import (
 
 // DirectUploadService wraps the simple-content service for direct upload workflows
 type DirectUploadService struct {
-    svc simplecontent.Service
+    svc        simplecontent.Service
+    storageSvc simplecontent.StorageService
 }
 
 // NewDirectUploadService creates a service configured for direct uploads
@@ -82,7 +83,16 @@ func NewDirectUploadService() (*DirectUploadService, error) {
         return nil, err
     }
 
-    return &DirectUploadService{svc: svc}, nil
+    // Cast to StorageService for object operations (required for direct uploads)
+    storageSvc, ok := svc.(simplecontent.StorageService)
+    if !ok {
+        return nil, fmt.Errorf("service doesn't support storage operations")
+    }
+
+    return &DirectUploadService{
+        svc:        svc,
+        storageSvc: storageSvc,
+    }, nil
 }
 
 // PrepareUploadRequest contains parameters for preparing a direct upload
@@ -138,8 +148,8 @@ func (dus *DirectUploadService) PrepareDirectUpload(ctx context.Context, req Pre
         return nil, fmt.Errorf("failed to set content metadata: %w", err)
     }
 
-    // 3. Create object for storage
-    object, err := dus.svc.CreateObject(ctx, simplecontent.CreateObjectRequest{
+    // 3. Create object for storage (uses StorageService interface)
+    object, err := dus.storageSvc.CreateObject(ctx, simplecontent.CreateObjectRequest{
         ContentID:          content.ID,
         StorageBackendName: "s3", // Use your configured S3 backend
         Version:            1,
@@ -148,8 +158,8 @@ func (dus *DirectUploadService) PrepareDirectUpload(ctx context.Context, req Pre
         return nil, fmt.Errorf("failed to create object: %w", err)
     }
 
-    // 4. Get presigned upload URL
-    uploadURL, err := dus.svc.GetUploadURL(ctx, object.ID)
+    // 4. Get presigned upload URL (uses StorageService interface)
+    uploadURL, err := dus.storageSvc.GetUploadURL(ctx, object.ID)
     if err != nil {
         return nil, fmt.Errorf("failed to get upload URL: %w", err)
     }
@@ -168,21 +178,21 @@ func (dus *DirectUploadService) PrepareDirectUpload(ctx context.Context, req Pre
 
 // ConfirmUpload marks an upload as completed and updates object status
 func (dus *DirectUploadService) ConfirmUpload(ctx context.Context, objectID uuid.UUID) error {
-    // Get the object to update its status
-    object, err := dus.svc.GetObject(ctx, objectID)
+    // Get the object to update its status (uses StorageService interface)
+    object, err := dus.storageSvc.GetObject(ctx, objectID)
     if err != nil {
         return fmt.Errorf("failed to get object: %w", err)
     }
 
     // Update object status to indicate upload completion
     object.Status = string(simplecontent.ObjectStatusUploaded)
-    err = dus.svc.UpdateObject(ctx, object)
+    err = dus.storageSvc.UpdateObject(ctx, object)
     if err != nil {
         return fmt.Errorf("failed to update object status: %w", err)
     }
 
     // Optionally, sync metadata from storage backend
-    _, err = dus.svc.UpdateObjectMetaFromStorage(ctx, objectID)
+    _, err = dus.storageSvc.UpdateObjectMetaFromStorage(ctx, objectID)
     if err != nil {
         log.Printf("Warning: failed to sync object metadata from storage: %v", err)
         // Don't fail the confirmation for metadata sync issues
@@ -790,4 +800,58 @@ func (dus *DirectUploadService) PrepareMultipartUpload(ctx context.Context, req 
    - Ensure client sets correct Content-Type header
    - S3 validates Content-Type against presigned URL
 
-Direct client uploads provide excellent performance and scalability benefits while maintaining the content management capabilities of the simple-content library. The key is proper implementation of the three-step workflow: prepare, upload, confirm.
+## New Unified API Alternative
+
+While the above patterns show direct upload workflows using the StorageService interface for advanced users, for most use cases you should prefer the new unified content operations:
+
+### Simple Content Upload (Recommended)
+
+```go
+// Instead of direct upload complexity, use the unified API:
+content, err := svc.UploadContent(ctx, simplecontent.UploadContentRequest{
+    OwnerID:            req.OwnerID,
+    TenantID:           req.TenantID,
+    Name:               req.Name,
+    Description:        req.Description,
+    DocumentType:       req.ContentType,
+    StorageBackendName: "s3",
+    Reader:             fileReader,
+    FileName:           req.FileName,
+    FileSize:           req.FileSize,
+    Tags:               req.Tags,
+})
+// Single call replaces the entire prepare->upload->confirm workflow
+```
+
+### When to Use Direct Upload vs Unified API
+
+**Use Direct Upload (StorageService) when:**
+- Large files (>100MB) that benefit from client-side upload
+- Need to minimize server bandwidth usage
+- Implementing file upload from browser/mobile clients
+- Need presigned URL functionality
+
+**Use Unified API (Service) when:**
+- Files uploaded from server-side applications
+- Simpler implementation requirements
+- Files under 100MB
+- Don't need presigned URL complexity
+
+### Getting Upload URLs with Unified API
+
+The unified API also supports getting upload URLs without the complexity:
+
+```go
+// Get content details with upload access
+details, err := svc.GetContentDetails(ctx, contentID,
+    simplecontent.WithUploadAccess(),
+)
+
+if details.Upload != "" {
+    // Client can upload directly to details.Upload URL
+    fmt.Printf("Upload URL: %s\n", details.Upload)
+    fmt.Printf("Expires at: %v\n", details.ExpiresAt)
+}
+```
+
+Direct client uploads provide excellent performance and scalability benefits while maintaining the content management capabilities of the simple-content library. However, consider whether the unified API meets your needs before implementing the more complex direct upload workflow. The key for direct uploads is proper implementation of the three-step workflow: prepare, upload, confirm.
