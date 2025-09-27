@@ -183,6 +183,12 @@ func intPtr(i int) *int {
 	return &i
 }
 
+// GetContentURLsSimple returns URLs for content in the simplest possible interface.
+// This is the recommended way for clients to get all URLs for any content.
+func GetContentURLsSimple(ctx context.Context, svc Service, contentID uuid.UUID) (*ContentURLs, error) {
+	return svc.GetContentURLs(ctx, contentID)
+}
+
 // Note: With the introduction of the option pattern in ListDerivedContent, most specific convenience
 // functions are no longer needed since the option pattern provides a cleaner, more flexible API.
 // Users can simply call:

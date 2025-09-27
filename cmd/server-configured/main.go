@@ -151,6 +151,9 @@ func (s *HTTPServer) Routes() http.Handler {
 		r.Post("/contents/{contentID}/metadata", s.handleSetContentMetadata)
 		r.Get("/contents/{contentID}/metadata", s.handleGetContentMetadata)
 
+		// Content URLs (simple interface for clients)
+		r.Get("/contents/{contentID}/urls", s.handleGetContentURLs)
+
 		// Object management
 		r.Post("/contents/{contentID}/objects", s.handleCreateObject)
 		r.Get("/objects/{objectID}", s.handleGetObject)
@@ -527,6 +530,23 @@ func (s *HTTPServer) handleGetContentMetadata(w http.ResponseWriter, r *http.Req
 		return
 	}
 	writeJSON(w, http.StatusOK, md)
+}
+
+func (s *HTTPServer) handleGetContentURLs(w http.ResponseWriter, r *http.Request) {
+	idStr := chi.URLParam(r, "contentID")
+	contentID, err := uuid.Parse(idStr)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_content_id", "contentID must be a UUID", nil)
+		return
+	}
+
+	urls, err := s.service.GetContentURLs(r.Context(), contentID)
+	if err != nil {
+		writeServiceError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, urls)
 }
 
 func (s *HTTPServer) handleCreateObject(w http.ResponseWriter, r *http.Request) {

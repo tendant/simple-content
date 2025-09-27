@@ -4,6 +4,7 @@ import (
     "context"
     "fmt"
     "io"
+    "strings"
     "time"
 
     "github.com/google/uuid"
@@ -529,6 +530,98 @@ func (s *service) GetPreviewURL(ctx context.Context, id uuid.UUID) (string, erro
 	}
 
 	return backend.GetPreviewURL(ctx, object.ObjectKey)
+}
+
+// GetContentURLs returns all available URLs for a content in a single call.
+// This provides the simplest interface for clients to get download, preview,
+// and derived content URLs without needing to understand object relationships.
+func (s *service) GetContentURLs(ctx context.Context, contentID uuid.UUID) (*ContentURLs, error) {
+	// Initialize the result
+	result := &ContentURLs{
+		ID:         contentID.String(),
+		Thumbnails: make(map[string]string),
+		Previews:   make(map[string]string),
+		Transcodes: make(map[string]string),
+		Ready:      true, // Assume ready unless we find incomplete content
+	}
+
+	// Get the content to check if it exists and get its status
+	content, err := s.repository.GetContent(ctx, contentID)
+	if err != nil {
+		return nil, &ContentError{ContentID: contentID, Op: "get_content_urls", Err: err}
+	}
+
+	// Check if content is ready
+	if content.Status != "created" && content.Status != "active" {
+		result.Ready = false
+	}
+
+	// Get primary objects for this content (for download/preview URLs)
+	objects, err := s.repository.GetObjectsByContentID(ctx, contentID)
+	if err != nil {
+		return nil, &ContentError{ContentID: contentID, Op: "get_content_urls", Err: err}
+	}
+
+	// Generate download and preview URLs from primary object
+	if len(objects) > 0 {
+		primaryObject := objects[0] // Use first object as primary
+
+		// Generate download URL
+		if downloadURL, err := s.GetDownloadURL(ctx, primaryObject.ID); err == nil {
+			result.Download = downloadURL
+		}
+
+		// Generate preview URL
+		if previewURL, err := s.GetPreviewURL(ctx, primaryObject.ID); err == nil {
+			result.Preview = previewURL
+		}
+	}
+
+	// Get all derived content with URLs
+	derivedContent, err := s.ListDerivedContent(ctx, WithParentID(contentID), WithURLs())
+	if err != nil {
+		return nil, &ContentError{ContentID: contentID, Op: "get_content_urls", Err: err}
+	}
+
+	// Organize derived content URLs by type
+	for _, derived := range derivedContent {
+		// Extract variant without prefix (e.g., "256" from "thumbnail_256")
+		variant := derived.Variant
+		if idx := strings.LastIndex(variant, "_"); idx >= 0 {
+			variant = variant[idx+1:]
+		}
+
+		// Organize by derivation type
+		switch derived.DerivationType {
+		case "thumbnail":
+			if derived.DownloadURL != "" {
+				result.Thumbnails[variant] = derived.DownloadURL
+				// Set primary thumbnail (prefer first one found)
+				if result.Thumbnail == "" {
+					result.Thumbnail = derived.DownloadURL
+				}
+			}
+		case "preview":
+			if derived.DownloadURL != "" {
+				result.Previews[variant] = derived.DownloadURL
+				// Set primary preview (prefer first one found, but keep original if exists)
+				if result.Preview == "" {
+					result.Preview = derived.DownloadURL
+				}
+			}
+		case "transcode":
+			if derived.DownloadURL != "" {
+				result.Transcodes[variant] = derived.DownloadURL
+			}
+		}
+
+		// If any derived content is not ready, mark the whole result as not ready
+		if derived.Status != "created" && derived.Status != "active" {
+			result.Ready = false
+		}
+	}
+
+	return result, nil
 }
 
 // Object metadata operations

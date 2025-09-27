@@ -47,4 +47,7 @@ type Service interface {
     CreateDerivedContent(ctx context.Context, req CreateDerivedContentRequest) (*Content, error)
     GetDerivedRelationship(ctx context.Context, contentID uuid.UUID) (*DerivedContent, error)
     ListDerivedContent(ctx context.Context, options ...ListDerivedContentOption) ([]*DerivedContent, error)
+
+    // Content URL operations (simple interface for clients)
+    GetContentURLs(ctx context.Context, contentID uuid.UUID) (*ContentURLs, error)
 }

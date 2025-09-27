@@ -155,3 +155,18 @@ type StorageBackend struct {
 	CreatedAt time.Time              `json:"created_at"`
 	UpdatedAt time.Time              `json:"updated_at"`
 }
+
+// ContentURLs represents all available URLs for a content.
+// Inspired by proven URL aggregation patterns, this provides both
+// direct access to primary URLs and organized collections for variants.
+type ContentURLs struct {
+	ID          string            `json:"id"`                        // Content ID
+	Download    string            `json:"download,omitempty"`        // Primary download URL
+	Preview     string            `json:"preview,omitempty"`         // Primary preview URL
+	Thumbnail   string            `json:"thumbnail,omitempty"`       // Primary thumbnail URL
+	Thumbnails  map[string]string `json:"thumbnails,omitempty"`      // size -> URL (256, 512, etc.)
+	Previews    map[string]string `json:"previews,omitempty"`        // variant -> URL (720p, 1080p, webm, etc.)
+	Transcodes  map[string]string `json:"transcodes,omitempty"`      // format -> URL (mp3, flac, mp4, etc.)
+	Ready       bool              `json:"ready"`                     // Are all URLs ready/available?
+	ExpiresAt   *time.Time        `json:"expires_at,omitempty"`      // When URLs expire (for presigned URLs)
+}

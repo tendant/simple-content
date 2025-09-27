@@ -2,6 +2,7 @@ package simplecontent_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -595,4 +596,155 @@ func setupBenchmarkService(b *testing.B) simplecontent.Service {
 	}
 
 	return svc
+}
+
+func TestGetContentURLs(t *testing.T) {
+	ctx := context.Background()
+	svc := setupTestService(t)
+
+	// Create owner and tenant IDs
+	ownerID := uuid.New()
+	tenantID := uuid.New()
+
+	// Test 1: Content with no objects - should return empty URLs but not error
+	t.Run("ContentWithoutObjects", func(t *testing.T) {
+		req := simplecontent.CreateContentRequest{
+			OwnerID:  ownerID,
+			TenantID: tenantID,
+			Name:     "Test Content",
+		}
+		content, err := svc.CreateContent(ctx, req)
+		require.NoError(t, err)
+
+		urls, err := svc.GetContentURLs(ctx, content.ID)
+		require.NoError(t, err)
+		assert.Equal(t, content.ID.String(), urls.ID)
+		assert.Empty(t, urls.Download)
+		assert.Empty(t, urls.Preview)
+		assert.Empty(t, urls.Thumbnail)
+		assert.Empty(t, urls.Thumbnails)
+		assert.Empty(t, urls.Previews)
+		assert.Empty(t, urls.Transcodes)
+		assert.True(t, urls.Ready) // Content exists and is ready
+	})
+
+	// Test 2: Content with objects - should return download/preview URLs
+	t.Run("ContentWithObjects", func(t *testing.T) {
+		// Create content
+		req := simplecontent.CreateContentRequest{
+			OwnerID:  ownerID,
+			TenantID: tenantID,
+			Name:     "Test Content with Objects",
+		}
+		content, err := svc.CreateContent(ctx, req)
+		require.NoError(t, err)
+
+		// Create object
+		objReq := simplecontent.CreateObjectRequest{
+			ContentID:          content.ID,
+			StorageBackendName: "memory",
+			Version:            1,
+			ObjectKey:          "test-object-key",
+		}
+		object, err := svc.CreateObject(ctx, objReq)
+		require.NoError(t, err)
+
+		// Upload some content to the object
+		uploadReq := simplecontent.UploadObjectRequest{
+			ObjectID: object.ID,
+			Reader:   strings.NewReader("test content"),
+			MimeType: "text/plain",
+		}
+		err = svc.UploadObject(ctx, uploadReq)
+		require.NoError(t, err)
+
+		// Get URLs
+		urls, err := svc.GetContentURLs(ctx, content.ID)
+		require.NoError(t, err)
+		assert.Equal(t, content.ID.String(), urls.ID)
+		// Memory backend doesn't generate URLs (returns empty strings)
+		// This is expected behavior - it supports direct download only
+		assert.True(t, urls.Ready)
+	})
+
+	// Test 3: Content with derived content (thumbnails)
+	t.Run("ContentWithDerivedContent", func(t *testing.T) {
+		// Create parent content
+		req := simplecontent.CreateContentRequest{
+			OwnerID:  ownerID,
+			TenantID: tenantID,
+			Name:     "Parent Content",
+		}
+		parent, err := svc.CreateContent(ctx, req)
+		require.NoError(t, err)
+
+		// Create parent object
+		objReq := simplecontent.CreateObjectRequest{
+			ContentID:          parent.ID,
+			StorageBackendName: "memory",
+			Version:            1,
+			ObjectKey:          "parent-object-key",
+		}
+		parentObject, err := svc.CreateObject(ctx, objReq)
+		require.NoError(t, err)
+
+		// Upload content
+		uploadReq := simplecontent.UploadObjectRequest{
+			ObjectID: parentObject.ID,
+			Reader:   strings.NewReader("parent content"),
+			MimeType: "image/jpeg",
+		}
+		err = svc.UploadObject(ctx, uploadReq)
+		require.NoError(t, err)
+
+		// Create derived content (thumbnail)
+		derivedReq := simplecontent.CreateDerivedContentRequest{
+			ParentID:       parent.ID,
+			OwnerID:        ownerID,
+			TenantID:       tenantID,
+			DerivationType: "thumbnail",
+			Variant:        "thumbnail_256",
+		}
+		derivedContent, err := svc.CreateDerivedContent(ctx, derivedReq)
+		require.NoError(t, err)
+
+		// Create object for derived content
+		derivedObjReq := simplecontent.CreateObjectRequest{
+			ContentID:          derivedContent.ID,
+			StorageBackendName: "memory",
+			Version:            1,
+			ObjectKey:          "thumbnail-256-key",
+		}
+		derivedObject, err := svc.CreateObject(ctx, derivedObjReq)
+		require.NoError(t, err)
+
+		// Upload thumbnail content
+		thumbUploadReq := simplecontent.UploadObjectRequest{
+			ObjectID: derivedObject.ID,
+			Reader:   strings.NewReader("thumbnail content"),
+			MimeType: "image/jpeg",
+		}
+		err = svc.UploadObject(ctx, thumbUploadReq)
+		require.NoError(t, err)
+
+		// Get URLs - should include both original and thumbnail URLs
+		urls, err := svc.GetContentURLs(ctx, parent.ID)
+		require.NoError(t, err)
+		assert.Equal(t, parent.ID.String(), urls.ID)
+		// Memory backend doesn't generate URLs, but structure should be correct
+		assert.NotNil(t, urls.Thumbnails)
+		assert.NotNil(t, urls.Previews)
+		assert.NotNil(t, urls.Transcodes)
+		assert.True(t, urls.Ready)
+	})
+
+	// Test 4: Non-existent content
+	t.Run("NonExistentContent", func(t *testing.T) {
+		nonExistentID := uuid.New()
+		_, err := svc.GetContentURLs(ctx, nonExistentID)
+		assert.Error(t, err)
+		// Should be a ContentError with not found
+		var contentErr *simplecontent.ContentError
+		assert.True(t, errors.As(err, &contentErr))
+	})
 }
