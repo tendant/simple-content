@@ -254,11 +254,10 @@ if err != nil {
 
 ```go
 // Get derived content with URLs populated
-params := simplecontent.ListDerivedContentParams{
-    ParentID:    &parentContentID,
-    IncludeURLs: true, // This will populate DownloadURL, PreviewURL, ThumbnailURL
-}
-derived, err := simplecontent.ListDerivedContentWithURLs(ctx, svc, params)
+derived, err := svc.ListDerivedContent(ctx,
+    simplecontent.WithParentID(parentContentID),
+    simplecontent.WithURLs(), // This will populate DownloadURL, PreviewURL, ThumbnailURL
+)
 if err != nil {
     log.Fatal(err)
 }
