@@ -158,6 +158,10 @@ func (s *HTTPServer) Routes() http.Handler {
 		// Content details (unified interface for clients)
 		r.Get("/contents/{contentID}/details", s.handleGetContentDetails)
 
+		// Content data access
+		r.Get("/contents/{contentID}/download", s.handleContentDownload)
+		r.Get("/contents/{contentID}/preview", s.handleContentPreview)
+
 		// Object management
 		r.Post("/contents/{contentID}/objects", s.handleCreateObject)
 		r.Get("/objects/{objectID}", s.handleGetObject)
@@ -751,4 +755,100 @@ func contentResponse(c *simplecontent.Content, variant string) map[string]interf
 		m["variant"] = variant
 	}
 	return m
+}
+
+// handleContentDownload downloads content directly using content ID
+func (s *HTTPServer) handleContentDownload(w http.ResponseWriter, r *http.Request) {
+	idStr := chi.URLParam(r, "contentID")
+	contentID, err := uuid.Parse(idStr)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_content_id", "contentID must be a UUID", nil)
+		return
+	}
+
+	// Get the primary object for this content
+	objects, err := s.storageService.GetObjectsByContentID(r.Context(), contentID)
+	if err != nil {
+		writeServiceError(w, err)
+		return
+	}
+
+	if len(objects) == 0 {
+		writeError(w, http.StatusNotFound, "no_objects", "No objects found for this content", nil)
+		return
+	}
+
+	// Use the first object as primary
+	primaryObject := objects[0]
+
+	// Download the object data
+	rc, err := s.storageService.DownloadObject(r.Context(), primaryObject.ID)
+	if err != nil {
+		writeServiceError(w, err)
+		return
+	}
+	defer rc.Close()
+
+	// Set appropriate headers
+	if md, mdErr := s.storageService.GetObjectMetadata(r.Context(), primaryObject.ID); mdErr == nil {
+		if mt, ok := md["mime_type"].(string); ok && mt != "" {
+			w.Header().Set("Content-Type", mt)
+		}
+		if fn, ok := md["file_name"].(string); ok && fn != "" {
+			w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", fn))
+		}
+	}
+
+	// Stream the content
+	if _, err := io.Copy(w, rc); err != nil {
+		log.Printf("content download copy error: %v", err)
+	}
+}
+
+// handleContentPreview provides preview access to content using content ID
+func (s *HTTPServer) handleContentPreview(w http.ResponseWriter, r *http.Request) {
+	idStr := chi.URLParam(r, "contentID")
+	contentID, err := uuid.Parse(idStr)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_content_id", "contentID must be a UUID", nil)
+		return
+	}
+
+	// Get the primary object for this content
+	objects, err := s.storageService.GetObjectsByContentID(r.Context(), contentID)
+	if err != nil {
+		writeServiceError(w, err)
+		return
+	}
+
+	if len(objects) == 0 {
+		writeError(w, http.StatusNotFound, "no_objects", "No objects found for this content", nil)
+		return
+	}
+
+	// Use the first object as primary
+	primaryObject := objects[0]
+
+	// Download the object data for preview
+	rc, err := s.storageService.DownloadObject(r.Context(), primaryObject.ID)
+	if err != nil {
+		writeServiceError(w, err)
+		return
+	}
+	defer rc.Close()
+
+	// Set appropriate headers for preview (inline content disposition)
+	if md, mdErr := s.storageService.GetObjectMetadata(r.Context(), primaryObject.ID); mdErr == nil {
+		if mt, ok := md["mime_type"].(string); ok && mt != "" {
+			w.Header().Set("Content-Type", mt)
+		}
+		if fn, ok := md["file_name"].(string); ok && fn != "" {
+			w.Header().Set("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"", fn))
+		}
+	}
+
+	// Stream the content
+	if _, err := io.Copy(w, rc); err != nil {
+		log.Printf("content preview copy error: %v", err)
+	}
 }

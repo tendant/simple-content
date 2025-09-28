@@ -40,6 +40,15 @@ func WithEnv(prefix string) Option {
 		if v, ok := lookupEnv(prefix, "OBJECT_KEY_GENERATOR"); ok && v != "" {
 			c.ObjectKeyGenerator = v
 		}
+		if v, ok := lookupEnv(prefix, "URL_STRATEGY"); ok && v != "" {
+			c.URLStrategy = v
+		}
+		if v, ok := lookupEnv(prefix, "CDN_BASE_URL"); ok && v != "" {
+			c.CDNBaseURL = v
+		}
+		if v, ok := lookupEnv(prefix, "API_BASE_URL"); ok && v != "" {
+			c.APIBaseURL = v
+		}
 
 		fsBaseDir, _ := lookupEnv(prefix, "FS_BASE_DIR")
 		if fsBaseDir != "" {

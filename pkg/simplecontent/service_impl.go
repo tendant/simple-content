@@ -9,6 +9,7 @@ import (
 
     "github.com/google/uuid"
     "github.com/tendant/simple-content/pkg/simplecontent/objectkey"
+    "github.com/tendant/simple-content/pkg/simplecontent/urlstrategy"
 )
 
 // service implements both the Service and StorageService interfaces
@@ -18,6 +19,7 @@ type service struct {
 	eventSink  EventSink
 	previewer  Previewer
 	keyGenerator objectkey.Generator
+	urlStrategy urlstrategy.URLStrategy // Pluggable URL generation strategy
 }
 
 // Option represents a functional option for configuring the service
@@ -61,6 +63,13 @@ func WithObjectKeyGenerator(generator objectkey.Generator) Option {
 	}
 }
 
+// WithURLStrategy sets the URL generation strategy for the service
+func WithURLStrategy(strategy urlstrategy.URLStrategy) Option {
+	return func(s *service) {
+		s.urlStrategy = strategy
+	}
+}
+
 // New creates a new service instance with the given options
 func New(options ...Option) (Service, error) {
 	s := &service{
@@ -78,6 +87,11 @@ func New(options ...Option) (Service, error) {
 	// Set default key generator if none provided
 	if s.keyGenerator == nil {
 		s.keyGenerator = objectkey.NewRecommendedGenerator()
+	}
+
+	// Set default URL strategy if none provided
+	if s.urlStrategy == nil {
+		s.urlStrategy = urlstrategy.NewDefaultStrategy("/api/v1")
 	}
 
 	return s, nil
@@ -100,6 +114,11 @@ func NewStorageService(options ...Option) (StorageService, error) {
 	// Set default key generator if none provided
 	if s.keyGenerator == nil {
 		s.keyGenerator = objectkey.NewRecommendedGenerator()
+	}
+
+	// Set default URL strategy if none provided
+	if s.urlStrategy == nil {
+		s.urlStrategy = urlstrategy.NewDefaultStrategy("/api/v1")
 	}
 
 	return s, nil
@@ -912,23 +931,23 @@ func (s *service) GetContentDetails(ctx context.Context, contentID uuid.UUID, op
 		return nil, &ContentError{ContentID: contentID, Op: "get_content_details", Err: err}
 	}
 
-	// Generate download and preview URLs from primary object
-	if len(objects) > 0 {
+	// Generate download and preview URLs from primary object using URL strategy
+	if len(objects) > 0 && s.urlStrategy != nil {
 		primaryObject := objects[0] // Use first object as primary
 
-		// Generate download URL
-		if downloadURL, err := s.GetDownloadURL(ctx, primaryObject.ID); err == nil {
+		// Generate download URL using URL strategy
+		if downloadURL, err := s.urlStrategy.GenerateDownloadURL(ctx, contentID, primaryObject.ObjectKey, primaryObject.StorageBackendName); err == nil {
 			result.Download = downloadURL
 		}
 
-		// Generate preview URL
-		if previewURL, err := s.GetPreviewURL(ctx, primaryObject.ID); err == nil {
+		// Generate preview URL using URL strategy
+		if previewURL, err := s.urlStrategy.GeneratePreviewURL(ctx, contentID, primaryObject.ObjectKey, primaryObject.StorageBackendName); err == nil {
 			result.Preview = previewURL
 		}
 
 		// Generate upload URL if requested
 		if cfg.IncludeUploadURL {
-			if uploadURL, err := s.GetUploadURL(ctx, primaryObject.ID); err == nil {
+			if uploadURL, err := s.urlStrategy.GenerateUploadURL(ctx, contentID, primaryObject.ObjectKey, primaryObject.StorageBackendName); err == nil {
 				result.Upload = uploadURL
 				// Set expiry time if upload URL was generated
 				if cfg.URLExpiryTime > 0 {

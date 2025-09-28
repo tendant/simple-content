@@ -16,6 +16,7 @@ import (
 	fsstorage "github.com/tendant/simple-content/pkg/simplecontent/storage/fs"
 	memorystorage "github.com/tendant/simple-content/pkg/simplecontent/storage/memory"
 	s3storage "github.com/tendant/simple-content/pkg/simplecontent/storage/s3"
+	"github.com/tendant/simple-content/pkg/simplecontent/urlstrategy"
 )
 
 // Option applies configuration to a ServerConfig instance.
@@ -63,7 +64,9 @@ func defaults() ServerConfig {
 		},
 		EnableEventLogging: true,
 		EnablePreviews:     true,
-		ObjectKeyGenerator: "git-like", // Default to Git-like for better performance
+		URLStrategy:        "content-based", // Default URL strategy
+		APIBaseURL:         "/api/v1",       // Default API base URL
+		ObjectKeyGenerator: "git-like",      // Default to Git-like for better performance
 	}
 }
 
@@ -84,6 +87,11 @@ type ServerConfig struct {
 	// Server options
 	EnableEventLogging bool
 	EnablePreviews     bool
+
+	// URL generation
+	URLStrategy string // "cdn", "content-based", "storage-delegated"
+	CDNBaseURL  string // Base URL for CDN strategy (e.g., "https://cdn.example.com")
+	APIBaseURL  string // Base URL for content-based strategy (e.g., "/api/v1")
 
 	// Object key generation
 	ObjectKeyGenerator string // "default", "git-like", "tenant-aware", "legacy"
@@ -137,11 +145,13 @@ func (c *ServerConfig) BuildService() (simplecontent.Service, error) {
 	options = append(options, simplecontent.WithRepository(repo))
 
 	// Set up storage backends
+	blobStores := make(map[string]simplecontent.BlobStore)
 	for _, backendConfig := range c.StorageBackends {
 		store, err := c.buildStorageBackend(backendConfig)
 		if err != nil {
 			return nil, fmt.Errorf("failed to build storage backend %s: %w", backendConfig.Name, err)
 		}
+		blobStores[backendConfig.Name] = store
 		options = append(options, simplecontent.WithBlobStore(backendConfig.Name, store))
 	}
 
@@ -163,6 +173,13 @@ func (c *ServerConfig) BuildService() (simplecontent.Service, error) {
 		return nil, fmt.Errorf("failed to build object key generator: %w", err)
 	}
 	options = append(options, simplecontent.WithObjectKeyGenerator(keyGenerator))
+
+	// Set up URL strategy
+	urlStrategy, err := c.buildURLStrategyWithBlobStores(blobStores)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build URL strategy: %w", err)
+	}
+	options = append(options, simplecontent.WithURLStrategy(urlStrategy))
 
 	return simplecontent.New(options...)
 }
@@ -317,5 +334,34 @@ func (c *ServerConfig) buildObjectKeyGenerator() (objectkey.Generator, error) {
 		return objectkey.NewHighPerformanceGenerator(), nil
 	default:
 		return nil, fmt.Errorf("unsupported object key generator: %s", c.ObjectKeyGenerator)
+	}
+}
+
+// buildURLStrategyWithBlobStores creates a URL strategy based on the configuration with blob stores
+func (c *ServerConfig) buildURLStrategyWithBlobStores(blobStores map[string]simplecontent.BlobStore) (urlstrategy.URLStrategy, error) {
+	switch c.URLStrategy {
+	case "cdn":
+		if c.CDNBaseURL == "" {
+			return nil, fmt.Errorf("CDN base URL is required for CDN strategy")
+		}
+		return urlstrategy.NewCDNStrategy(c.CDNBaseURL), nil
+
+	case "content-based", "default", "":
+		apiBaseURL := c.APIBaseURL
+		if apiBaseURL == "" {
+			apiBaseURL = "/api/v1" // Default fallback
+		}
+		return urlstrategy.NewContentBasedStrategy(apiBaseURL), nil
+
+	case "storage-delegated":
+		// Convert simplecontent.BlobStore to urlstrategy.BlobStore
+		urlBlobStores := make(map[string]urlstrategy.BlobStore)
+		for name, store := range blobStores {
+			urlBlobStores[name] = store // This works because the interface methods match
+		}
+		return urlstrategy.NewStorageDelegatedStrategy(urlBlobStores), nil
+
+	default:
+		return nil, fmt.Errorf("unsupported URL strategy: %s", c.URLStrategy)
 	}
 }
