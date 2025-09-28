@@ -8,29 +8,42 @@ import (
 	"github.com/google/uuid"
 )
 
-// CDNStrategy generates URLs that point directly to a CDN
-// This provides maximum performance with zero database lookups during file access
+// CDNStrategy generates URLs that point directly to a CDN for downloads
+// and uses application endpoints for uploads (hybrid approach)
 type CDNStrategy struct {
-	BaseURL string // e.g., "https://cdn.example.com"
+	CDNBaseURL    string // e.g., "https://cdn.example.com" (for downloads)
+	UploadBaseURL string // e.g., "https://api.example.com" or "/api/v1" (for uploads)
 }
 
-// NewCDNStrategy creates a new CDN URL strategy
-func NewCDNStrategy(baseURL string) *CDNStrategy {
-	// Ensure baseURL doesn't have trailing slash
-	baseURL = strings.TrimSuffix(baseURL, "/")
+// NewCDNStrategy creates a new CDN URL strategy with CDN for downloads only
+func NewCDNStrategy(cdnBaseURL string) *CDNStrategy {
+	// Ensure cdnBaseURL doesn't have trailing slash
+	cdnBaseURL = strings.TrimSuffix(cdnBaseURL, "/")
 	return &CDNStrategy{
-		BaseURL: baseURL,
+		CDNBaseURL:    cdnBaseURL,
+		UploadBaseURL: "/api/v1", // Default to content-based uploads
+	}
+}
+
+// NewCDNStrategyWithUpload creates a new CDN URL strategy with custom upload URL
+func NewCDNStrategyWithUpload(cdnBaseURL, uploadBaseURL string) *CDNStrategy {
+	// Ensure URLs don't have trailing slashes
+	cdnBaseURL = strings.TrimSuffix(cdnBaseURL, "/")
+	uploadBaseURL = strings.TrimSuffix(uploadBaseURL, "/")
+	return &CDNStrategy{
+		CDNBaseURL:    cdnBaseURL,
+		UploadBaseURL: uploadBaseURL,
 	}
 }
 
 // GenerateDownloadURL creates a direct CDN URL for downloading content
 func (s *CDNStrategy) GenerateDownloadURL(ctx context.Context, contentID uuid.UUID, objectKey string, storageBackend string) (string, error) {
-	if s.BaseURL == "" {
+	if s.CDNBaseURL == "" {
 		return "", fmt.Errorf("CDN base URL not configured")
 	}
 
 	// Direct CDN URL pointing to the object key
-	return fmt.Sprintf("%s/%s", s.BaseURL, objectKey), nil
+	return fmt.Sprintf("%s/%s", s.CDNBaseURL, objectKey), nil
 }
 
 // GeneratePreviewURL creates a direct CDN URL for previewing content
@@ -40,10 +53,14 @@ func (s *CDNStrategy) GeneratePreviewURL(ctx context.Context, contentID uuid.UUI
 	return s.GenerateDownloadURL(ctx, contentID, objectKey, storageBackend)
 }
 
-// GenerateUploadURL returns empty for CDN strategy (uploads typically go through API)
+// GenerateUploadURL creates an upload URL using the configured upload base URL
 func (s *CDNStrategy) GenerateUploadURL(ctx context.Context, contentID uuid.UUID, objectKey string, storageBackend string) (string, error) {
-	// CDN strategy doesn't support direct uploads
-	return "", nil
+	if s.UploadBaseURL == "" {
+		return "", fmt.Errorf("upload base URL not configured")
+	}
+
+	// Use content-based upload URL for hybrid approach
+	return fmt.Sprintf("%s/contents/%s/upload", s.UploadBaseURL, contentID), nil
 }
 
 // Enhanced methods with metadata

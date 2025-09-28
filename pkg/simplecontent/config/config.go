@@ -89,9 +89,10 @@ type ServerConfig struct {
 	EnablePreviews     bool
 
 	// URL generation
-	URLStrategy string // "cdn", "content-based", "storage-delegated"
-	CDNBaseURL  string // Base URL for CDN strategy (e.g., "https://cdn.example.com")
-	APIBaseURL  string // Base URL for content-based strategy (e.g., "/api/v1")
+	URLStrategy     string // "cdn", "content-based", "storage-delegated"
+	CDNBaseURL      string // Base URL for CDN strategy downloads (e.g., "https://cdn.example.com")
+	UploadBaseURL   string // Base URL for CDN strategy uploads (e.g., "https://api.example.com" or "/api/v1")
+	APIBaseURL      string // Base URL for content-based strategy (e.g., "/api/v1")
 
 	// Object key generation
 	ObjectKeyGenerator string // "default", "git-like", "tenant-aware", "legacy"
@@ -343,6 +344,9 @@ func (c *ServerConfig) buildURLStrategyWithBlobStores(blobStores map[string]simp
 	case "cdn":
 		if c.CDNBaseURL == "" {
 			return nil, fmt.Errorf("CDN base URL is required for CDN strategy")
+		}
+		if c.UploadBaseURL != "" {
+			return urlstrategy.NewCDNStrategyWithUpload(c.CDNBaseURL, c.UploadBaseURL), nil
 		}
 		return urlstrategy.NewCDNStrategy(c.CDNBaseURL), nil
 

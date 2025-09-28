@@ -161,6 +161,7 @@ func (s *HTTPServer) Routes() http.Handler {
 		// Content data access
 		r.Get("/contents/{contentID}/download", s.handleContentDownload)
 		r.Get("/contents/{contentID}/preview", s.handleContentPreview)
+		r.Post("/contents/{contentID}/upload", s.handleContentUpload)
 
 		// Object management
 		r.Post("/contents/{contentID}/objects", s.handleCreateObject)
@@ -851,4 +852,65 @@ func (s *HTTPServer) handleContentPreview(w http.ResponseWriter, r *http.Request
 	if _, err := io.Copy(w, rc); err != nil {
 		log.Printf("content preview copy error: %v", err)
 	}
+}
+
+// handleContentUpload uploads content data directly using content ID
+func (s *HTTPServer) handleContentUpload(w http.ResponseWriter, r *http.Request) {
+	idStr := chi.URLParam(r, "contentID")
+	contentID, err := uuid.Parse(idStr)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_content_id", "contentID must be a UUID", nil)
+		return
+	}
+
+	// Verify the content exists
+	_, err = s.service.GetContent(r.Context(), contentID)
+	if err != nil {
+		writeServiceError(w, err)
+		return
+	}
+
+	// Get or create an object for this content
+	objects, err := s.storageService.GetObjectsByContentID(r.Context(), contentID)
+	if err != nil {
+		writeServiceError(w, err)
+		return
+	}
+
+	var primaryObject *simplecontent.Object
+	if len(objects) > 0 {
+		// Use existing primary object
+		primaryObject = objects[0]
+	} else {
+		// Create a new object
+		obj, err := s.storageService.CreateObject(r.Context(), simplecontent.CreateObjectRequest{
+			ContentID:          contentID,
+			StorageBackendName: s.config.DefaultStorageBackend,
+			Version:            1,
+		})
+		if err != nil {
+			writeServiceError(w, err)
+			return
+		}
+		primaryObject = obj
+	}
+
+	// Get content type from request
+	mimeType := r.Header.Get("Content-Type")
+	if strings.HasPrefix(mimeType, "multipart/") {
+		mimeType = "" // Don't store multipart MIME type
+	}
+
+	// Upload the content data
+	req := simplecontent.UploadObjectRequest{
+		ObjectID: primaryObject.ID,
+		Reader:   r.Body,
+		MimeType: mimeType,
+	}
+	if err := s.storageService.UploadObject(r.Context(), req); err != nil {
+		writeServiceError(w, err)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }

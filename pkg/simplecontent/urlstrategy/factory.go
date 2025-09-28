@@ -20,10 +20,11 @@ const (
 
 // Config holds configuration for URL strategy creation
 type Config struct {
-	Type       URLStrategyType
-	CDNBaseURL string // For CDN strategy
-	APIBaseURL string // For content-based strategy
-	BlobStores map[string]BlobStore // For storage-delegated strategy
+	Type          URLStrategyType
+	CDNBaseURL    string // For CDN strategy downloads
+	UploadBaseURL string // For CDN strategy uploads
+	APIBaseURL    string // For content-based strategy
+	BlobStores    map[string]BlobStore // For storage-delegated strategy
 }
 
 // NewURLStrategy creates a URL strategy based on the configuration
@@ -32,6 +33,9 @@ func NewURLStrategy(config Config) (URLStrategy, error) {
 	case StrategyTypeCDN:
 		if config.CDNBaseURL == "" {
 			return nil, fmt.Errorf("CDN base URL is required for CDN strategy")
+		}
+		if config.UploadBaseURL != "" {
+			return NewCDNStrategyWithUpload(config.CDNBaseURL, config.UploadBaseURL), nil
 		}
 		return NewCDNStrategy(config.CDNBaseURL), nil
 
@@ -63,10 +67,18 @@ func NewDefaultStrategy(apiBaseURL string) URLStrategy {
 
 // NewRecommendedStrategy creates the recommended URL strategy based on environment
 func NewRecommendedStrategy(environment string, cdnURL string, apiURL string) URLStrategy {
+	return NewRecommendedStrategyWithUpload(environment, cdnURL, "", apiURL)
+}
+
+// NewRecommendedStrategyWithUpload creates the recommended URL strategy with upload URL support
+func NewRecommendedStrategyWithUpload(environment string, cdnURL string, uploadURL string, apiURL string) URLStrategy {
 	switch environment {
 	case "production":
 		if cdnURL != "" {
 			// Production with CDN - maximum performance
+			if uploadURL != "" {
+				return NewCDNStrategyWithUpload(cdnURL, uploadURL)
+			}
 			return NewCDNStrategy(cdnURL)
 		}
 		fallthrough

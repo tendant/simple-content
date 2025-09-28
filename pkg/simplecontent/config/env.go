@@ -46,6 +46,9 @@ func WithEnv(prefix string) Option {
 		if v, ok := lookupEnv(prefix, "CDN_BASE_URL"); ok && v != "" {
 			c.CDNBaseURL = v
 		}
+		if v, ok := lookupEnv(prefix, "UPLOAD_BASE_URL"); ok && v != "" {
+			c.UploadBaseURL = v
+		}
 		if v, ok := lookupEnv(prefix, "API_BASE_URL"); ok && v != "" {
 			c.APIBaseURL = v
 		}
