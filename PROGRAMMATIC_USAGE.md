@@ -13,6 +13,7 @@ The simple-content library provides a **content-focused API** that abstracts sto
 - **Service Interface**: Main API that hides storage implementation details
 - **StorageService**: Advanced interface for users who need direct object access
 - **Storage Backends**: Pluggable systems (memory, filesystem, S3)
+- **URL Strategies**: Pluggable URL generation systems (content-based, CDN, storage-delegated)
 
 ## API Architecture
 
@@ -452,6 +453,137 @@ cfg, err := config.Load(
     }),
 )
 ```
+
+## URL Strategy Configuration
+
+The URL strategy system controls how download, preview, and upload URLs are generated for content.
+
+### Content-Based Strategy (Default)
+Application-routed URLs for maximum control and debugging:
+
+```go
+// Using config
+cfg, err := config.Load(
+    config.WithURLStrategy("content-based"),
+    config.WithAPIBaseURL("/api/v1"),
+)
+
+// Manual configuration
+strategy := urlstrategy.NewContentBasedStrategy("/api/v1")
+svc, err := simplecontent.New(
+    simplecontent.WithRepository(repo),
+    simplecontent.WithBlobStore("memory", memoryStore),
+    simplecontent.WithURLStrategy(strategy),
+)
+```
+
+**Generated URLs:**
+- Download: `/api/v1/contents/{contentID}/download`
+- Preview: `/api/v1/contents/{contentID}/preview`
+- Upload: `/api/v1/contents/{contentID}/upload`
+
+### CDN Strategy (Production)
+Direct CDN URLs with hybrid upload support for maximum performance:
+
+```go
+// Using config with environment variables
+os.Setenv("URL_STRATEGY", "cdn")
+os.Setenv("CDN_BASE_URL", "https://cdn.example.com")
+os.Setenv("UPLOAD_BASE_URL", "https://api.example.com")
+
+cfg, err := config.LoadServerConfig()
+
+// Manual configuration
+strategy := urlstrategy.NewCDNStrategyWithUpload(
+    "https://cdn.example.com", // Downloads via CDN
+    "https://api.example.com", // Uploads via API
+)
+svc, err := simplecontent.New(
+    simplecontent.WithRepository(repo),
+    simplecontent.WithBlobStore("s3", s3Store),
+    simplecontent.WithURLStrategy(strategy),
+)
+```
+
+**Generated URLs:**
+- Download: `https://cdn.example.com/originals/objects/ab/cd1234ef5678_document.pdf`
+- Preview: `https://cdn.example.com/originals/objects/ab/cd1234ef5678_document.pdf`
+- Upload: `https://api.example.com/contents/{contentID}/upload`
+
+### Environment-Based Configuration
+Automatically select strategy based on environment:
+
+```go
+import "github.com/tendant/simple-content/pkg/simplecontent/urlstrategy"
+
+strategy := urlstrategy.NewRecommendedStrategy(
+    os.Getenv("ENVIRONMENT"), // "development", "production"
+    os.Getenv("CDN_BASE_URL"),
+    os.Getenv("API_BASE_URL"),
+)
+
+// Development: Uses content-based strategy
+// Production with CDN_BASE_URL: Uses CDN strategy
+// Production without CDN: Uses content-based strategy
+```
+
+### Custom URL Strategy
+For specialized deployment requirements:
+
+```go
+type CustomStrategy struct {
+    baseURL string
+    region  string
+}
+
+func (s *CustomStrategy) GenerateDownloadURL(ctx context.Context, contentID uuid.UUID, objectKey string, storageBackend string) (string, error) {
+    // Custom logic here
+    return fmt.Sprintf("%s/%s/%s", s.baseURL, s.region, objectKey), nil
+}
+
+func (s *CustomStrategy) GeneratePreviewURL(ctx context.Context, contentID uuid.UUID, objectKey string, storageBackend string) (string, error) {
+    return s.GenerateDownloadURL(ctx, contentID, objectKey, storageBackend)
+}
+
+func (s *CustomStrategy) GenerateUploadURL(ctx context.Context, contentID uuid.UUID, objectKey string, storageBackend string) (string, error) {
+    return fmt.Sprintf("%s/upload/%s", s.baseURL, contentID), nil
+}
+
+// Enhanced methods with metadata
+func (s *CustomStrategy) GenerateDownloadURLWithMetadata(ctx context.Context, contentID uuid.UUID, objectKey string, storageBackend string, metadata *urlstrategy.URLMetadata) (string, error) {
+    baseURL, err := s.GenerateDownloadURL(ctx, contentID, objectKey, storageBackend)
+    if err != nil {
+        return "", err
+    }
+    if metadata != nil && metadata.FileName != "" {
+        return fmt.Sprintf("%s?filename=%s", baseURL, metadata.FileName), nil
+    }
+    return baseURL, nil
+}
+
+func (s *CustomStrategy) GeneratePreviewURLWithMetadata(ctx context.Context, contentID uuid.UUID, objectKey string, storageBackend string, metadata *urlstrategy.URLMetadata) (string, error) {
+    return s.GeneratePreviewURL(ctx, contentID, objectKey, storageBackend)
+}
+
+// Usage
+strategy := &CustomStrategy{
+    baseURL: "https://custom-cdn.example.com",
+    region:  "us-west-2",
+}
+
+svc, err := simplecontent.New(
+    simplecontent.WithRepository(repo),
+    simplecontent.WithBlobStore("s3", s3Store),
+    simplecontent.WithURLStrategy(strategy),
+)
+```
+
+### URL Strategy Best Practices
+
+1. **Development**: Use content-based strategy for easier debugging
+2. **Production**: Use CDN strategy for maximum performance
+3. **Hybrid Approach**: CDN for downloads, application for uploads
+4. **Client Integration**: Use `GetContentDetails()` to retrieve URLs dynamically
 
 ## Error Handling
 

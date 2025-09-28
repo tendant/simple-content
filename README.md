@@ -7,6 +7,7 @@ A flexible content management system with simplified APIs that focus on content 
 - **Unified Content Operations**: Single-call upload/download operations
 - **Content-Focused API**: Work with content concepts, not storage objects
 - **Multi-Backend Storage**: Support for memory, filesystem, and S3-compatible storage
+- **Pluggable URL Strategies**: Flexible URL generation for different deployment patterns
 - **Derived Content**: Automatic thumbnail, preview, and transcode generation
 - **Flexible Metadata**: Rich metadata support with content details API
 - **Clean Architecture**: Library-first design with optional HTTP server
@@ -269,6 +270,26 @@ Access:
 - **Memory**: In-memory storage for testing
 - **Filesystem**: Local file system storage
 - **S3**: Amazon S3 or S3-compatible storage (MinIO)
+
+### URL Strategies
+- **Content-Based**: Application-routed URLs for maximum control (default)
+- **CDN**: Direct CDN URLs with hybrid upload support for maximum performance
+- **Storage-Delegated**: Backward compatibility with storage backend URL generation
+
+#### Quick Configuration
+
+**Development (Default):**
+```bash
+URL_STRATEGY=content-based
+API_BASE_URL=/api/v1
+```
+
+**Production with CDN:**
+```bash
+URL_STRATEGY=cdn
+CDN_BASE_URL=https://cdn.example.com
+UPLOAD_BASE_URL=https://api.example.com
+```
 
 ## Migration from Old API
 

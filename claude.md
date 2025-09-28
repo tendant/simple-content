@@ -29,6 +29,7 @@ This document gives AI coding assistants (Claude, ChatGPT, etc.) the context and
   - Interfaces (`interfaces.go`): Service, StorageService, Repository, BlobStore, EventSink, Previewer
   - Errors (`errors.go`): typed sentinel errors for mapping
   - **Object Key Generation** (`objectkey/`): Pluggable key generators for optimal storage performance
+  - **URL Strategy System** (`urlstrategy/`): Pluggable URL generation strategies for flexible deployment patterns
   - Storage backends: `storage/memory`, `storage/fs`, `storage/s3`
   - Repositories: `repo/memory`, `repo/postgres` (+ `schema.sql`)
   - Config: `pkg/simplecontent/config` builds a Service from env
@@ -159,6 +160,165 @@ The system supports gradual migration:
 3. No disruption to existing functionality
 4. Optional bulk migration tools can be implemented
 
+## URL Strategy System
+
+The system uses pluggable URL strategies to generate download, preview, and upload URLs for content. This allows flexible deployment patterns from simple development setups to high-performance CDN configurations.
+
+### Available Strategies
+
+- **ContentBasedStrategy** (default): Application-routed URLs for maximum control
+  - Downloads: `/api/v1/contents/{contentID}/download`
+  - Previews: `/api/v1/contents/{contentID}/preview`
+  - Uploads: `/api/v1/contents/{contentID}/upload`
+  - Benefits: Full control, security, metadata handling, easy debugging
+
+- **CDNStrategy**: Direct CDN URLs for maximum performance with hybrid upload support
+  - Downloads: `https://cdn.example.com/{objectKey}` (direct CDN access)
+  - Previews: `https://cdn.example.com/{objectKey}` (direct CDN access)
+  - Uploads: `https://api.example.com/contents/{contentID}/upload` (application endpoint)
+  - Benefits: Maximum download performance, CDN caching, reduced server load
+
+- **StorageDelegatedStrategy**: Backward compatibility with storage backend URL generation
+  - Delegates URL generation to the underlying storage backends
+  - Use case: Migration scenarios or legacy compatibility
+  - Maintains existing storage backend URL patterns
+
+### Configuration
+
+Set via environment variables:
+
+```bash
+# Content-based strategy (default, recommended for development)
+URL_STRATEGY=content-based
+API_BASE_URL=/api/v1
+
+# CDN strategy for production (hybrid approach)
+URL_STRATEGY=cdn
+CDN_BASE_URL=https://cdn.example.com
+UPLOAD_BASE_URL=https://api.example.com
+
+# Storage-delegated (legacy compatibility)
+URL_STRATEGY=storage-delegated
+```
+
+Or programmatically:
+
+```go
+// Content-based strategy
+strategy := urlstrategy.NewContentBasedStrategy("/api/v1")
+
+// CDN strategy with hybrid upload support
+strategy := urlstrategy.NewCDNStrategyWithUpload(
+    "https://cdn.example.com", // Downloads via CDN
+    "https://api.example.com", // Uploads via API
+)
+
+// Factory method
+config := urlstrategy.Config{
+    Type:          urlstrategy.StrategyTypeCDN,
+    CDNBaseURL:    "https://cdn.example.com",
+    UploadBaseURL: "https://api.example.com",
+}
+strategy, err := urlstrategy.NewURLStrategy(config)
+
+// Configure service with URL strategy
+service, err := simplecontent.New(
+    simplecontent.WithRepository(repo),
+    simplecontent.WithBlobStore("s3", s3Backend),
+    simplecontent.WithURLStrategy(strategy),
+)
+```
+
+### URL Examples by Strategy
+
+**Content-Based Strategy:**
+- Download: `/api/v1/contents/123e4567-e89b-12d3-a456-426614174000/download`
+- Preview: `/api/v1/contents/123e4567-e89b-12d3-a456-426614174000/preview`
+- Upload: `/api/v1/contents/123e4567-e89b-12d3-a456-426614174000/upload`
+
+**CDN Strategy (Hybrid):**
+- Download: `https://cdn.example.com/originals/objects/ab/cd1234ef5678_document.pdf`
+- Preview: `https://cdn.example.com/originals/objects/ab/cd1234ef5678_document.pdf`
+- Upload: `https://api.example.com/contents/123e4567-e89b-12d3-a456-426614174000/upload`
+
+**With Metadata Enhancement:**
+- Download: `https://cdn.example.com/originals/objects/ab/cd1234ef5678_document.pdf?filename=contract.pdf`
+- Preview: `https://cdn.example.com/originals/objects/ab/cd1234ef5678_document.pdf?type=application/pdf`
+
+### Deployment Patterns
+
+**Development/Testing:**
+```bash
+URL_STRATEGY=content-based
+API_BASE_URL=/api/v1
+```
+- Easy debugging through application
+- Full request/response control
+- Security and access control built-in
+
+**Production with CDN:**
+```bash
+URL_STRATEGY=cdn
+CDN_BASE_URL=https://cdn.example.com
+UPLOAD_BASE_URL=https://api.example.com
+```
+- Maximum download performance via direct CDN access
+- Reduced server load for content delivery
+- Uploads still controlled through application for security
+- Hybrid approach: performance + control
+
+**Enterprise Multi-Region:**
+```bash
+URL_STRATEGY=cdn
+CDN_BASE_URL=https://global-cdn.enterprise.com
+UPLOAD_BASE_URL=https://upload-api.enterprise.com
+```
+- Global CDN distribution for downloads
+- Dedicated upload infrastructure
+- Geographic load distribution
+
+### Performance Characteristics
+
+| Strategy | Download Performance | Upload Control | Debugging | Security |
+|----------|---------------------|----------------|-----------|----------|
+| Content-Based | Medium (via app) | Full | Easy | High |
+| CDN (Hybrid) | High (direct CDN) | Full | Medium | High |
+| Storage-Delegated | Variable | Limited | Hard | Variable |
+
+### Migration and Compatibility
+
+The URL strategy system is designed for zero-downtime deployment:
+
+1. **Existing deployments**: Continue using storage-delegated strategy
+2. **New deployments**: Start with content-based for development, CDN for production
+3. **Gradual migration**: Switch strategies via configuration without code changes
+4. **A/B testing**: Different strategies can be used for different content types
+
+### Advanced Usage
+
+**Custom Strategy Implementation:**
+```go
+type CustomStrategy struct {
+    baseURL string
+}
+
+func (s *CustomStrategy) GenerateDownloadURL(ctx context.Context, contentID uuid.UUID, objectKey string, storageBackend string) (string, error) {
+    // Custom logic here
+    return fmt.Sprintf("%s/custom/%s", s.baseURL, contentID), nil
+}
+
+// Implement other URLStrategy interface methods...
+```
+
+**Environment-Based Factory:**
+```go
+strategy := urlstrategy.NewRecommendedStrategy(
+    os.Getenv("ENVIRONMENT"), // "development", "production"
+    os.Getenv("CDN_BASE_URL"),
+    os.Getenv("API_BASE_URL"),
+)
+```
+
 ## Error Mapping (server-configured)
 
 - `ErrContentNotFound`, `ErrObjectNotFound` → 404 `not_found`
@@ -230,6 +390,13 @@ Server config:
 - **Custom generators** for specialized requirements (e.g., compliance, auditing)
 - **Avoid hardcoding keys** in business logic; use the pluggable generator system
 
+### URL Strategy Best Practices
+- **Use content-based strategy** for development and testing (easier debugging)
+- **Use CDN strategy** for production (maximum performance with hybrid upload support)
+- **Configure strategies per environment**: content-based for dev, CDN for production
+- **Leverage hybrid approach**: CDN for downloads, application for uploads
+- **Avoid hardcoding URLs** in clients; use GetContentDetails API for URL retrieval
+
 ### When to Use Each Interface
 - **Service Interface (Recommended)**: Content operations, unified workflows, server-side applications
 - **StorageService Interface (Advanced)**: Presigned uploads, presigned URLs, object-level control
@@ -240,6 +407,7 @@ Server config:
 - New repository: implement `Repository` (use pgx or memory patterns) and add to config.
 - New derivation variants: add constants of type `DerivationVariant` or accept as lowercase strings from clients.
 - **New object key generator**: implement `objectkey.Generator` interface and add to config options.
+- **New URL strategy**: implement `urlstrategy.URLStrategy` interface and add to config options.
 - Events/Previews: implement `EventSink`/`Previewer` and add via functional options.
 
 ### Custom Object Key Generator Example
@@ -269,6 +437,43 @@ service, err := simplecontent.New(
             return "original"
         },
     }),
+)
+```
+
+### Custom URL Strategy Example
+```go
+// Custom strategy for multi-region deployment
+type MultiRegionStrategy struct {
+    regions map[string]string // region -> base URL
+    defaultRegion string
+}
+
+func (s *MultiRegionStrategy) GenerateDownloadURL(ctx context.Context, contentID uuid.UUID, objectKey string, storageBackend string) (string, error) {
+    // Extract region from context or use default
+    region := s.extractRegion(ctx)
+    baseURL, exists := s.regions[region]
+    if !exists {
+        baseURL = s.regions[s.defaultRegion]
+    }
+    return fmt.Sprintf("%s/%s", baseURL, objectKey), nil
+}
+
+// Implement other URLStrategy interface methods...
+
+// Usage
+strategy := &MultiRegionStrategy{
+    regions: map[string]string{
+        "us-east": "https://us-east-cdn.example.com",
+        "eu-west": "https://eu-west-cdn.example.com",
+        "ap-south": "https://ap-south-cdn.example.com",
+    },
+    defaultRegion: "us-east",
+}
+
+service, err := simplecontent.New(
+    simplecontent.WithRepository(repo),
+    simplecontent.WithBlobStore("s3", s3Backend),
+    simplecontent.WithURLStrategy(strategy),
 )
 ```
 
