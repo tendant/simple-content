@@ -45,10 +45,13 @@ CREATE TABLE IF NOT EXISTS object (
     version INTEGER NOT NULL DEFAULT 1,
     object_type VARCHAR(32),
     status VARCHAR(32) NOT NULL DEFAULT 'created',
-    UNIQUE(storage_backend_name, object_key)
     created_at TIMESTAMP NOT NULL DEFAULT (NOW() AT TIME ZONE 'utc'),
     updated_at TIMESTAMP NOT NULL DEFAULT (NOW() AT TIME ZONE 'utc'),
     deleted_at TIMESTAMP NULL,
+    -- UNIQUE(storage_backend_name, object_key) -- (storage_backend_name, object_key) can not be unique bc of soft delete
+    -- CREATE UNIQUE INDEX unique_active_object
+    -- ON object(storage_backend_name, object_key)
+    -- WHERE deleted_at IS NULL;
 );
 
 -- Object metadata table
@@ -70,10 +73,10 @@ CREATE TABLE IF NOT EXISTS content_derived (
     derivation_params JSONB,
     processing_metadata JSONB,
     status VARCHAR(32) NOT NULL DEFAULT 'created',
-    PRIMARY KEY (parent_id, content_id)
     created_at TIMESTAMP NOT NULL DEFAULT (NOW() AT TIME ZONE 'utc'),
     updated_at TIMESTAMP NOT NULL DEFAULT (NOW() AT TIME ZONE 'utc'),
     deleted_at TIMESTAMP NULL,
+    -- PRIMARY KEY (parent_id, content_id) -- (parent_id, content_id) can not be primary key bc of soft delete
 );
 
 
