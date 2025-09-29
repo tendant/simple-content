@@ -95,7 +95,6 @@ func New(config Config) (simplecontent.BlobStore, error) {
 		s3Options = append(s3Options, func(o *s3.Options) {
 			o.BaseEndpoint = aws.String(config.Endpoint)
 			o.UsePathStyle = config.UsePathStyle
-			
 			// Custom endpoint resolver
 			o.EndpointResolverV2 = &customEndpointResolver{
 				endpoint:     config.Endpoint,
@@ -134,7 +133,9 @@ type customEndpointResolver struct {
 func (r *customEndpointResolver) ResolveEndpoint(ctx context.Context, params s3.EndpointParameters) (
 	smithyendpoints.Endpoint, error,
 ) {
-	u, err := url.Parse(r.endpoint)
+	base, err := url.Parse(r.endpoint)
+	u := base.JoinPath(*params.Bucket) // ← ADDS BUCKET TO PATH!
+
 	if err != nil {
 		return smithyendpoints.Endpoint{}, err
 	}
