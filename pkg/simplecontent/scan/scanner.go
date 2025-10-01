@@ -27,7 +27,13 @@ type ScanOptions struct {
 	Processor ContentProcessor
 
 	// BatchSize controls how many contents to query at once (default: 100)
+	// This affects memory usage and query performance.
 	BatchSize int
+
+	// Limit sets the maximum total number of contents to process (optional)
+	// If 0 or negative, processes all matching contents.
+	// Useful for testing (process just 10) or incremental backfill (process 1000 at a time).
+	Limit int
 
 	// DryRun if true, doesn't process contents, just reports what would be processed
 	DryRun bool
@@ -72,6 +78,14 @@ func (s *Scanner) Scan(ctx context.Context, opts ScanOptions) (*ScanResult, erro
 
 	offset := 0
 	for {
+		// Check if we've reached the limit
+		if opts.Limit > 0 {
+			processed := result.TotalProcessed + result.TotalFailed
+			if processed >= int64(opts.Limit) {
+				break
+			}
+		}
+
 		// Query batch of contents
 		opts.Filters.Limit = &opts.BatchSize
 		opts.Filters.Offset = &offset
@@ -91,6 +105,14 @@ func (s *Scanner) Scan(ctx context.Context, opts ScanOptions) (*ScanResult, erro
 
 		// Process each content in the batch
 		for _, content := range resp.Contents {
+			// Check limit before processing each item
+			if opts.Limit > 0 {
+				processed := result.TotalProcessed + result.TotalFailed
+				if processed >= int64(opts.Limit) {
+					break
+				}
+			}
+
 			if opts.DryRun {
 				fmt.Printf("[DRY-RUN] Would process: %s (tenant=%s, type=%s, status=%s)\n",
 					content.ID, content.TenantID, content.DocumentType, content.Status)
@@ -112,6 +134,14 @@ func (s *Scanner) Scan(ctx context.Context, opts ScanOptions) (*ScanResult, erro
 		// Report progress if callback provided
 		if opts.OnProgress != nil {
 			opts.OnProgress(result.TotalProcessed+result.TotalFailed, result.TotalFound)
+		}
+
+		// Check if we've reached the limit
+		if opts.Limit > 0 {
+			processed := result.TotalProcessed + result.TotalFailed
+			if processed >= int64(opts.Limit) {
+				break
+			}
 		}
 
 		// Check if there are more contents

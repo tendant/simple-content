@@ -179,9 +179,23 @@ func main() {
 	}
 	fmt.Printf("\nDry-run complete: would process %d contents\n\n", result6.TotalProcessed)
 
-	// Example 7: Progress callback
-	fmt.Println("=== Example 7: Progress tracking ===")
+	// Example 7: Limit total items processed
+	fmt.Println("=== Example 7: Limit processing to 3 items ===")
 	result7, err := scanner.Scan(ctx, scan.ScanOptions{
+		Filters: admin.ContentFilters{
+			TenantID: &tenantID,
+		},
+		Processor: &processors.PrinterProcessor{},
+		Limit:     3, // Only process first 3
+	})
+	if err != nil {
+		log.Fatal("Scan failed:", err)
+	}
+	fmt.Printf("\nLimited to 3: found %d total, processed %d\n\n", result7.TotalFound, result7.TotalProcessed)
+
+	// Example 8: Progress callback
+	fmt.Println("=== Example 8: Progress tracking ===")
+	result8, err := scanner.Scan(ctx, scan.ScanOptions{
 		Filters: admin.ContentFilters{
 			TenantID: &tenantID,
 		},
@@ -194,7 +208,7 @@ func main() {
 	if err != nil {
 		log.Fatal("Scan failed:", err)
 	}
-	fmt.Printf("\nCompleted: %d processed, %d failed\n", result7.TotalProcessed, result7.TotalFailed)
+	fmt.Printf("\nCompleted: %d processed, %d failed\n", result8.TotalProcessed, result8.TotalFailed)
 
 	fmt.Println("\n=== Example completed successfully! ===")
 }

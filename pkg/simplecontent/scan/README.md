@@ -73,6 +73,7 @@ result, err := scanner.Scan(ctx, scan.ScanOptions{
     Filters:   filters,      // admin.ContentFilters
     Processor: processor,    // ContentProcessor implementation
     BatchSize: 100,          // Optional (default: 100)
+    Limit:     1000,         // Optional (0 = no limit)
     DryRun:    false,        // Optional (default: false)
     OnProgress: func(processed, total int64) {
         fmt.Printf("%d/%d\n", processed, total)
@@ -83,7 +84,8 @@ result, err := scanner.Scan(ctx, scan.ScanOptions{
 **Options:**
 - `Filters` - Query filters (status, tenant, document type, etc.)
 - `Processor` - Your processor implementation (required unless DryRun)
-- `BatchSize` - How many contents to query at once (default: 100)
+- `BatchSize` - How many contents to query at once (default: 100, affects memory/performance)
+- `Limit` - Maximum total to process (0 or negative = no limit, useful for testing/incremental backfill)
 - `DryRun` - If true, shows what would be processed without calling processor
 - `OnProgress` - Callback for progress tracking (optional)
 
@@ -269,6 +271,50 @@ func (p *MigrationProcessor) Process(ctx context.Context, content *simplecontent
 ```
 
 ## Advanced Patterns
+
+### BatchSize vs Limit
+
+Understanding the difference:
+
+**BatchSize** - Query efficiency:
+- How many contents to query from database at once
+- Affects memory usage and query performance
+- Default: 100
+- Example: `BatchSize: 1000` queries 1000 items per database call
+
+**Limit** - Total processing cap:
+- Maximum total contents to process (across all batches)
+- Useful for testing and incremental backfill
+- Default: 0 (no limit)
+- Example: `Limit: 10` stops after processing 10 items total
+
+**Use cases:**
+
+```go
+// Process everything efficiently
+scanner.Scan(ctx, scan.ScanOptions{
+    Filters:   filters,
+    Processor: processor,
+    BatchSize: 1000,  // Large batches for efficiency
+    Limit:     0,     // No limit, process all
+})
+
+// Test with small sample
+scanner.Scan(ctx, scan.ScanOptions{
+    Filters:   filters,
+    Processor: processor,
+    Limit:     10,    // Only process 10 items (for testing)
+})
+
+// Incremental backfill (process in chunks)
+scanner.Scan(ctx, scan.ScanOptions{
+    Filters:   filters,
+    Processor: processor,
+    BatchSize: 100,   // Query 100 at a time
+    Limit:     1000,  // Process 1000 total, then stop
+})
+// Run again later to continue from where you left off
+```
 
 ### Chain Multiple Processors
 
