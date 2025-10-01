@@ -65,6 +65,11 @@ type Repository interface {
 	// Object metadata operations
 	SetObjectMetadata(ctx context.Context, metadata *ObjectMetadata) error
 	GetObjectMetadata(ctx context.Context, objectID uuid.UUID) (*ObjectMetadata, error)
+
+	// Admin operations - for administrative tasks without owner/tenant restrictions
+	ListContentWithFilters(ctx context.Context, filters ContentListFilters) ([]*Content, error)
+	CountContentWithFilters(ctx context.Context, filters ContentCountFilters) (int64, error)
+	GetContentStatistics(ctx context.Context, filters ContentCountFilters, options ContentStatisticsOptions) (*ContentStatisticsResult, error)
 }
 
 // EventSink defines the interface for event handling

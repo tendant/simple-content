@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -17,8 +18,12 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/tendant/simple-content/pkg/simplecontent"
+	"github.com/tendant/simple-content/pkg/simplecontent/admin"
 	"github.com/tendant/simple-content/pkg/simplecontent/config"
+	"github.com/tendant/simple-content/pkg/simplecontent/repo/memory"
+	repopg "github.com/tendant/simple-content/pkg/simplecontent/repo/postgres"
 )
 
 // loadServerConfigFromEnv constructs a ServerConfig by reading process environment variables.
@@ -52,6 +57,15 @@ func main() {
 		log.Fatalf("Failed to build service: %v", err)
 	}
 
+	// Check for admin shell mode (for in-memory debugging)
+	if os.Getenv("ADMIN_SHELL") == "true" && serverConfig.EnableAdminAPI {
+		log.Println("Starting in Admin Shell mode (interactive)...")
+		adminSvc := buildAdminService(serverConfig)
+		shell := NewAdminShell(svc, adminSvc)
+		shell.Run()
+		return
+	}
+
 	// Create HTTP server
 	server := NewHTTPServer(svc, serverConfig)
 
@@ -66,6 +80,11 @@ func main() {
 		log.Printf("Simple Content Server starting on port %s (env: %s)", serverConfig.Port, serverConfig.Environment)
 		log.Printf("Default storage backend: %s", serverConfig.DefaultStorageBackend)
 		log.Printf("Configured storage backends: %d", len(serverConfig.StorageBackends))
+		if serverConfig.EnableAdminAPI {
+			log.Printf("Admin API: ENABLED (WARNING: Ensure authentication middleware is configured)")
+		} else {
+			log.Printf("Admin API: disabled")
+		}
 
 		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("Server error: %v", err)
@@ -94,6 +113,7 @@ func main() {
 type HTTPServer struct {
 	service        simplecontent.Service
 	storageService simplecontent.StorageService // For object operations
+	adminService   admin.AdminService           // For admin operations
 	config         *config.ServerConfig
 }
 
@@ -105,9 +125,18 @@ func NewHTTPServer(service simplecontent.Service, serverConfig *config.ServerCon
 		log.Fatalf("Service does not implement StorageService interface - object operations will not be available")
 	}
 
+	// Create admin service if admin API is enabled
+	var adminSvc admin.AdminService
+	if serverConfig.EnableAdminAPI {
+		// We need to extract the repository from the service
+		// For now, we'll need to build it from config
+		adminSvc = buildAdminService(serverConfig)
+	}
+
 	return &HTTPServer{
 		service:        service,
 		storageService: storageService,
+		adminService:   adminSvc,
 		config:         serverConfig,
 	}
 }
@@ -181,6 +210,16 @@ func (s *HTTPServer) Routes() http.Handler {
 
 		// Configuration info
 		r.Get("/config", s.handleGetConfig)
+
+		// Admin API (conditionally enabled)
+		if s.config.EnableAdminAPI {
+			r.Route("/admin", func(r chi.Router) {
+				// TODO: Add authentication middleware here in production
+				r.Get("/contents", s.handleAdminListContents)
+				r.Get("/contents/count", s.handleAdminCountContents)
+				r.Get("/contents/stats", s.handleAdminGetStatistics)
+			})
+		}
 	})
 
 	return r
@@ -913,4 +952,224 @@ func (s *HTTPServer) handleContentUpload(w http.ResponseWriter, r *http.Request)
 	}
 
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// buildAdminService builds the admin service from server config
+func buildAdminService(serverConfig *config.ServerConfig) admin.AdminService {
+	var repo simplecontent.Repository
+
+	switch serverConfig.DatabaseType {
+	case "postgres":
+		// Connect to postgres
+		poolConfig, err := pgxpool.ParseConfig(serverConfig.DatabaseURL)
+		if err != nil {
+			log.Fatalf("Failed to parse postgres URL for admin service: %v", err)
+		}
+
+		// Set search_path if schema is specified
+		if serverConfig.DBSchema != "" {
+			poolConfig.ConnConfig.RuntimeParams["search_path"] = serverConfig.DBSchema
+		}
+
+		pool, err := pgxpool.NewWithConfig(context.Background(), poolConfig)
+		if err != nil {
+			log.Fatalf("Failed to connect to postgres for admin service: %v", err)
+		}
+
+		repo = repopg.NewWithPool(pool)
+	case "memory":
+		repo = memory.New()
+	default:
+		log.Fatalf("Unsupported database type for admin service: %s", serverConfig.DatabaseType)
+	}
+
+	return admin.New(repo)
+}
+
+// Admin HTTP Handlers
+
+func (s *HTTPServer) handleAdminListContents(w http.ResponseWriter, r *http.Request) {
+	if s.adminService == nil {
+		writeError(w, http.StatusForbidden, "admin_disabled", "Admin API is not enabled", nil)
+		return
+	}
+
+	// Parse query parameters for filters
+	filters := admin.ContentFilters{}
+
+	// Tenant filtering
+	if tenantIDStr := r.URL.Query().Get("tenant_id"); tenantIDStr != "" {
+		tenantID, err := uuid.Parse(tenantIDStr)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_tenant_id", "Invalid tenant_id format", nil)
+			return
+		}
+		filters.TenantID = &tenantID
+	}
+
+	// Owner filtering
+	if ownerIDStr := r.URL.Query().Get("owner_id"); ownerIDStr != "" {
+		ownerID, err := uuid.Parse(ownerIDStr)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_owner_id", "Invalid owner_id format", nil)
+			return
+		}
+		filters.OwnerID = &ownerID
+	}
+
+	// Status filtering
+	if status := r.URL.Query().Get("status"); status != "" {
+		filters.Status = &status
+	}
+
+	// DerivationType filtering
+	if derivationType := r.URL.Query().Get("derivation_type"); derivationType != "" {
+		filters.DerivationType = &derivationType
+	}
+
+	// DocumentType filtering
+	if documentType := r.URL.Query().Get("document_type"); documentType != "" {
+		filters.DocumentType = &documentType
+	}
+
+	// Pagination
+	limit := 100 // default
+	if limitStr := r.URL.Query().Get("limit"); limitStr != "" {
+		if l, err := strconv.Atoi(limitStr); err == nil && l > 0 {
+			if l > 1000 {
+				l = 1000 // max limit
+			}
+			limit = l
+		}
+	}
+	filters.Limit = &limit
+
+	offset := 0
+	if offsetStr := r.URL.Query().Get("offset"); offsetStr != "" {
+		if o, err := strconv.Atoi(offsetStr); err == nil && o >= 0 {
+			offset = o
+		}
+	}
+	filters.Offset = &offset
+
+	// Include deleted
+	if includeDeletedStr := r.URL.Query().Get("include_deleted"); includeDeletedStr == "true" {
+		filters.IncludeDeleted = true
+	}
+
+	// Call admin service
+	resp, err := s.adminService.ListAllContents(r.Context(), admin.ListContentsRequest{
+		Filters: filters,
+	})
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "list_failed", err.Error(), nil)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, resp)
+}
+
+func (s *HTTPServer) handleAdminCountContents(w http.ResponseWriter, r *http.Request) {
+	if s.adminService == nil {
+		writeError(w, http.StatusForbidden, "admin_disabled", "Admin API is not enabled", nil)
+		return
+	}
+
+	// Parse query parameters for filters (same as list)
+	filters := admin.ContentFilters{}
+
+	if tenantIDStr := r.URL.Query().Get("tenant_id"); tenantIDStr != "" {
+		tenantID, err := uuid.Parse(tenantIDStr)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_tenant_id", "Invalid tenant_id format", nil)
+			return
+		}
+		filters.TenantID = &tenantID
+	}
+
+	if ownerIDStr := r.URL.Query().Get("owner_id"); ownerIDStr != "" {
+		ownerID, err := uuid.Parse(ownerIDStr)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_owner_id", "Invalid owner_id format", nil)
+			return
+		}
+		filters.OwnerID = &ownerID
+	}
+
+	if status := r.URL.Query().Get("status"); status != "" {
+		filters.Status = &status
+	}
+
+	if derivationType := r.URL.Query().Get("derivation_type"); derivationType != "" {
+		filters.DerivationType = &derivationType
+	}
+
+	if documentType := r.URL.Query().Get("document_type"); documentType != "" {
+		filters.DocumentType = &documentType
+	}
+
+	if includeDeletedStr := r.URL.Query().Get("include_deleted"); includeDeletedStr == "true" {
+		filters.IncludeDeleted = true
+	}
+
+	// Call admin service
+	resp, err := s.adminService.CountContents(r.Context(), admin.CountRequest{
+		Filters: filters,
+	})
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "count_failed", err.Error(), nil)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, resp)
+}
+
+func (s *HTTPServer) handleAdminGetStatistics(w http.ResponseWriter, r *http.Request) {
+	if s.adminService == nil {
+		writeError(w, http.StatusForbidden, "admin_disabled", "Admin API is not enabled", nil)
+		return
+	}
+
+	// Parse filters (same as list/count)
+	filters := admin.ContentFilters{}
+
+	if tenantIDStr := r.URL.Query().Get("tenant_id"); tenantIDStr != "" {
+		tenantID, err := uuid.Parse(tenantIDStr)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_tenant_id", "Invalid tenant_id format", nil)
+			return
+		}
+		filters.TenantID = &tenantID
+	}
+
+	// Parse options (what statistics to include)
+	options := admin.DefaultStatisticsOptions() // Default: all enabled
+
+	if includeStatus := r.URL.Query().Get("include_status"); includeStatus == "false" {
+		options.IncludeStatusBreakdown = false
+	}
+	if includeTenant := r.URL.Query().Get("include_tenant"); includeTenant == "false" {
+		options.IncludeTenantBreakdown = false
+	}
+	if includeDerivation := r.URL.Query().Get("include_derivation"); includeDerivation == "false" {
+		options.IncludeDerivationBreakdown = false
+	}
+	if includeDocType := r.URL.Query().Get("include_document_type"); includeDocType == "false" {
+		options.IncludeDocumentTypeBreakdown = false
+	}
+	if includeTime := r.URL.Query().Get("include_time_range"); includeTime == "false" {
+		options.IncludeTimeRange = false
+	}
+
+	// Call admin service
+	resp, err := s.adminService.GetStatistics(r.Context(), admin.StatisticsRequest{
+		Filters: filters,
+		Options: options,
+	})
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "stats_failed", err.Error(), nil)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, resp)
 }

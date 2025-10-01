@@ -556,3 +556,438 @@ func (r *Repository) paginateDerivedContent(result []*simplecontent.DerivedConte
 
 	return result
 }
+
+// Admin operations - for administrative tasks without owner/tenant restrictions
+
+func (r *Repository) ListContentWithFilters(ctx context.Context, filters simplecontent.ContentListFilters) ([]*simplecontent.Content, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	var result []*simplecontent.Content
+
+	for _, content := range r.contents {
+		// Skip deleted unless specifically requested
+		if !filters.IncludeDeleted && content.DeletedAt != nil {
+			continue
+		}
+
+		// Apply filters
+		if filters.TenantID != nil && content.TenantID != *filters.TenantID {
+			continue
+		}
+		if len(filters.TenantIDs) > 0 {
+			found := false
+			for _, tid := range filters.TenantIDs {
+				if content.TenantID == tid {
+					found = true
+					break
+				}
+			}
+			if !found {
+				continue
+			}
+		}
+
+		if filters.OwnerID != nil && content.OwnerID != *filters.OwnerID {
+			continue
+		}
+		if len(filters.OwnerIDs) > 0 {
+			found := false
+			for _, oid := range filters.OwnerIDs {
+				if content.OwnerID == oid {
+					found = true
+					break
+				}
+			}
+			if !found {
+				continue
+			}
+		}
+
+		if filters.Status != nil && content.Status != *filters.Status {
+			continue
+		}
+		if len(filters.Statuses) > 0 {
+			found := false
+			for _, s := range filters.Statuses {
+				if content.Status == s {
+					found = true
+					break
+				}
+			}
+			if !found {
+				continue
+			}
+		}
+
+		if filters.DerivationType != nil && content.DerivationType != *filters.DerivationType {
+			continue
+		}
+		if len(filters.DerivationTypes) > 0 {
+			found := false
+			for _, dt := range filters.DerivationTypes {
+				if content.DerivationType == dt {
+					found = true
+					break
+				}
+			}
+			if !found {
+				continue
+			}
+		}
+
+		if filters.DocumentType != nil && content.DocumentType != *filters.DocumentType {
+			continue
+		}
+		if len(filters.DocumentTypes) > 0 {
+			found := false
+			for _, docType := range filters.DocumentTypes {
+				if content.DocumentType == docType {
+					found = true
+					break
+				}
+			}
+			if !found {
+				continue
+			}
+		}
+
+		if filters.CreatedAfter != nil && content.CreatedAt.Before(*filters.CreatedAfter) {
+			continue
+		}
+		if filters.CreatedBefore != nil && content.CreatedAt.After(*filters.CreatedBefore) {
+			continue
+		}
+
+		if filters.UpdatedAfter != nil && content.UpdatedAt.Before(*filters.UpdatedAfter) {
+			continue
+		}
+		if filters.UpdatedBefore != nil && content.UpdatedAt.After(*filters.UpdatedBefore) {
+			continue
+		}
+
+		result = append(result, content)
+	}
+
+	// Sort results
+	sortBy := "created_at"
+	sortOrder := "DESC"
+	if filters.SortBy != nil {
+		sortBy = *filters.SortBy
+	}
+	if filters.SortOrder != nil {
+		sortOrder = *filters.SortOrder
+	}
+
+	// Simple sorting implementation
+	if sortBy == "created_at" {
+		if sortOrder == "ASC" {
+			for i := 0; i < len(result); i++ {
+				for j := i + 1; j < len(result); j++ {
+					if result[i].CreatedAt.After(result[j].CreatedAt) {
+						result[i], result[j] = result[j], result[i]
+					}
+				}
+			}
+		} else {
+			for i := 0; i < len(result); i++ {
+				for j := i + 1; j < len(result); j++ {
+					if result[i].CreatedAt.Before(result[j].CreatedAt) {
+						result[i], result[j] = result[j], result[i]
+					}
+				}
+			}
+		}
+	}
+
+	// Apply pagination
+	if filters.Offset != nil && *filters.Offset > 0 {
+		if *filters.Offset >= len(result) {
+			return []*simplecontent.Content{}, nil
+		}
+		result = result[*filters.Offset:]
+	}
+
+	if filters.Limit != nil && *filters.Limit > 0 && *filters.Limit < len(result) {
+		result = result[:*filters.Limit]
+	}
+
+	return result, nil
+}
+
+func (r *Repository) CountContentWithFilters(ctx context.Context, filters simplecontent.ContentCountFilters) (int64, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	var count int64
+
+	for _, content := range r.contents {
+		// Skip deleted unless specifically requested
+		if !filters.IncludeDeleted && content.DeletedAt != nil {
+			continue
+		}
+
+		// Apply filters (same as ListContentWithFilters but just count)
+		if filters.TenantID != nil && content.TenantID != *filters.TenantID {
+			continue
+		}
+		if len(filters.TenantIDs) > 0 {
+			found := false
+			for _, tid := range filters.TenantIDs {
+				if content.TenantID == tid {
+					found = true
+					break
+				}
+			}
+			if !found {
+				continue
+			}
+		}
+
+		if filters.OwnerID != nil && content.OwnerID != *filters.OwnerID {
+			continue
+		}
+		if len(filters.OwnerIDs) > 0 {
+			found := false
+			for _, oid := range filters.OwnerIDs {
+				if content.OwnerID == oid {
+					found = true
+					break
+				}
+			}
+			if !found {
+				continue
+			}
+		}
+
+		if filters.Status != nil && content.Status != *filters.Status {
+			continue
+		}
+		if len(filters.Statuses) > 0 {
+			found := false
+			for _, s := range filters.Statuses {
+				if content.Status == s {
+					found = true
+					break
+				}
+			}
+			if !found {
+				continue
+			}
+		}
+
+		if filters.DerivationType != nil && content.DerivationType != *filters.DerivationType {
+			continue
+		}
+		if len(filters.DerivationTypes) > 0 {
+			found := false
+			for _, dt := range filters.DerivationTypes {
+				if content.DerivationType == dt {
+					found = true
+					break
+				}
+			}
+			if !found {
+				continue
+			}
+		}
+
+		if filters.DocumentType != nil && content.DocumentType != *filters.DocumentType {
+			continue
+		}
+		if len(filters.DocumentTypes) > 0 {
+			found := false
+			for _, docType := range filters.DocumentTypes {
+				if content.DocumentType == docType {
+					found = true
+					break
+				}
+			}
+			if !found {
+				continue
+			}
+		}
+
+		if filters.CreatedAfter != nil && content.CreatedAt.Before(*filters.CreatedAfter) {
+			continue
+		}
+		if filters.CreatedBefore != nil && content.CreatedAt.After(*filters.CreatedBefore) {
+			continue
+		}
+
+		if filters.UpdatedAfter != nil && content.UpdatedAt.Before(*filters.UpdatedAfter) {
+			continue
+		}
+		if filters.UpdatedBefore != nil && content.UpdatedAt.After(*filters.UpdatedBefore) {
+			continue
+		}
+
+		count++
+	}
+
+	return count, nil
+}
+
+func (r *Repository) GetContentStatistics(ctx context.Context, filters simplecontent.ContentCountFilters, options simplecontent.ContentStatisticsOptions) (*simplecontent.ContentStatisticsResult, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	result := &simplecontent.ContentStatisticsResult{
+		ByStatus:         make(map[string]int64),
+		ByTenant:         make(map[string]int64),
+		ByDerivationType: make(map[string]int64),
+		ByDocumentType:   make(map[string]int64),
+	}
+
+	var oldest, newest *time.Time
+
+	for _, content := range r.contents {
+		// Skip deleted unless specifically requested
+		if !filters.IncludeDeleted && content.DeletedAt != nil {
+			continue
+		}
+
+		// Apply filters (same logic as Count)
+		if filters.TenantID != nil && content.TenantID != *filters.TenantID {
+			continue
+		}
+		if len(filters.TenantIDs) > 0 {
+			found := false
+			for _, tid := range filters.TenantIDs {
+				if content.TenantID == tid {
+					found = true
+					break
+				}
+			}
+			if !found {
+				continue
+			}
+		}
+
+		if filters.OwnerID != nil && content.OwnerID != *filters.OwnerID {
+			continue
+		}
+		if len(filters.OwnerIDs) > 0 {
+			found := false
+			for _, oid := range filters.OwnerIDs {
+				if content.OwnerID == oid {
+					found = true
+					break
+				}
+			}
+			if !found {
+				continue
+			}
+		}
+
+		if filters.Status != nil && content.Status != *filters.Status {
+			continue
+		}
+		if len(filters.Statuses) > 0 {
+			found := false
+			for _, s := range filters.Statuses {
+				if content.Status == s {
+					found = true
+					break
+				}
+			}
+			if !found {
+				continue
+			}
+		}
+
+		if filters.DerivationType != nil && content.DerivationType != *filters.DerivationType {
+			continue
+		}
+		if len(filters.DerivationTypes) > 0 {
+			found := false
+			for _, dt := range filters.DerivationTypes {
+				if content.DerivationType == dt {
+					found = true
+					break
+				}
+			}
+			if !found {
+				continue
+			}
+		}
+
+		if filters.DocumentType != nil && content.DocumentType != *filters.DocumentType {
+			continue
+		}
+		if len(filters.DocumentTypes) > 0 {
+			found := false
+			for _, docType := range filters.DocumentTypes {
+				if content.DocumentType == docType {
+					found = true
+					break
+				}
+			}
+			if !found {
+				continue
+			}
+		}
+
+		if filters.CreatedAfter != nil && content.CreatedAt.Before(*filters.CreatedAfter) {
+			continue
+		}
+		if filters.CreatedBefore != nil && content.CreatedAt.After(*filters.CreatedBefore) {
+			continue
+		}
+
+		if filters.UpdatedAfter != nil && content.UpdatedAt.Before(*filters.UpdatedAfter) {
+			continue
+		}
+		if filters.UpdatedBefore != nil && content.UpdatedAt.After(*filters.UpdatedBefore) {
+			continue
+		}
+
+		// Count this content
+		result.TotalCount++
+
+		// Status breakdown
+		if options.IncludeStatusBreakdown {
+			result.ByStatus[content.Status]++
+		}
+
+		// Tenant breakdown
+		if options.IncludeTenantBreakdown {
+			result.ByTenant[content.TenantID.String()]++
+		}
+
+		// Derivation type breakdown
+		if options.IncludeDerivationBreakdown {
+			dt := content.DerivationType
+			if dt == "" {
+				dt = "original"
+			}
+			result.ByDerivationType[dt]++
+		}
+
+		// Document type breakdown
+		if options.IncludeDocumentTypeBreakdown {
+			docType := content.DocumentType
+			if docType == "" {
+				docType = "unknown"
+			}
+			result.ByDocumentType[docType]++
+		}
+
+		// Time range
+		if options.IncludeTimeRange {
+			if oldest == nil || content.CreatedAt.Before(*oldest) {
+				t := content.CreatedAt
+				oldest = &t
+			}
+			if newest == nil || content.CreatedAt.After(*newest) {
+				t := content.CreatedAt
+				newest = &t
+			}
+		}
+	}
+
+	result.OldestContent = oldest
+	result.NewestContent = newest
+
+	return result, nil
+}

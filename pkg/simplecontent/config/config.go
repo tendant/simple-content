@@ -87,6 +87,7 @@ type ServerConfig struct {
 	// Server options
 	EnableEventLogging bool
 	EnablePreviews     bool
+	EnableAdminAPI     bool // Enable admin API endpoints (requires authentication in production)
 
 	// URL generation
 	URLStrategy     string // "cdn", "content-based", "storage-delegated"

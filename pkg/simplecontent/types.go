@@ -183,3 +183,65 @@ type ContentDetails struct {
 	CreatedAt   time.Time         `json:"created_at"`                // Content creation time
 	UpdatedAt   time.Time         `json:"updated_at"`                // Content last update time
 }
+
+// ContentListFilters defines filtering options for listing content (admin operations)
+type ContentListFilters struct {
+	TenantID        *uuid.UUID
+	TenantIDs       []uuid.UUID
+	OwnerID         *uuid.UUID
+	OwnerIDs        []uuid.UUID
+	Status          *string
+	Statuses        []string
+	DerivationType  *string
+	DerivationTypes []string
+	DocumentType    *string
+	DocumentTypes   []string
+	CreatedAfter    *time.Time
+	CreatedBefore   *time.Time
+	UpdatedAfter    *time.Time
+	UpdatedBefore   *time.Time
+	Limit           *int
+	Offset          *int
+	SortBy          *string
+	SortOrder       *string
+	IncludeDeleted  bool
+}
+
+// ContentCountFilters defines filtering options for counting content
+type ContentCountFilters struct {
+	TenantID        *uuid.UUID
+	TenantIDs       []uuid.UUID
+	OwnerID         *uuid.UUID
+	OwnerIDs        []uuid.UUID
+	Status          *string
+	Statuses        []string
+	DerivationType  *string
+	DerivationTypes []string
+	DocumentType    *string
+	DocumentTypes   []string
+	CreatedAfter    *time.Time
+	CreatedBefore   *time.Time
+	UpdatedAfter    *time.Time
+	UpdatedBefore   *time.Time
+	IncludeDeleted  bool
+}
+
+// ContentStatisticsOptions defines what statistics to include
+type ContentStatisticsOptions struct {
+	IncludeStatusBreakdown       bool
+	IncludeTenantBreakdown       bool
+	IncludeDerivationBreakdown   bool
+	IncludeDocumentTypeBreakdown bool
+	IncludeTimeRange             bool
+}
+
+// ContentStatisticsResult contains aggregated statistics about content
+type ContentStatisticsResult struct {
+	TotalCount       int64
+	ByStatus         map[string]int64
+	ByTenant         map[string]int64
+	ByDerivationType map[string]int64
+	ByDocumentType   map[string]int64
+	OldestContent    *time.Time
+	NewestContent    *time.Time
+}

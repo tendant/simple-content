@@ -37,6 +37,11 @@ func WithEnv(prefix string) Option {
 		}); err != nil {
 			return err
 		}
+		if err := applyBoolEnv(prefix, "ENABLE_ADMIN_API", func(b bool) {
+			c.EnableAdminAPI = b
+		}); err != nil {
+			return err
+		}
 		if v, ok := lookupEnv(prefix, "OBJECT_KEY_GENERATOR"); ok && v != "" {
 			c.ObjectKeyGenerator = v
 		}
