@@ -167,7 +167,14 @@ func main() {
 # Build once
 go build -o admin ./cmd/admin
 
-# Configure database
+# Option 1: Configure with .env file (recommended)
+cp cmd/admin/.env.example .env
+# Edit .env with your settings
+./admin list
+./admin count
+./admin stats
+
+# Option 2: Configure with environment variables
 export DATABASE_URL="postgres://user:pass@localhost:5432/dbname"
 export DATABASE_TYPE=postgres
 export DB_SCHEMA=content

@@ -38,7 +38,20 @@ go run ./cmd/admin-shell
 DATABASE_TYPE=memory ./admin-shell
 ```
 
-### With Configuration
+### Using .env File (Recommended)
+
+```bash
+# Copy example configuration
+cp .env.example .env
+
+# Edit .env with your settings (usually DATABASE_TYPE=memory)
+nano .env
+
+# Run shell (config loaded from .env automatically)
+./admin-shell
+```
+
+### With Environment Variables
 
 ```bash
 # Configure via environment
@@ -47,6 +60,8 @@ export ENABLE_ADMIN_API=true
 
 ./admin-shell
 ```
+
+**Note:** Environment variables override .env file settings.
 
 ### Interactive Session
 

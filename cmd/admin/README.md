@@ -23,6 +23,25 @@ go run ./cmd/admin <command>
 
 ## Quick Start
 
+### Using .env File (Recommended)
+
+```bash
+# Copy example configuration
+cp .env.example .env
+
+# Edit .env with your database settings
+# DATABASE_TYPE=postgres
+# DATABASE_URL=postgres://user:pass@localhost/dbname
+# DB_SCHEMA=content
+
+# Run commands (config loaded from .env automatically)
+./admin list
+./admin count
+./admin stats
+```
+
+### Using Environment Variables
+
 ```bash
 # Using memory database (for testing)
 DATABASE_TYPE=memory ./admin list
@@ -36,6 +55,8 @@ export DB_SCHEMA=content
 ./admin count
 ./admin stats
 ```
+
+**Note:** Environment variables override .env file settings.
 
 ## Commands
 
@@ -167,13 +188,44 @@ Time Range:
 Computed at: 2024-12-31T23:59:59Z
 ```
 
-## Environment Variables
+## Configuration
+
+### Environment Variables
 
 | Variable | Description | Default | Required |
 |----------|-------------|---------|----------|
 | `DATABASE_TYPE` | Database type (`postgres` or `memory`) | `memory` | No |
 | `DATABASE_URL` | PostgreSQL connection string | - | Yes (for postgres) |
 | `DB_SCHEMA` | PostgreSQL schema name | `content` | No |
+
+### Using .env File
+
+The admin tool automatically loads configuration from a `.env` file in the current directory.
+
+**Setup:**
+
+```bash
+# Copy example file
+cp .env.example .env
+
+# Edit .env
+nano .env
+```
+
+**Example .env file:**
+
+```bash
+DATABASE_TYPE=postgres
+DATABASE_URL=postgres://admin_readonly:secret@db.example.com:5432/content_db
+DB_SCHEMA=content
+```
+
+**Priority:** Environment variables set in the shell override .env file values.
+
+```bash
+# Uses DATABASE_TYPE from command line, other settings from .env
+DATABASE_TYPE=memory ./admin list
+```
 
 ## Filter Options
 

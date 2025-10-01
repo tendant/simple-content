@@ -12,6 +12,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/joho/godotenv"
 	"github.com/tendant/simple-content/pkg/simplecontent/admin"
 	"github.com/tendant/simple-content/pkg/simplecontent/repo/memory"
 	repopg "github.com/tendant/simple-content/pkg/simplecontent/repo/postgres"
@@ -33,6 +34,9 @@ ENVIRONMENT VARIABLES:
   DATABASE_URL      PostgreSQL connection string (required for postgres)
   DATABASE_TYPE     Database type: postgres or memory (default: memory)
   DB_SCHEMA         PostgreSQL schema name (default: content)
+
+  Configuration can be loaded from a .env file in the current directory.
+  Command line environment variables override .env file values.
 
 EXAMPLES:
   # List all contents
@@ -76,6 +80,9 @@ OPTIONS (for list/count/stats):
 `
 
 func main() {
+	// Load .env file if it exists (silently ignore if not found)
+	_ = godotenv.Load()
+
 	if len(os.Args) < 2 {
 		fmt.Println(usage)
 		os.Exit(1)

@@ -10,12 +10,16 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
+	"github.com/joho/godotenv"
 	"github.com/tendant/simple-content/pkg/simplecontent"
 	"github.com/tendant/simple-content/pkg/simplecontent/admin"
 	"github.com/tendant/simple-content/pkg/simplecontent/config"
 )
 
 func main() {
+	// Load .env file if it exists (silently ignore if not found)
+	_ = godotenv.Load()
+
 	// Load server configuration
 	serverConfig, err := config.Load(config.WithEnv(""))
 	if err != nil {
