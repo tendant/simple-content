@@ -57,15 +57,6 @@ func main() {
 		log.Fatalf("Failed to build service: %v", err)
 	}
 
-	// Check for admin shell mode (for in-memory debugging)
-	if os.Getenv("ADMIN_SHELL") == "true" && serverConfig.EnableAdminAPI {
-		log.Println("Starting in Admin Shell mode (interactive)...")
-		adminSvc := buildAdminService(serverConfig)
-		shell := NewAdminShell(svc, adminSvc)
-		shell.Run()
-		return
-	}
-
 	// Create HTTP server
 	server := NewHTTPServer(svc, serverConfig)
 

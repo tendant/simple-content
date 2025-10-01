@@ -30,6 +30,9 @@ main
 s3test
 bin
 build/
+admin
+admin-shell
+server-configured
 
 # service test
 tests/data/

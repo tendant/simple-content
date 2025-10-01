@@ -64,9 +64,12 @@ curl http://localhost:8080/api/v1/admin/contents/stats | jq
 **Best for:** Debugging, manual inspection, development
 
 ```bash
-# Start server in admin shell mode
-ADMIN_SHELL=true ENABLE_ADMIN_API=true DATABASE_TYPE=memory \
-  go run ./cmd/server-configured
+# Start admin shell (separate command)
+DATABASE_TYPE=memory go run ./cmd/admin-shell
+
+# Or build and run
+go build -o admin-shell ./cmd/admin-shell
+./admin-shell
 ```
 
 **Interactive commands:**
@@ -88,14 +91,13 @@ admin> exit
 
 **Cons:**
 - ⚠️ Not scriptable
-- ⚠️ Blocks server (can't handle HTTP requests)
+- ⚠️ Separate process (best for in-memory)
 
 **Example session:**
 
 ```bash
 # Start admin shell
-ADMIN_SHELL=true ENABLE_ADMIN_API=true DATABASE_TYPE=memory \
-  go run ./cmd/server-configured
+DATABASE_TYPE=memory ./admin-shell
 
 # Inside admin shell:
 admin> list

@@ -136,6 +136,11 @@ func (c *ServerConfig) Validate() error {
 }
 
 // BuildService creates a Service instance from the server configuration
+// BuildRepository builds just the repository from configuration
+func (c *ServerConfig) BuildRepository() (simplecontent.Repository, error) {
+	return c.buildRepository()
+}
+
 func (c *ServerConfig) BuildService() (simplecontent.Service, error) {
 	var options []simplecontent.Option
 

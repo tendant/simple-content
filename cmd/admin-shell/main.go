@@ -5,15 +5,49 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"os"
 	"strings"
 
 	"github.com/google/uuid"
 	"github.com/tendant/simple-content/pkg/simplecontent"
 	"github.com/tendant/simple-content/pkg/simplecontent/admin"
+	"github.com/tendant/simple-content/pkg/simplecontent/config"
 )
 
-// AdminShell provides an interactive admin interface for in-memory mode
+func main() {
+	// Load server configuration
+	serverConfig, err := config.Load(config.WithEnv(""))
+	if err != nil {
+		log.Fatalf("Failed to load configuration: %v", err)
+	}
+
+	// Build service
+	svc, err := serverConfig.BuildService()
+	if err != nil {
+		log.Fatalf("Failed to build service: %v", err)
+	}
+
+	// Build admin service
+	adminSvc, err := buildAdminService(serverConfig)
+	if err != nil {
+		log.Fatalf("Failed to build admin service: %v", err)
+	}
+
+	// Start admin shell
+	shell := NewAdminShell(svc, adminSvc)
+	shell.Run()
+}
+
+func buildAdminService(serverConfig *config.ServerConfig) (admin.AdminService, error) {
+	repo, err := serverConfig.BuildRepository()
+	if err != nil {
+		return nil, fmt.Errorf("failed to build repository: %w", err)
+	}
+	return admin.New(repo), nil
+}
+
+// AdminShell provides an interactive admin interface
 type AdminShell struct {
 	service  simplecontent.Service
 	adminSvc admin.AdminService
