@@ -154,6 +154,46 @@ func (r *Repository) GetContentMetadata(ctx context.Context, contentID uuid.UUID
 	return &metadataCopy, nil
 }
 
+// Status query operations
+
+func (r *Repository) GetContentByStatus(ctx context.Context, status string) ([]*simplecontent.Content, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	var results []*simplecontent.Content
+	for _, content := range r.contents {
+		// Exclude soft-deleted content
+		if content.DeletedAt != nil {
+			continue
+		}
+		if content.Status == status {
+			contentCopy := *content
+			results = append(results, &contentCopy)
+		}
+	}
+
+	return results, nil
+}
+
+func (r *Repository) GetObjectsByStatus(ctx context.Context, status string) ([]*simplecontent.Object, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	var results []*simplecontent.Object
+	for _, object := range r.objects {
+		// Exclude soft-deleted objects
+		if object.DeletedAt != nil {
+			continue
+		}
+		if object.Status == status {
+			objectCopy := *object
+			results = append(results, &objectCopy)
+		}
+	}
+
+	return results, nil
+}
+
 // Object operations
 
 func (r *Repository) CreateObject(ctx context.Context, object *simplecontent.Object) error {

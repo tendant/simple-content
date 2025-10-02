@@ -47,7 +47,11 @@ type Repository interface {
 	// Content metadata operations
 	SetContentMetadata(ctx context.Context, metadata *ContentMetadata) error
 	GetContentMetadata(ctx context.Context, contentID uuid.UUID) (*ContentMetadata, error)
-	
+
+	// Status query operations
+	GetContentByStatus(ctx context.Context, status string) ([]*Content, error)
+	GetObjectsByStatus(ctx context.Context, status string) ([]*Object, error)
+
     // Derived content operations
     CreateDerivedContentRelationship(ctx context.Context, params CreateDerivedContentParams) (*DerivedContent, error)
     ListDerivedContent(ctx context.Context, params ListDerivedContentParams) ([]*DerivedContent, error)
@@ -94,6 +98,12 @@ type EventSink interface {
 	
 	// ObjectDeleted is fired when an object is deleted
 	ObjectDeleted(ctx context.Context, objectID uuid.UUID) error
+
+	// ContentStatusChanged is fired when content status changes
+	ContentStatusChanged(ctx context.Context, contentID uuid.UUID, oldStatus, newStatus string) error
+
+	// ObjectStatusChanged is fired when object status changes
+	ObjectStatusChanged(ctx context.Context, objectID uuid.UUID, oldStatus, newStatus string) error
 }
 
 // Previewer defines the interface for content preview generation

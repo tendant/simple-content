@@ -211,6 +211,77 @@ func (r *Repository) GetContentMetadata(ctx context.Context, contentID uuid.UUID
 	return &metadata, nil
 }
 
+// Status query operations
+
+func (r *Repository) GetContentByStatus(ctx context.Context, status string) ([]*simplecontent.Content, error) {
+	query := `
+		SELECT id, tenant_id, owner_id, owner_type, name, description, document_type,
+			   status, derivation_type, created_at, updated_at, deleted_at
+		FROM content
+		WHERE status = $1 AND deleted_at IS NULL
+		ORDER BY created_at DESC`
+
+	rows, err := r.db.Query(ctx, query, status)
+	if err != nil {
+		return nil, r.handlePostgresError("get content by status", err)
+	}
+	defer rows.Close()
+
+	var results []*simplecontent.Content
+	for rows.Next() {
+		var content simplecontent.Content
+		err := rows.Scan(
+			&content.ID, &content.TenantID, &content.OwnerID, &content.OwnerType,
+			&content.Name, &content.Description, &content.DocumentType,
+			&content.Status, &content.DerivationType, &content.CreatedAt,
+			&content.UpdatedAt, &content.DeletedAt)
+		if err != nil {
+			return nil, r.handlePostgresError("scan content", err)
+		}
+		results = append(results, &content)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, r.handlePostgresError("iterate content rows", err)
+	}
+
+	return results, nil
+}
+
+func (r *Repository) GetObjectsByStatus(ctx context.Context, status string) ([]*simplecontent.Object, error) {
+	query := `
+		SELECT id, content_id, storage_backend_name, storage_class, object_key,
+			   file_name, version, object_type, status, created_at, updated_at, deleted_at
+		FROM object
+		WHERE status = $1 AND deleted_at IS NULL
+		ORDER BY created_at DESC`
+
+	rows, err := r.db.Query(ctx, query, status)
+	if err != nil {
+		return nil, r.handlePostgresError("get objects by status", err)
+	}
+	defer rows.Close()
+
+	var results []*simplecontent.Object
+	for rows.Next() {
+		var object simplecontent.Object
+		err := rows.Scan(
+			&object.ID, &object.ContentID, &object.StorageBackendName, &object.StorageClass,
+			&object.ObjectKey, &object.FileName, &object.Version, &object.ObjectType,
+			&object.Status, &object.CreatedAt, &object.UpdatedAt, &object.DeletedAt)
+		if err != nil {
+			return nil, r.handlePostgresError("scan object", err)
+		}
+		results = append(results, &object)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, r.handlePostgresError("iterate object rows", err)
+	}
+
+	return results, nil
+}
+
 // Object operations
 
 func (r *Repository) CreateObject(ctx context.Context, object *simplecontent.Object) error {

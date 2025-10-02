@@ -45,6 +45,16 @@ func (n *NoopEventSink) ObjectDeleted(ctx context.Context, objectID uuid.UUID) e
 	return nil
 }
 
+// ContentStatusChanged does nothing and returns nil
+func (n *NoopEventSink) ContentStatusChanged(ctx context.Context, contentID uuid.UUID, oldStatus, newStatus string) error {
+	return nil
+}
+
+// ObjectStatusChanged does nothing and returns nil
+func (n *NoopEventSink) ObjectStatusChanged(ctx context.Context, objectID uuid.UUID, oldStatus, newStatus string) error {
+	return nil
+}
+
 // NoopPreviewer is a no-operation implementation of Previewer
 // Always returns nil (no preview generated) and supports no content types
 type NoopPreviewer struct{}
@@ -114,6 +124,18 @@ func (l *LoggingEventSink) ObjectUploaded(ctx context.Context, object *Object) e
 // ObjectDeleted logs the object deletion event
 func (l *LoggingEventSink) ObjectDeleted(ctx context.Context, objectID uuid.UUID) error {
 	l.logger.Infof("Object deleted: ID=%s", objectID)
+	return nil
+}
+
+// ContentStatusChanged logs the content status change event
+func (l *LoggingEventSink) ContentStatusChanged(ctx context.Context, contentID uuid.UUID, oldStatus, newStatus string) error {
+	l.logger.Infof("Content status changed: ID=%s, OldStatus=%s, NewStatus=%s", contentID, oldStatus, newStatus)
+	return nil
+}
+
+// ObjectStatusChanged logs the object status change event
+func (l *LoggingEventSink) ObjectStatusChanged(ctx context.Context, objectID uuid.UUID, oldStatus, newStatus string) error {
+	l.logger.Infof("Object status changed: ID=%s, OldStatus=%s, NewStatus=%s", objectID, oldStatus, newStatus)
 	return nil
 }
 

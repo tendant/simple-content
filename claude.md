@@ -131,6 +131,76 @@ if errors.Is(err, simplecontent.ErrContentNotReady) {
 - Consistent behavior across all service methods
 - Supports retry workflows (upload retry after failure)
 
+### Status Management Operations
+
+The system provides dedicated methods for updating and querying content/object status. These methods are the **recommended** approach for status management.
+
+**Update Status Methods:**
+```go
+// Update content status
+err := svc.UpdateContentStatus(ctx, contentID, simplecontent.ContentStatusProcessed)
+if err != nil {
+    // Handle error
+}
+
+// Update object status
+err := svc.UpdateObjectStatus(ctx, objectID, simplecontent.ObjectStatusUploaded)
+```
+
+**Query by Status Methods:**
+```go
+// Find all content in "processing" state
+processing, err := svc.GetContentByStatus(ctx, simplecontent.ContentStatusProcessing)
+for _, content := range processing {
+    // Process each content...
+}
+
+// Find all objects ready for download
+uploaded, err := svc.GetObjectsByStatus(ctx, simplecontent.ObjectStatusUploaded)
+```
+
+**Features:**
+- **Automatic validation**: Status value is validated before update
+- **Timestamp updates**: `updated_at` automatically set on status change
+- **Event firing**: Status change events fired for observability
+- **Type safety**: Uses typed `ContentStatus` and `ObjectStatus` enums
+- **Soft delete filtering**: Query methods exclude deleted records
+
+**Comparison with Manual Updates:**
+
+✅ **Recommended** (Dedicated Methods):
+```go
+// Clean, validated, fires events
+err := svc.UpdateContentStatus(ctx, id, simplecontent.ContentStatusUploaded)
+```
+
+⚠️ **Alternative** (Manual Update):
+```go
+// Works but bypasses validation and events
+content.Status = string(simplecontent.ContentStatusUploaded)
+err := svc.UpdateContent(ctx, simplecontent.UpdateContentRequest{Content: content})
+```
+
+**Use Cases:**
+- **Background workers**: Query processing content and update status when done
+- **Retry workflows**: Find failed content/objects and retry operations
+- **Status dashboards**: Count content by status for monitoring
+- **Cleanup jobs**: Find archived content for deletion
+
+**Event Integration:**
+Status change events are automatically fired through the `EventSink` interface:
+```go
+// EventSink interface methods
+ContentStatusChanged(ctx, contentID, oldStatus, newStatus) error
+ObjectStatusChanged(ctx, objectID, oldStatus, newStatus) error
+```
+
+Use these events for:
+- Logging status transitions
+- Triggering webhooks on status changes
+- Collecting metrics on processing times
+- Building audit trails
+
 ### Soft Delete Pattern
 
 **Primary Mechanism:** `deleted_at` timestamp

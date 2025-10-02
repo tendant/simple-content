@@ -312,6 +312,114 @@ func (s *service) ListContent(ctx context.Context, req ListContentRequest) ([]*C
 	return s.repository.ListContent(ctx, req.OwnerID, req.TenantID)
 }
 
+// Status management operations
+
+func (s *service) UpdateContentStatus(ctx context.Context, id uuid.UUID, newStatus ContentStatus) error {
+	// Fetch current content to get old status
+	content, err := s.repository.GetContent(ctx, id)
+	if err != nil {
+		return &ContentError{
+			ContentID: id,
+			Op:        "update_status_get",
+			Err:       err,
+		}
+	}
+
+	// Validate new status is valid
+	if !newStatus.IsValid() {
+		return &ContentError{
+			ContentID: id,
+			Op:        "update_status",
+			Err:       ErrInvalidContentStatus,
+		}
+	}
+
+	oldStatus := content.Status
+
+	// Update status and timestamp
+	content.Status = string(newStatus)
+	content.UpdatedAt = time.Now().UTC()
+
+	if err := s.repository.UpdateContent(ctx, content); err != nil {
+		return &ContentError{
+			ContentID: id,
+			Op:        "update_status",
+			Err:       err,
+		}
+	}
+
+	// Fire status change event
+	if s.eventSink != nil {
+		if err := s.eventSink.ContentStatusChanged(ctx, id, oldStatus, string(newStatus)); err != nil {
+			// Log error but don't fail the operation
+		}
+	}
+
+	return nil
+}
+
+func (s *service) UpdateObjectStatus(ctx context.Context, id uuid.UUID, newStatus ObjectStatus) error {
+	// Fetch current object to get old status
+	object, err := s.repository.GetObject(ctx, id)
+	if err != nil {
+		return &ObjectError{
+			ObjectID: id,
+			Op:       "update_status_get",
+			Err:      err,
+		}
+	}
+
+	// Validate new status is valid
+	if !newStatus.IsValid() {
+		return &ObjectError{
+			ObjectID: id,
+			Op:       "update_status",
+			Err:      ErrInvalidObjectStatus,
+		}
+	}
+
+	oldStatus := object.Status
+
+	// Update status and timestamp
+	object.Status = string(newStatus)
+	object.UpdatedAt = time.Now().UTC()
+
+	if err := s.repository.UpdateObject(ctx, object); err != nil {
+		return &ObjectError{
+			ObjectID: id,
+			Op:       "update_status",
+			Err:      err,
+		}
+	}
+
+	// Fire status change event
+	if s.eventSink != nil {
+		if err := s.eventSink.ObjectStatusChanged(ctx, id, oldStatus, string(newStatus)); err != nil {
+			// Log error but don't fail the operation
+		}
+	}
+
+	return nil
+}
+
+func (s *service) GetContentByStatus(ctx context.Context, status ContentStatus) ([]*Content, error) {
+	// Validate status is valid
+	if !status.IsValid() {
+		return nil, ErrInvalidContentStatus
+	}
+
+	return s.repository.GetContentByStatus(ctx, string(status))
+}
+
+func (s *service) GetObjectsByStatus(ctx context.Context, status ObjectStatus) ([]*Object, error) {
+	// Validate status is valid
+	if !status.IsValid() {
+		return nil, ErrInvalidObjectStatus
+	}
+
+	return s.repository.GetObjectsByStatus(ctx, string(status))
+}
+
 // Unified content upload operations
 
 func (s *service) UploadContent(ctx context.Context, req UploadContentRequest) (*Content, error) {

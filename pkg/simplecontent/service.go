@@ -28,6 +28,12 @@ type Service interface {
 	SetContentMetadata(ctx context.Context, req SetContentMetadataRequest) error
 	GetContentMetadata(ctx context.Context, contentID uuid.UUID) (*ContentMetadata, error)
 
+	// Status management operations
+	UpdateContentStatus(ctx context.Context, id uuid.UUID, newStatus ContentStatus) error
+	UpdateObjectStatus(ctx context.Context, id uuid.UUID, newStatus ObjectStatus) error
+	GetContentByStatus(ctx context.Context, status ContentStatus) ([]*Content, error)
+	GetObjectsByStatus(ctx context.Context, status ObjectStatus) ([]*Object, error)
+
 	// Storage backend operations
 	RegisterBackend(name string, backend BlobStore)
 	GetBackend(name string) (BlobStore, error)
