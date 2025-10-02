@@ -2,6 +2,14 @@
 
 A flexible content management system with simplified APIs that focus on content operations while abstracting storage implementation details.
 
+> **⚠️ DEPRECATION NOTICE**
+>
+> The legacy packages (`pkg/service`, `pkg/repository`, `pkg/storage`) are **deprecated as of 2025-10-01** and will be removed on **2026-01-01**.
+>
+> **Please migrate to `pkg/simplecontent`** which provides a better API, improved error handling, and more features.
+>
+> **Migration Guide:** See [MIGRATION_FROM_LEGACY.md](./MIGRATION_FROM_LEGACY.md) for complete migration instructions.
+
 ## Features
 
 - **Unified Content Operations**: Single-call upload/download operations

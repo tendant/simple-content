@@ -1,5 +1,11 @@
-// Deprecated: This service is deprecated and will be removed in a future version.
-// Please use the new module instead.
+// Deprecated: This package is deprecated as of 2025-10-01 and will be removed in 3 months.
+// Please migrate to github.com/tendant/simple-content/pkg/simplecontent/storage/s3 which provides:
+//   - BlobStore interface implementation
+//   - Better error handling
+//   - Presigned URL support
+//   - Git-like object key organization
+//   - MinIO compatibility
+// See MIGRATION_FROM_LEGACY.md for migration guide.
 package s3
 
 import (

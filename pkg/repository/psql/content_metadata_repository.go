@@ -1,5 +1,11 @@
-// Deprecated: This module is deprecated and will be removed in a future version.
-// Please use the new module instead.
+// Deprecated: This package is deprecated as of 2025-10-01 and will be removed in 3 months.
+// Please migrate to github.com/tendant/simple-content/pkg/simplecontent/repo/postgres which provides:
+//   - Unified Repository interface
+//   - Better error handling
+//   - Status management operations
+//   - Soft delete support
+//   - Dedicated 'content' schema support
+// See MIGRATION_FROM_LEGACY.md for migration guide.
 package repository
 
 import (

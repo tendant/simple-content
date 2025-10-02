@@ -62,8 +62,11 @@ Track completion of the refactor centered on `pkg/simplecontent`, finishing the 
 
 5) Deprecate legacy packages
 
-- [ ] Add deprecation notices to `pkg/service`, `pkg/repository`, `pkg/storage` (comments); stop referencing them from any new code
-- [ ] Plan removal once `cmd/server-configured` reaches parity and passes tests
+- [x] Add deprecation notices to `pkg/service`, `pkg/repository`, `pkg/storage` (comments); stop referencing them from any new code
+- [x] Create comprehensive migration guide (MIGRATION_FROM_LEGACY.md)
+- [x] Add deprecation notice to README
+- [x] Set removal timeline: deprecated 2025-10-01, removal 2026-01-01 (3 months)
+- [ ] Plan final removal once `cmd/server-configured` reaches parity and passes tests
 
 6) Docs and CI
 
@@ -104,6 +107,15 @@ Track completion of the refactor centered on `pkg/simplecontent`, finishing the 
 **Docker Compose Integration (2025-10-01)**
 - Added Postgres service to docker-compose.yml (port 5433)
 - MinIO service already configured (ports 9000/9001)
-- Created helper scripts for development workflow
-- Added comprehensive docker setup documentation
+- Created helper scripts for development workflow (docker-dev.sh, run-migrations.sh, init-db.sh)
+- Added comprehensive docker setup documentation (DOCKER_SETUP.md)
 - Fixed: CreateDerivedContent query already includes both `variant` and `derivation_type` columns
+
+**Legacy Package Deprecation (2025-10-01)**
+- Added detailed deprecation notices to all legacy packages:
+  - `pkg/service` → migrate to `pkg/simplecontent`
+  - `pkg/repository` → migrate to `pkg/simplecontent/repo`
+  - `pkg/storage` → migrate to `pkg/simplecontent/storage`
+- Created comprehensive migration guide (MIGRATION_FROM_LEGACY.md)
+- Added deprecation notice to README with timeline
+- Deprecation date: 2025-10-01, Removal date: 2026-01-01 (3 months)
