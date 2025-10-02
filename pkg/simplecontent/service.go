@@ -34,6 +34,9 @@ type Service interface {
 	GetContentByStatus(ctx context.Context, status ContentStatus) ([]*Content, error)
 	GetObjectsByStatus(ctx context.Context, status ObjectStatus) ([]*Object, error)
 
+	// Object query operations
+	GetObjectsByContentID(ctx context.Context, contentID uuid.UUID) ([]*Object, error)
+
 	// Storage backend operations
 	RegisterBackend(name string, backend BlobStore)
 	GetBackend(name string) (BlobStore, error)

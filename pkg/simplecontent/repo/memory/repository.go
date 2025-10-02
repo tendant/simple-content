@@ -399,6 +399,13 @@ func (r *Repository) ListDerivedContent(ctx context.Context, params simpleconten
 	for _, derived := range r.derivedContents {
 		if r.matchesEnhancedFilters(derived, params) {
 			derivedCopy := *derived
+
+			// Populate computed fields from content table
+			if content, exists := r.contents[derived.ContentID]; exists {
+				derivedCopy.Status = content.Status
+				derivedCopy.DocumentType = content.DocumentType
+			}
+
 			result = append(result, &derivedCopy)
 		}
 	}

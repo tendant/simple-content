@@ -521,7 +521,8 @@ func (r *Repository) buildEnhancedQuery(params simplecontent.ListDerivedContentP
 	query := `
 		SELECT cd.parent_id, cd.content_id, cd.derivation_type, cd.variant, cd.derivation_params,
 			   cd.processing_metadata, cd.created_at, cd.updated_at,
-			   COALESCE(c.document_type, '') as document_type
+			   COALESCE(c.document_type, '') as document_type,
+			   COALESCE(c.status, '') as status
 		FROM content_derived cd
 		LEFT JOIN content c ON cd.content_id = c.id
 		WHERE cd.deleted_at IS NULL

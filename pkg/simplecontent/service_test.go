@@ -289,6 +289,39 @@ func TestObjectOperations(t *testing.T) {
 	})
 }
 
+func TestGetObjectsByContentID_ServiceInterface(t *testing.T) {
+	svc := setupTestService(t)
+	ctx := context.Background()
+
+	// Create a content
+	contentReq := simplecontent.CreateContentRequest{
+		OwnerID:  uuid.New(),
+		TenantID: uuid.New(),
+		Name:     "Test Content for GetObjectsByContentID",
+	}
+	content, err := svc.CreateContent(ctx, contentReq)
+	require.NoError(t, err)
+
+	// Upload content to create an object
+	uploadReq := simplecontent.UploadContentRequest{
+		OwnerID:            content.OwnerID,
+		TenantID:           content.TenantID,
+		Name:               content.Name,
+		StorageBackendName: "memory",
+		Reader:             strings.NewReader("test data"),
+		FileName:           "test.txt",
+	}
+	uploadedContent, err := svc.UploadContent(ctx, uploadReq)
+	require.NoError(t, err)
+
+	// Test GetObjectsByContentID via Service interface
+	objects, err := svc.GetObjectsByContentID(ctx, uploadedContent.ID)
+	assert.NoError(t, err)
+	assert.NotNil(t, objects)
+	assert.Equal(t, 1, len(objects))
+	assert.Equal(t, uploadedContent.ID, objects[0].ContentID)
+}
+
 func TestObjectUploadDownload(t *testing.T) {
 	svc, storageSvc := setupTestServiceWithStorage(t)
 	ctx := context.Background()

@@ -146,9 +146,9 @@ type DerivedContent struct {
 	CreatedAt          time.Time              `json:"created_at" db:"created_at"`
 	UpdatedAt          time.Time              `json:"updated_at" db:"updated_at"`
 	DocumentType       string                 `json:"document_type" db:"document_type"`
-	// Note: Status is tracked in content.status, not here (avoid duplication)
 
-	// Computed fields (not persisted - populated by service layer)
+	// Computed fields (not persisted - populated from JOINs or service layer)
+	Status             string                 `json:"status,omitempty" db:"-"`           // Populated from content.status via JOIN
 	DownloadURL        string                 `json:"download_url,omitempty" db:"-"`
 	PreviewURL         string                 `json:"preview_url,omitempty" db:"-"`
 	ThumbnailURL       string                 `json:"thumbnail_url,omitempty" db:"-"`

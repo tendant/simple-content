@@ -157,6 +157,12 @@ for _, content := range processing {
 
 // Find all objects ready for download
 uploaded, err := svc.GetObjectsByStatus(ctx, simplecontent.ObjectStatusUploaded)
+
+// Get all objects for a specific content
+objects, err := svc.GetObjectsByContentID(ctx, contentID)
+for _, obj := range objects {
+    // Process each object (e.g., backfill, migration, multi-version handling)
+}
 ```
 
 **Features:**

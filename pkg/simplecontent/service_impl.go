@@ -685,13 +685,7 @@ func (s *service) UploadDerivedContent(ctx context.Context, req UploadDerivedCon
 		// Log warning but don't fail - content was uploaded successfully
 	}
 
-	// Step 11: Update derived content relationship status to match object status
-	// Note: DerivedContent.status should mirror Object.status semantics (not Content.status)
-	// because derived content represents processing work with granular states.
-	// See docs/STATUS_LIFECYCLE.md § Content Derived Status
-	if err := s.repository.UpdateDerivedContentStatus(ctx, content.ID, string(ObjectStatusUploaded)); err != nil {
-		// Log warning but don't fail - content was uploaded successfully
-	}
+	// Note: Derived content status is tracked in content.status (no separate status in content_derived table)
 
 	// Fire event
 	if s.eventSink != nil {
