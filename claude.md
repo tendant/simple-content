@@ -48,6 +48,29 @@ This document gives AI coding assistants (Claude, ChatGPT, etc.) the context and
 - Typed enums are used for statuses/variants; struct fields remain strings for wire compatibility.
 - Error mapping (server): typed errors → HTTP status codes with structured JSON body `{ "error": { code, message } }`.
 
+### Status Enums
+
+**Content Status** (high-level lifecycle):
+- `created` - Content record exists, no data uploaded yet
+- `uploading` - Upload in progress (optional intermediate state)
+- `uploaded` - Binary data successfully uploaded to storage
+- `processing` - Post-upload processing in progress (e.g., validation, indexing)
+- `processed` - Processing completed, content ready for use
+- `failed` - Upload or processing failed, may need retry
+- `archived` - Content archived for long-term storage (future use)
+- ~~`deleted`~~ - DEPRECATED: Use `deleted_at` timestamp instead
+
+**Object Status** (detailed processing state):
+- `created` - Object placeholder reserved, no binary data yet
+- `uploading` - Upload in progress
+- `uploaded` - Binary successfully stored in blob storage
+- `processing` - Post-upload processing in progress
+- `processed` - Processing completed successfully
+- `failed` - Processing failed, manual intervention may be required
+- ~~`deleted`~~ - DEPRECATED: Use `deleted_at` timestamp instead
+
+**DerivedContent.status** uses Object status semantics (see "Content Ready Status" section below)
+
 ### Soft Delete Pattern
 
 **Primary Mechanism:** `deleted_at` timestamp

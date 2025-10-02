@@ -27,27 +27,28 @@ Content status represents the high-level lifecycle state of a content entity.
 
 | Status | Description | Next States |
 |--------|-------------|-------------|
-| `created` | Content record exists in database, but no binary data uploaded yet | `uploaded` |
-| `uploaded` | Binary data successfully uploaded and stored in at least one storage backend | _(no status transitions)_ |
+| `created` | Content record exists in database, but no binary data uploaded yet | `uploading`, `uploaded`, `failed` |
+| `uploading` | Upload in progress (optional intermediate state) | `uploaded`, `failed` |
+| `uploaded` | Binary data successfully uploaded and stored in at least one storage backend | `processing`, `archived` |
+| `processing` | Post-upload processing in progress (e.g., validation, indexing) | `processed`, `failed` |
+| `processed` | Processing completed successfully, content ready for use | `archived` |
+| `failed` | Upload or processing failed, manual intervention or retry may be required | `uploading`, `processing` (retry) |
+| `archived` | Content archived for long-term storage (future use) | _(terminal state)_ |
 | ~~`deleted`~~ | **DEPRECATED:** Use `deleted_at` timestamp instead. Kept for backward compatibility only. | _(do not use)_ |
 
 > **⚠️ Soft Delete:** Deletion is tracked via the `deleted_at` timestamp field, NOT the status field.
 > When content is deleted, `deleted_at` is set to the deletion timestamp and status remains unchanged.
 > See [CLAUDE.md § Soft Delete Pattern](../CLAUDE.md#soft-delete-pattern) for details.
 
+> **✅ Status Expansion Implemented:** As of Phase 1.3, Content now has full granular status tracking to match Object capabilities.
+> This enables tracking upload progress, processing states, and failure handling at the Content level.
+
 **Use Cases:**
-- Determining if content has data available
-- Filtering out deleted content
-- Basic availability checking
-
-**Limitations (Current Implementation):**
-- Doesn't track processing state
-- Can't distinguish between "uploaded" and "processed"
-- Too coarse-grained for complex workflows
-
-> **⚠️ Implementation Gap:** These limitations are acknowledged and addressed in the refactoring plan.
-> Future versions will include `processing`, `processed`, `failed`, and `archived` statuses for Content.
-> See [STATUS_LIFECYCLE_REFACTORING.md § 1.3](STATUS_LIFECYCLE_REFACTORING.md#13-expand-content-status-enums)
+- Tracking upload progress (`uploading` state)
+- Monitoring post-upload processing (`processing` → `processed`)
+- Handling failures with retry logic (`failed` → retry)
+- Long-term archival workflows (`archived`)
+- Distinguishing "uploaded" from "ready to serve" (`uploaded` vs `processed`)
 
 ### Object Status (Detailed Processing State)
 

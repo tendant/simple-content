@@ -11,21 +11,29 @@ type ContentStatus string
 
 // Content status constants (typed).
 const (
-    ContentStatusCreated  ContentStatus = "created"
-    ContentStatusUploaded ContentStatus = "uploaded"
+    ContentStatusCreated    ContentStatus = "created"    // Content record created, no data uploaded yet
+    ContentStatusUploading  ContentStatus = "uploading"  // Upload in progress (optional intermediate state)
+    ContentStatusUploaded   ContentStatus = "uploaded"   // Binary data successfully uploaded to storage
+    ContentStatusProcessing ContentStatus = "processing" // Post-upload processing in progress (e.g., validation, indexing)
+    ContentStatusProcessed  ContentStatus = "processed"  // Processing completed, content ready for use
+    ContentStatusFailed     ContentStatus = "failed"     // Upload or processing failed, may need retry
+    ContentStatusArchived   ContentStatus = "archived"   // Content archived for long-term storage (future use)
 
     // Deprecated: Soft delete is indicated by the deleted_at timestamp, not the status field.
     // This constant remains for backward compatibility with existing data.
     // New code should NOT set status to 'deleted' - only set the deleted_at timestamp.
-    // The status field should remain at the last operational state (e.g., "uploaded").
+    // The status field should remain at the last operational state (e.g., "uploaded", "processed").
     // This constant will be removed in v2.0.
-    ContentStatusDeleted  ContentStatus = "deleted"
+    ContentStatusDeleted    ContentStatus = "deleted"
 )
 
 // IsValid checks if the ContentStatus is a valid known status.
 func (s ContentStatus) IsValid() bool {
     switch s {
-    case ContentStatusCreated, ContentStatusUploaded, ContentStatusDeleted:
+    case ContentStatusCreated, ContentStatusUploading, ContentStatusUploaded,
+        ContentStatusProcessing, ContentStatusProcessed,
+        ContentStatusFailed, ContentStatusArchived,
+        ContentStatusDeleted:
         return true
     }
     return false

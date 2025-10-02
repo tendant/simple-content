@@ -23,6 +23,31 @@ func TestContentStatusIsValid(t *testing.T) {
 			want:   true,
 		},
 		{
+			name:   "valid status: uploading",
+			status: ContentStatusUploading,
+			want:   true,
+		},
+		{
+			name:   "valid status: processing",
+			status: ContentStatusProcessing,
+			want:   true,
+		},
+		{
+			name:   "valid status: processed",
+			status: ContentStatusProcessed,
+			want:   true,
+		},
+		{
+			name:   "valid status: failed",
+			status: ContentStatusFailed,
+			want:   true,
+		},
+		{
+			name:   "valid status: archived",
+			status: ContentStatusArchived,
+			want:   true,
+		},
+		{
 			name:   "valid status: deleted",
 			status: ContentStatusDeleted,
 			want:   true,
@@ -40,11 +65,6 @@ func TestContentStatusIsValid(t *testing.T) {
 		{
 			name:   "invalid status: active (undefined)",
 			status: ContentStatus("active"),
-			want:   false,
-		},
-		{
-			name:   "invalid status: processing",
-			status: ContentStatus("processing"),
 			want:   false,
 		},
 		{
@@ -90,6 +110,36 @@ func TestParseContentStatus(t *testing.T) {
 			wantErr: false,
 		},
 		{
+			name:    "valid: uploading",
+			input:   "uploading",
+			want:    ContentStatusUploading,
+			wantErr: false,
+		},
+		{
+			name:    "valid: processing",
+			input:   "processing",
+			want:    ContentStatusProcessing,
+			wantErr: false,
+		},
+		{
+			name:    "valid: processed",
+			input:   "processed",
+			want:    ContentStatusProcessed,
+			wantErr: false,
+		},
+		{
+			name:    "valid: failed",
+			input:   "failed",
+			want:    ContentStatusFailed,
+			wantErr: false,
+		},
+		{
+			name:    "valid: archived",
+			input:   "archived",
+			want:    ContentStatusArchived,
+			wantErr: false,
+		},
+		{
 			name:    "valid: deleted",
 			input:   "deleted",
 			want:    ContentStatusDeleted,
@@ -112,13 +162,6 @@ func TestParseContentStatus(t *testing.T) {
 		{
 			name:    "invalid: active",
 			input:   "active",
-			want:    "",
-			wantErr: true,
-			errType: ErrInvalidContentStatus,
-		},
-		{
-			name:    "invalid: processing",
-			input:   "processing",
 			want:    "",
 			wantErr: true,
 			errType: ErrInvalidContentStatus,
