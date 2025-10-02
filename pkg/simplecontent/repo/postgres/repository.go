@@ -129,7 +129,8 @@ func (r *Repository) UpdateContent(ctx context.Context, content *simplecontent.C
 }
 
 func (r *Repository) DeleteContent(ctx context.Context, id uuid.UUID) error {
-	query := `UPDATE content SET status = 'deleted', deleted_at = NOW() WHERE id = $1`
+	// Soft delete: set deleted_at timestamp, keep status at last operational state
+	query := `UPDATE content SET deleted_at = NOW() WHERE id = $1`
 	_, err := r.db.Exec(ctx, query, id)
 	return err
 }
@@ -315,7 +316,8 @@ func (r *Repository) UpdateObject(ctx context.Context, object *simplecontent.Obj
 }
 
 func (r *Repository) DeleteObject(ctx context.Context, id uuid.UUID) error {
-	query := `UPDATE object SET status = 'deleted', deleted_at = NOW() WHERE id = $1`
+	// Soft delete: set deleted_at timestamp, keep status at last operational state
+	query := `UPDATE object SET deleted_at = NOW() WHERE id = $1`
 	_, err := r.db.Exec(ctx, query, id)
 	return err
 }

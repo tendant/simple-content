@@ -13,8 +13,33 @@ type ContentStatus string
 const (
     ContentStatusCreated  ContentStatus = "created"
     ContentStatusUploaded ContentStatus = "uploaded"
+
+    // Deprecated: Soft delete is indicated by the deleted_at timestamp, not the status field.
+    // This constant remains for backward compatibility with existing data.
+    // New code should NOT set status to 'deleted' - only set the deleted_at timestamp.
+    // The status field should remain at the last operational state (e.g., "uploaded").
+    // This constant will be removed in v2.0.
     ContentStatusDeleted  ContentStatus = "deleted"
 )
+
+// IsValid checks if the ContentStatus is a valid known status.
+func (s ContentStatus) IsValid() bool {
+    switch s {
+    case ContentStatusCreated, ContentStatusUploaded, ContentStatusDeleted:
+        return true
+    }
+    return false
+}
+
+// ParseContentStatus parses a string into a ContentStatus with validation.
+// Returns an error if the status string is not a valid ContentStatus.
+func ParseContentStatus(s string) (ContentStatus, error) {
+    status := ContentStatus(s)
+    if !status.IsValid() {
+        return "", ErrInvalidContentStatus
+    }
+    return status, nil
+}
 
 // Content derivation type constants
 const (
@@ -45,8 +70,35 @@ const (
     ObjectStatusProcessing ObjectStatus = "processing"
     ObjectStatusProcessed  ObjectStatus = "processed"
     ObjectStatusFailed     ObjectStatus = "failed"
+
+    // Deprecated: Soft delete is indicated by the deleted_at timestamp, not the status field.
+    // This constant remains for backward compatibility with existing data.
+    // New code should NOT set status to 'deleted' - only set the deleted_at timestamp.
+    // The status field should remain at the last operational state (e.g., "uploaded", "processed").
+    // This constant will be removed in v2.0.
     ObjectStatusDeleted    ObjectStatus = "deleted"
 )
+
+// IsValid checks if the ObjectStatus is a valid known status.
+func (s ObjectStatus) IsValid() bool {
+    switch s {
+    case ObjectStatusCreated, ObjectStatusUploading, ObjectStatusUploaded,
+        ObjectStatusProcessing, ObjectStatusProcessed,
+        ObjectStatusFailed, ObjectStatusDeleted:
+        return true
+    }
+    return false
+}
+
+// ParseObjectStatus parses a string into an ObjectStatus with validation.
+// Returns an error if the status string is not a valid ObjectStatus.
+func ParseObjectStatus(s string) (ObjectStatus, error) {
+    status := ObjectStatus(s)
+    if !status.IsValid() {
+        return "", ErrInvalidObjectStatus
+    }
+    return status, nil
+}
 
 // Content represents a logical content entity.
 //

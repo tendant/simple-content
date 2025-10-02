@@ -48,6 +48,57 @@ This document gives AI coding assistants (Claude, ChatGPT, etc.) the context and
 - Typed enums are used for statuses/variants; struct fields remain strings for wire compatibility.
 - Error mapping (server): typed errors → HTTP status codes with structured JSON body `{ "error": { code, message } }`.
 
+### Soft Delete Pattern
+
+**Primary Mechanism:** `deleted_at` timestamp
+
+The system uses the `deleted_at` timestamp field as the **single source of truth** for soft deletion:
+- `deleted_at IS NULL` → Record is active
+- `deleted_at IS NOT NULL` → Record is soft deleted (timestamp indicates when)
+
+**Status Field Behavior:**
+- The `status` field remains at its **last operational state** when a record is deleted
+- Example: Content with `status="uploaded"` that is deleted will have `status="uploaded"` and `deleted_at=<timestamp>`
+- This preserves information about what state the content was in before deletion
+- **DO NOT** set `status="deleted"` - this is deprecated
+
+**Implementation:**
+```go
+// ✅ CORRECT: Soft delete implementation
+func DeleteContent(ctx context.Context, id uuid.UUID) error {
+    query := `UPDATE content SET deleted_at = NOW() WHERE id = $1`
+    // Status field is NOT changed - it keeps its last value
+}
+
+// ❌ INCORRECT: Old pattern (deprecated)
+func DeleteContent(ctx context.Context, id uuid.UUID) error {
+    query := `UPDATE content SET status = 'deleted', deleted_at = NOW() WHERE id = $1`
+    // Don't do this - status='deleted' is deprecated
+}
+```
+
+**Querying Active Records:**
+```go
+// Always filter by deleted_at for active records
+query := `SELECT * FROM content WHERE deleted_at IS NULL`
+
+// NOT by status
+// query := `SELECT * FROM content WHERE status != 'deleted'` // ❌ Wrong
+```
+
+**Deprecated Constants:**
+- `ContentStatusDeleted` and `ObjectStatusDeleted` are **deprecated** (will be removed in v2.0)
+- These constants remain valid for backward compatibility with existing data
+- New code should NOT use these constants
+- Use `deleted_at` timestamp for all soft delete operations
+
+**Recovery/Undelete:**
+```go
+// To restore a soft-deleted record
+query := `UPDATE content SET deleted_at = NULL WHERE id = $1`
+// Status field already contains the correct operational status
+```
+
 ## HTTP API (cmd/server-configured)
 
 Base path: `/api/v1`

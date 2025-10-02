@@ -27,9 +27,13 @@ Content status represents the high-level lifecycle state of a content entity.
 
 | Status | Description | Next States |
 |--------|-------------|-------------|
-| `created` | Content record exists in database, but no binary data uploaded yet | `uploaded`, `deleted` |
-| `uploaded` | Binary data successfully uploaded and stored in at least one storage backend | `deleted` |
-| `deleted` | Soft delete, content marked for deletion (deleted_at set) | _(terminal)_ |
+| `created` | Content record exists in database, but no binary data uploaded yet | `uploaded` |
+| `uploaded` | Binary data successfully uploaded and stored in at least one storage backend | _(no status transitions)_ |
+| ~~`deleted`~~ | **DEPRECATED:** Use `deleted_at` timestamp instead. Kept for backward compatibility only. | _(do not use)_ |
+
+> **⚠️ Soft Delete:** Deletion is tracked via the `deleted_at` timestamp field, NOT the status field.
+> When content is deleted, `deleted_at` is set to the deletion timestamp and status remains unchanged.
+> See [CLAUDE.md § Soft Delete Pattern](../CLAUDE.md#soft-delete-pattern) for details.
 
 **Use Cases:**
 - Determining if content has data available
@@ -196,6 +200,10 @@ The backfill tool verifies and fixes status inconsistencies:
 
 ### Content Status State Machine
 
+> **⚠️ Note on Soft Delete:** The "deleted" status shown below is **deprecated**.
+> Deletion is indicated by the `deleted_at` timestamp, not by status.
+> Status remains at its last operational state (e.g., "uploaded") when deleted.
+
 ```
     ┌─────────┐
     │ created │
@@ -207,15 +215,18 @@ The backfill tool verifies and fixes status inconsistencies:
     ┌──────────┐
     │ uploaded │──────┐
     └──────────┘      │
-                      │ DELETE
-                      │
+                      │ DELETE (sets deleted_at)
+                      │ Status stays "uploaded"
                       ↓
-                 ┌─────────┐
-                 │ deleted │
-                 └─────────┘
+               (soft deleted via
+                deleted_at timestamp)
 ```
 
 ### Object Status State Machine
+
+> **⚠️ Note on Soft Delete:** The "deleted" status shown below is **deprecated**.
+> Deletion is indicated by the `deleted_at` timestamp, not by status.
+> Status remains at its last operational state when deleted.
 
 ```
     ┌─────────┐
@@ -246,14 +257,13 @@ The backfill tool verifies and fixes status inconsistencies:
            │ Processing completes
            ↓
     ┌───────────┐
-    │ processed │
-    └───────────┘
-           │
-           │ DELETE
-           ↓
-    ┌─────────┐
-    │ deleted │
-    └─────────┘
+    │ processed │──────┐
+    └───────────┘      │
+                       │ DELETE (sets deleted_at)
+                       │ Status stays "processed"
+                       ↓
+                (soft deleted via
+                 deleted_at timestamp)
 ```
 
 ### Content Derived Status State Machine

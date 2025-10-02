@@ -89,9 +89,9 @@ func (r *Repository) DeleteContent(ctx context.Context, id uuid.UUID) error {
 	if !exists {
 		return simplecontent.ErrContentNotFound
 	}
-	
+
 	now := time.Now()
-	c.Status = string(simplecontent.ContentStatusDeleted)
+	// Soft delete: set deleted_at timestamp, keep status at last operational state
 	c.DeletedAt = &now
 	c.UpdatedAt = now
 	return nil
@@ -272,12 +272,12 @@ func (r *Repository) DeleteObject(ctx context.Context, id uuid.UUID) error {
 	if !exists {
 		return simplecontent.ErrObjectNotFound
 	}
-	
-    now := time.Now()
-    object.Status = string(simplecontent.ObjectStatusDeleted)
-    object.DeletedAt = &now
-    object.UpdatedAt = now
-    return nil
+
+	now := time.Now()
+	// Soft delete: set deleted_at timestamp, keep status at last operational state
+	object.DeletedAt = &now
+	object.UpdatedAt = now
+	return nil
 }
 
 // Object metadata operations
