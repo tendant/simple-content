@@ -1,6 +1,12 @@
 # Status Lifecycle Refactoring - TODO List
 
-This document provides a detailed task breakdown for implementing the status lifecycle improvements outlined in `STATUS_LIFECYCLE_REFACTORING.md`.
+> **📋 Documentation Set:**
+> - [STATUS_LIFECYCLE.md](STATUS_LIFECYCLE.md) - Operational guide (intended design)
+> - [STATUS_LIFECYCLE_REFACTORING.md](STATUS_LIFECYCLE_REFACTORING.md) - Gap analysis and refactoring plan
+> - **This Document** - Implementation task checklist
+> - [Documentation Index](README.md) - Overview of all documentation
+
+This document provides a detailed task breakdown for implementing the status lifecycle improvements outlined in [STATUS_LIFECYCLE_REFACTORING.md](STATUS_LIFECYCLE_REFACTORING.md).
 
 ## Pre-Refactoring Tasks
 

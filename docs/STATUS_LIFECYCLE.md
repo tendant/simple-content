@@ -1,6 +1,15 @@
 # Content Status Lifecycle
 
-This document describes the complete status lifecycle for content, objects, and derived content relationships in the simple-thumbnailer system.
+This document describes the **intended design** for the complete status lifecycle for content, objects, and derived content relationships in the simple-content system.
+
+> **📋 Documentation Set:**
+> - **This Document** - Operational guide for status lifecycle (intended design)
+> - [STATUS_LIFECYCLE_REFACTORING.md](STATUS_LIFECYCLE_REFACTORING.md) - Gap analysis and refactoring plan
+> - [STATUS_LIFECYCLE_TODO.md](STATUS_LIFECYCLE_TODO.md) - Implementation task checklist
+> - [Documentation Index](README.md) - Overview of all documentation
+
+> **⚠️ Implementation Note:**
+> This document describes the **target state** of the status system. For current implementation gaps and planned improvements, see [STATUS_LIFECYCLE_REFACTORING.md](STATUS_LIFECYCLE_REFACTORING.md).
 
 ## Overview
 
@@ -27,10 +36,14 @@ Content status represents the high-level lifecycle state of a content entity.
 - Filtering out deleted content
 - Basic availability checking
 
-**Limitations:**
+**Limitations (Current Implementation):**
 - Doesn't track processing state
 - Can't distinguish between "uploaded" and "processed"
 - Too coarse-grained for complex workflows
+
+> **⚠️ Implementation Gap:** These limitations are acknowledged and addressed in the refactoring plan.
+> Future versions will include `processing`, `processed`, `failed`, and `archived` statuses for Content.
+> See [STATUS_LIFECYCLE_REFACTORING.md § 1.3](STATUS_LIFECYCLE_REFACTORING.md#13-expand-content-status-enums)
 
 ### Object Status (Detailed Processing State)
 
@@ -279,9 +292,13 @@ CREATE TABLE content (
     id UUID PRIMARY KEY,
     status VARCHAR(32) NOT NULL DEFAULT 'created',
     -- Valid values: 'created', 'uploaded', 'deleted'
+    -- (Future: 'uploading', 'processing', 'processed', 'failed', 'archived')
     ...
 );
 ```
+
+> **⚠️ Implementation Gap:** No CHECK constraint enforces valid status values.
+> See [STATUS_LIFECYCLE_REFACTORING.md § 2.2](STATUS_LIFECYCLE_REFACTORING.md#22-database-constraints)
 
 ### Object Table Status
 
@@ -294,6 +311,13 @@ CREATE TABLE object (
     ...
 );
 ```
+
+> **⚠️ Implementation Gap:** No CHECK constraint enforces valid status values.
+> Recommended constraint:
+> ```sql
+> ALTER TABLE object ADD CONSTRAINT object_status_check
+> CHECK (status IN ('created', 'uploading', 'uploaded', 'processing', 'processed', 'failed', 'deleted'));
+> ```
 
 ### Content Derived Table Status
 
@@ -308,6 +332,8 @@ CREATE TABLE content_derived (
 );
 ```
 
+> **⚠️ Implementation Gap:** No CHECK constraint enforces valid status values.
+
 ## Best Practices
 
 ### Status Updates
@@ -316,6 +342,10 @@ CREATE TABLE content_derived (
 2. **Update timestamps** - Always update `updated_at` when changing status
 3. **Log status transitions** - Log before and after status for debugging
 4. **Handle failures gracefully** - Set `failed` status rather than leaving in limbo
+
+> **⚠️ Implementation Gap:** Status transition validation is not enforced. The system currently allows
+> any status transition, including invalid ones (e.g., `deleted` → `uploaded`).
+> See [STATUS_LIFECYCLE_REFACTORING.md § 1.2](STATUS_LIFECYCLE_REFACTORING.md#12-status-transition-state-machine)
 
 ### Status Queries
 
@@ -427,8 +457,38 @@ WHERE cd.status = 'processed'
 **Cause:** Status update logic incomplete or backfill not run
 **Fix:** Run backfill with `-fix-status` flag
 
+## Implementation Status Summary
+
+### ✅ Currently Implemented
+- Three-tier status tracking (Content, Object, Content Derived)
+- Basic status enums defined in code
+- Soft delete with `deleted` status
+- Status fields in database tables
+
+### ⚠️ Implementation Gaps
+- **No status validation** - Any string value accepted
+- **No transition enforcement** - Invalid transitions not prevented
+- **Incomplete content lifecycle** - Missing processing/failed/archived statuses
+- **No database constraints** - Status values not enforced at DB level
+- **No status-based authorization** - Operations don't check status
+- **No audit trail** - Status changes not logged
+- **"active" status bug** - Referenced in code but undefined
+
+### 🔄 Refactoring Plan
+See [STATUS_LIFECYCLE_REFACTORING.md](STATUS_LIFECYCLE_REFACTORING.md) for:
+- Detailed gap analysis
+- Implementation plan (3 phases)
+- Code examples and migrations
+- Testing strategy
+
+See [STATUS_LIFECYCLE_TODO.md](STATUS_LIFECYCLE_TODO.md) for:
+- Sprint-by-sprint task breakdown
+- ~35 working days estimated timeline
+- Testing requirements
+
 ## Related Documentation
 
-- [Simple Content Design Document](/Users/lei/go/pkg/mod/github.com/tendant/simple-content@v0.1.18/Design.md)
-- [Simple Content README](/Users/lei/go/pkg/mod/github.com/tendant/simple-content@v0.1.18/pkg/simplecontent/README.md)
-- [Backfill Tool README](../README.md)
+- [STATUS_LIFECYCLE_REFACTORING.md](STATUS_LIFECYCLE_REFACTORING.md) - Gap analysis and refactoring plan
+- [STATUS_LIFECYCLE_TODO.md](STATUS_LIFECYCLE_TODO.md) - Implementation checklist
+- [Documentation Index](README.md) - Overview of all documentation
+- [CLAUDE.md](../CLAUDE.md) - Project conventions and AI coding guide

@@ -1,8 +1,16 @@
 # Status Lifecycle Refactoring Plan
 
+> **📋 Documentation Set:**
+> - [STATUS_LIFECYCLE.md](STATUS_LIFECYCLE.md) - Operational guide (intended design)
+> - **This Document** - Gap analysis and refactoring plan
+> - [STATUS_LIFECYCLE_TODO.md](STATUS_LIFECYCLE_TODO.md) - Implementation checklist
+> - [Documentation Index](README.md) - Overview of all documentation
+
 ## Executive Summary
 
-This document outlines the current gaps in the status lifecycle design and implementation, and provides a comprehensive refactoring plan to improve status management, validation, and transition logic.
+This document outlines the **current gaps** between the intended status lifecycle design (documented in [STATUS_LIFECYCLE.md](STATUS_LIFECYCLE.md)) and the actual implementation. It provides a comprehensive refactoring plan to improve status management, validation, and transition logic.
+
+**Target State:** See [STATUS_LIFECYCLE.md](STATUS_LIFECYCLE.md) for the complete operational guide to how the status system should work.
 
 ## Current Status Design
 
@@ -858,6 +866,12 @@ See `STATUS_LIFECYCLE_TODO.md` for detailed implementation tasks.
 
 ## References
 
+### Documentation
+- [STATUS_LIFECYCLE.md](STATUS_LIFECYCLE.md) - Operational guide (target state)
+- [STATUS_LIFECYCLE_TODO.md](STATUS_LIFECYCLE_TODO.md) - Implementation checklist
+- [CLAUDE.md](../CLAUDE.md) - Project conventions and coding guidelines
+
+### Code References
 - Types definition: `pkg/simplecontent/types.go`
 - Service implementation: `pkg/simplecontent/service_impl.go`
 - Repository interface: `pkg/simplecontent/interfaces.go`
