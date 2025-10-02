@@ -102,9 +102,15 @@ func canDeleteContent(status ContentStatus, force bool) (bool, error) {
 // canCreateDerived checks if derived content can be created from a parent content
 // based on the parent's current status.
 // Returns true if derivation is allowed, false with an error otherwise.
+//
+// Note: Original content uses "uploaded" status (terminal state).
+// Derived content uses "processed" status (terminal state).
+// Both are allowed as parent status to support derived-from-derived scenarios.
 func canCreateDerived(parentStatus ContentStatus) (bool, error) {
 	switch parentStatus {
-	case ContentStatusUploaded, ContentStatusProcessed:
+	case ContentStatusUploaded:  // Original content (primary use case)
+		return true, nil
+	case ContentStatusProcessed:  // Derived content (for derived-from-derived)
 		return true, nil
 	case ContentStatusCreated:
 		return false, fmt.Errorf("%w: parent content has not been uploaded yet (status: %s)", ErrParentNotReady, parentStatus)

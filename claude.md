@@ -262,45 +262,65 @@ query := `UPDATE content SET deleted_at = NULL WHERE id = $1`
 
 The `ContentDetails.Ready` field indicates when content and its derived content are ready for use.
 
+**Status Lifecycle by Content Type:**
+- **Original Content**: `created` → `uploaded` (terminal state)
+  - Original content is source material - once uploaded, it's complete
+  - Status "uploaded" means the original binary is stored and accessible
+- **Derived Content**: `created` → `processed` (terminal state)
+  - Derived content (thumbnails, previews, transcodes) is the OUTPUT of processing
+  - Status "processed" means the derivative was generated and is ready to serve
+  - Once uploaded, immediately marked "processed" (no intermediate "uploaded" state)
+
 **Ready Semantics:**
 - `Ready = true` when:
-  - Parent content `status = "uploaded"` AND
-  - All derived content (thumbnails, previews, transcodes) have `status = "uploaded"` OR `"processed"`
+  - **Original content**: `status = "uploaded"`
+  - **Derived content**: `status = "processed"`
 - `Ready = false` when:
-  - Parent content `status = "created"` (not yet uploaded), OR
-  - Any derived content has `status = "created"`, `"uploading"`, `"processing"`, or `"failed"`
+  - Content `status = "created"` (not yet ready), OR
+  - Derived content has any status other than `"processed"`
+
+**Semantic Distinction:**
+- **"uploaded"** status = original source material
+- **"processed"** status = derived/generated content
+- This makes content type clear from status alone
 
 **Examples:**
 ```go
-// Created content - not ready
-content := svc.CreateContent(ctx, req)
-// content.Status = "created"
-details, _ := svc.GetContentDetails(ctx, content.ID)
-// details.Ready = false
-
-// After upload - ready
-uploaded, _ := svc.UploadContent(ctx, uploadReq)
-// uploaded.Status = "uploaded"
-details, _ := svc.GetContentDetails(ctx, uploaded.ID)
+// Original content - ready when uploaded
+original, _ := svc.UploadContent(ctx, uploadReq)
+// original.Status = "uploaded"
+// original.DerivationType = "" (empty for originals)
+details, _ := svc.GetContentDetails(ctx, original.ID)
 // details.Ready = true
 
-// With derived content - only ready when all are uploaded
-parent, _ := svc.UploadContent(ctx, parentReq)
-svc.CreateDerivedContent(ctx, CreateDerivedContentRequest{...}) // status="created"
-details, _ := svc.GetContentDetails(ctx, parent.ID)
-// details.Ready = false (derived not uploaded yet)
+// Derived content - ready when processed
+thumbnail, _ := svc.UploadDerivedContent(ctx, UploadDerivedContentRequest{
+    ParentID:       parentID,
+    DerivationType: "thumbnail",
+    Variant:        "thumbnail_256",
+    Reader:         thumbReader,
+})
+// thumbnail.Status = "processed" (NOT "uploaded")
+// thumbnail.DerivationType = "thumbnail"
+details, _ := svc.GetContentDetails(ctx, thumbnail.ID)
+// details.Ready = true
 
-svc.UploadDerivedContent(ctx, UploadDerivedContentRequest{...}) // status="uploaded"
+// Parent with derived content - ready when all derivatives are processed
+parent, _ := svc.UploadContent(ctx, parentReq)                  // parent.Status = "uploaded"
+derived, _ := svc.UploadDerivedContent(ctx, derivedReq)         // derived.Status = "processed"
 details, _ := svc.GetContentDetails(ctx, parent.ID)
-// details.Ready = true (all content uploaded)
+// details.Ready = true (parent uploaded AND all derivatives processed)
 ```
 
 **Implementation Notes:**
 - **Derived content status is tracked in `content.status`** (same as original content)
-- Uses ContentStatus enum for both original and derived content (no separate status semantics)
+- Uses ContentStatus enum for both original and derived content
+- **Status semantics differ by content type:**
+  - Original content: `"uploaded"` = terminal state (source material ready)
+  - Derived content: `"processed"` = terminal state (generated output ready)
 - When `UploadDerivedContent()` completes:
-  - `content.status` is set to `"uploaded"` for the derived content row
-  - The underlying object's status is also `"uploaded"`
+  - `content.status` is set to `"processed"` (not `"uploaded"`)
+  - This reflects that derived content IS the output of processing
 - No duplication: `content_derived` table does NOT have a status column (avoids sync issues)
 
 ## HTTP API (cmd/server-configured)

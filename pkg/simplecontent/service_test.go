@@ -494,6 +494,103 @@ func TestDerivedContent(t *testing.T) {
     })
 }
 
+func TestUploadDerivedContentStatus(t *testing.T) {
+	svc := setupTestService(t)
+	ctx := context.Background()
+
+	// Create and upload parent content
+	parentReq := simplecontent.UploadContentRequest{
+		OwnerID:            uuid.New(),
+		TenantID:           uuid.New(),
+		Name:               "Parent Image",
+		DocumentType:       "image/jpeg",
+		StorageBackendName: "memory",
+		Reader:             strings.NewReader("original image data"),
+		FileName:           "original.jpg",
+	}
+	parent, err := svc.UploadContent(ctx, parentReq)
+	require.NoError(t, err)
+	require.Equal(t, string(simplecontent.ContentStatusUploaded), parent.Status, "Parent should have 'uploaded' status")
+
+	// Upload derived content (thumbnail)
+	derivedReq := simplecontent.UploadDerivedContentRequest{
+		ParentID:           parent.ID,
+		DerivationType:     "thumbnail",
+		Variant:            "thumbnail_256",
+		StorageBackendName: "memory",
+		Reader:             strings.NewReader("thumbnail data"),
+		FileName:           "thumb.jpg",
+	}
+	derived, err := svc.UploadDerivedContent(ctx, derivedReq)
+	require.NoError(t, err)
+	require.NotNil(t, derived)
+
+	// Verify derived content has "processed" status (not "uploaded")
+	assert.Equal(t, string(simplecontent.ContentStatusProcessed), derived.Status,
+		"Derived content should have 'processed' status after upload")
+	assert.Equal(t, "thumbnail", derived.DerivationType)
+
+	// Verify GetContentDetails marks it as ready
+	details, err := svc.GetContentDetails(ctx, derived.ID)
+	require.NoError(t, err)
+	assert.True(t, details.Ready, "Derived content with 'processed' status should be marked ready")
+}
+
+func TestGetContentDetailsReadyLogic(t *testing.T) {
+	svc := setupTestService(t)
+	ctx := context.Background()
+
+	t.Run("OriginalContentReady", func(t *testing.T) {
+		// Upload original content
+		req := simplecontent.UploadContentRequest{
+			OwnerID:            uuid.New(),
+			TenantID:           uuid.New(),
+			Name:               "Original",
+			StorageBackendName: "memory",
+			Reader:             strings.NewReader("data"),
+			FileName:           "file.txt",
+		}
+		content, err := svc.UploadContent(ctx, req)
+		require.NoError(t, err)
+
+		// Check details - should be ready with "uploaded" status
+		details, err := svc.GetContentDetails(ctx, content.ID)
+		require.NoError(t, err)
+		assert.True(t, details.Ready, "Original content with 'uploaded' status should be ready")
+	})
+
+	t.Run("DerivedContentReady", func(t *testing.T) {
+		// Create parent
+		parentReq := simplecontent.UploadContentRequest{
+			OwnerID:            uuid.New(),
+			TenantID:           uuid.New(),
+			Name:               "Parent",
+			StorageBackendName: "memory",
+			Reader:             strings.NewReader("parent data"),
+			FileName:           "parent.jpg",
+		}
+		parent, err := svc.UploadContent(ctx, parentReq)
+		require.NoError(t, err)
+
+		// Upload derived content
+		derivedReq := simplecontent.UploadDerivedContentRequest{
+			ParentID:           parent.ID,
+			DerivationType:     "thumbnail",
+			Variant:            "thumbnail_128",
+			StorageBackendName: "memory",
+			Reader:             strings.NewReader("thumb data"),
+			FileName:           "thumb.jpg",
+		}
+		derived, err := svc.UploadDerivedContent(ctx, derivedReq)
+		require.NoError(t, err)
+
+		// Check details - should be ready with "processed" status
+		details, err := svc.GetContentDetails(ctx, derived.ID)
+		require.NoError(t, err)
+		assert.True(t, details.Ready, "Derived content with 'processed' status should be ready")
+	})
+}
+
 // Benchmark tests
 func BenchmarkCreateContent(b *testing.B) {
 	svc := setupBenchmarkService(b)

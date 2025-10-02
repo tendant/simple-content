@@ -678,8 +678,11 @@ func (s *service) UploadDerivedContent(ctx context.Context, req UploadDerivedCon
 		}
 	}
 
-	// Step 10: Update content status to uploaded
-	content.Status = string(ContentStatusUploaded)
+	// Step 10: Update content status to processed
+	// Derived content is set to "processed" (not "uploaded") because derived content
+	// IS the output of processing - once uploaded, it's immediately ready to serve.
+	// Original content uses "uploaded" status, derived content uses "processed" status.
+	content.Status = string(ContentStatusProcessed)
 	content.UpdatedAt = time.Now().UTC()
 	if err := s.repository.UpdateContent(ctx, content); err != nil {
 		// Log warning but don't fail - content was uploaded successfully
@@ -1100,8 +1103,16 @@ func (s *service) GetContentDetails(ctx context.Context, contentID uuid.UUID, op
 		return nil, &ContentError{ContentID: contentID, Op: "get_content_details", Err: err}
 	}
 
-	// Check if content is ready (uploaded status means content is available)
-	result.Ready = (content.Status == string(ContentStatusUploaded))
+	// Check if content is ready based on type
+	// Original content: ready when status = "uploaded"
+	// Derived content: ready when status = "processed"
+	if content.DerivationType == "" {
+		// Original content is ready when uploaded
+		result.Ready = (content.Status == string(ContentStatusUploaded))
+	} else {
+		// Derived content is ready when processed
+		result.Ready = (content.Status == string(ContentStatusProcessed))
+	}
 
 	// Get primary objects for this content (for download/preview URLs)
 	objects, err := s.repository.GetObjectsByContentID(ctx, contentID)
@@ -1175,8 +1186,8 @@ func (s *service) GetContentDetails(ctx context.Context, contentID uuid.UUID, op
 		}
 
 		// If any derived content is not ready, mark the whole result as not ready
-		// DerivedContent.status uses Object status semantics: ready when "uploaded" or "processed"
-		if derived.Status != string(ObjectStatusUploaded) && derived.Status != string(ObjectStatusProcessed) {
+		// Derived content is ready when status = "processed"
+		if derived.Status != string(ContentStatusProcessed) {
 			result.Ready = false
 		}
 	}

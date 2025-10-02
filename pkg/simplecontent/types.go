@@ -13,9 +13,9 @@ type ContentStatus string
 const (
     ContentStatusCreated    ContentStatus = "created"    // Content record created, no data uploaded yet
     ContentStatusUploading  ContentStatus = "uploading"  // Upload in progress (optional intermediate state)
-    ContentStatusUploaded   ContentStatus = "uploaded"   // Binary data successfully uploaded to storage
-    ContentStatusProcessing ContentStatus = "processing" // Post-upload processing in progress (e.g., validation, indexing)
-    ContentStatusProcessed  ContentStatus = "processed"  // Processing completed, content ready for use
+    ContentStatusUploaded   ContentStatus = "uploaded"   // ORIGINAL content: binary uploaded to storage (terminal state for originals)
+    ContentStatusProcessing ContentStatus = "processing" // Reserved for future async processing workflows
+    ContentStatusProcessed  ContentStatus = "processed"  // DERIVED content: generated output ready to serve (terminal state for derivatives)
     ContentStatusFailed     ContentStatus = "failed"     // Upload or processing failed, may need retry
     ContentStatusArchived   ContentStatus = "archived"   // Content archived for long-term storage (future use)
 
