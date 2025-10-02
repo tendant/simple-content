@@ -25,6 +25,11 @@ type CreateContentRequest struct {
 // Variant is the specific derivation (e.g., "thumbnail_256"). If Variant is
 // provided and DerivationType is empty, the service infers DerivationType from
 // the prefix before the first underscore in Variant.
+//
+// InitialStatus allows setting a custom initial status for async workflows.
+// If not provided, defaults to "created". Common values:
+//   - "created" (default): Content placeholder created, waiting for processing
+//   - "processing": Immediately mark as being processed (useful for queue consumers)
 type CreateDerivedContentRequest struct {
     ParentID       uuid.UUID
     OwnerID        uuid.UUID
@@ -32,6 +37,7 @@ type CreateDerivedContentRequest struct {
     DerivationType string
     Variant        string
     Metadata       map[string]interface{}
+    InitialStatus  ContentStatus // Optional: defaults to "created"
 }
 
 // UpdateContentRequest contains parameters for updating content
@@ -109,6 +115,22 @@ type UploadDerivedContentRequest struct {
 	FileSize           int64  // Optional - for metadata
 	Tags               []string // Optional - for metadata
 	Metadata           map[string]interface{} // Derivation metadata
+}
+
+// UploadObjectForContentRequest contains parameters for uploading an object to existing content.
+// This is used for async workflows where content is created first, then data uploaded later.
+//
+// Example async workflow:
+//   1. CreateDerivedContent() with InitialStatus="processing"
+//   2. Worker generates thumbnail
+//   3. UploadObjectForContent() with thumbnail data
+//   4. UpdateContentStatus() to "processed"
+type UploadObjectForContentRequest struct {
+	ContentID          uuid.UUID
+	StorageBackendName string // Optional - uses default if empty
+	Reader             io.Reader
+	FileName           string // Optional - for metadata
+	MimeType           string // Optional - for metadata
 }
 
 // ContentDetailsOption provides configuration for GetContentDetails calls

@@ -21,6 +21,9 @@ type Service interface {
 	UploadContent(ctx context.Context, req UploadContentRequest) (*Content, error)
 	UploadDerivedContent(ctx context.Context, req UploadDerivedContentRequest) (*Content, error)
 
+	// Async workflow support: upload object for existing content
+	UploadObjectForContent(ctx context.Context, req UploadObjectForContentRequest) (*Object, error)
+
 	// Content data access
 	DownloadContent(ctx context.Context, contentID uuid.UUID) (io.ReadCloser, error)
 

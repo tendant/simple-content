@@ -169,6 +169,80 @@ Derived content status is tracked in the **`content.status`** column (same table
 - ✅ Derived content goes directly to "processed" (not "uploaded")
 - ✅ Semantics: "processed" status indicates generated output ready to serve
 
+### Async Derived Content Generation (Worker-Based)
+
+**New async workflow (as of 2025-10-02):**
+
+For scenarios where processing happens asynchronously (e.g., queue-based workers, long-running transcoding):
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ 1. Client/Worker calls CreateDerivedContent()              │
+│    → content.status = "processing" (InitialStatus param)   │
+│    → Creates content_derived relationship row              │
+│    → NO object created yet (placeholder only)              │
+└─────────────────────────────────────────────────────────────┘
+                           ↓
+┌─────────────────────────────────────────────────────────────┐
+│ 2. Worker downloads source image from parent content       │
+│    → Reads original content binary                         │
+└─────────────────────────────────────────────────────────────┘
+                           ↓
+┌─────────────────────────────────────────────────────────────┐
+│ 3. Worker generates thumbnail (expensive operation)        │
+│    → Resizes image to target dimensions                    │
+│    → Prepares thumbnail data in memory                     │
+└─────────────────────────────────────────────────────────────┘
+                           ↓
+┌─────────────────────────────────────────────────────────────┐
+│ 4. Worker calls UploadObjectForContent()  ← NEW METHOD     │
+│    → Creates object record (object.status="created")       │
+│    → Uploads binary to blob storage                        │
+│    → Updates object.status = "uploaded"                    │
+│    → Content status still "processing" (worker controls)   │
+└─────────────────────────────────────────────────────────────┘
+                           ↓
+┌─────────────────────────────────────────────────────────────┐
+│ 5. Worker calls UpdateContentStatus()                      │
+│    → content.status = "processed"  ← FINAL STATE           │
+└─────────────────────────────────────────────────────────────┘
+                           ↓
+┌─────────────────────────────────────────────────────────────┐
+│ 6. Content is ready to serve                               │
+│    → content.status = "processed"                          │
+│    → Derived content available for download                │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Async Workflow Benefits:**
+- **Early visibility**: Placeholder created before processing (UI can show "processing" state)
+- **Worker flexibility**: Processing happens separately from content creation
+- **Status queries**: Workers can query `GetContentByStatus(ContentStatusProcessing)` to find work
+- **Error handling**: Status remains "processing" on failure, worker can retry
+
+**Error Handling in Async Workflow:**
+```
+┌─────────────────────────────────────────────────────────────┐
+│ Processing fails (network error, invalid image, etc.)      │
+│    → content.status remains "processing"                   │
+│    → Worker stores error in content metadata               │
+│    → Worker retries later by querying processing content   │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Status Lifecycle for Async:**
+```
+created → processing → processed ✓
+         ↓
+        (transient error: retry entire job)
+```
+
+**Key Differences from Synchronous:**
+- Synchronous: `UploadDerivedContent()` - single atomic operation
+- Async: `CreateDerivedContent()` → process → `UploadObjectForContent()` → `UpdateContentStatus()` - multi-step
+- Async allows content placeholder to exist before data is ready
+- Async enables worker-based architectures with job queues
+
 ### Status Verification (Backfill)
 
 The backfill tool verifies and fixes status inconsistencies:

@@ -182,13 +182,27 @@ func (s *service) CreateDerivedContent(ctx context.Context, req CreateDerivedCon
         req.DerivationType = DerivationTypeFromVariant(req.Variant)
     }
 
+    // Determine initial status (defaults to "created")
+    initialStatus := ContentStatusCreated
+    if req.InitialStatus != "" {
+        // Validate the provided status
+        if !req.InitialStatus.IsValid() {
+            return nil, &ContentError{
+                ContentID: uuid.Nil,
+                Op:        "create_derived",
+                Err:       ErrInvalidContentStatus,
+            }
+        }
+        initialStatus = req.InitialStatus
+    }
+
     // Create derived content
     now := time.Now().UTC()
     content := &Content{
         ID:             uuid.New(),
         TenantID:       req.TenantID,
         OwnerID:        req.OwnerID,
-        Status:         string(ContentStatusCreated),
+        Status:         string(initialStatus),
         DerivationType: NormalizeDerivationType(req.DerivationType),
         CreatedAt:      now,
         UpdatedAt:      now,
@@ -698,6 +712,120 @@ func (s *service) UploadDerivedContent(ctx context.Context, req UploadDerivedCon
 	}
 
 	return content, nil
+}
+
+func (s *service) UploadObjectForContent(ctx context.Context, req UploadObjectForContentRequest) (*Object, error) {
+	// Step 1: Verify content exists
+	content, err := s.repository.GetContent(ctx, req.ContentID)
+	if err != nil {
+		return nil, &ContentError{
+			ContentID: req.ContentID,
+			Op:        "upload_object_get_content",
+			Err:       err,
+		}
+	}
+
+	// Step 2: Determine storage backend
+	storageBackend := req.StorageBackendName
+	if storageBackend == "" {
+		// Use first available backend as default
+		for name := range s.blobStores {
+			storageBackend = name
+			break
+		}
+	}
+	if storageBackend == "" {
+		return nil, fmt.Errorf("no storage backend available")
+	}
+
+	// Step 3: Create the object
+	now := time.Now().UTC()
+	objectID := uuid.New()
+
+	// Generate object key using the configured generator
+	var objectKey string
+	if content.DerivationType != "" {
+		// For derived content, get parent relationship to generate proper key
+		derivedRel, err := s.repository.GetDerivedRelationshipByContentID(ctx, req.ContentID)
+		if err == nil && derivedRel != nil {
+			objectKey = s.generateDerivedObjectKey(req.ContentID, objectID, derivedRel.ParentID, content.DerivationType, derivedRel.Variant, content)
+		} else {
+			// Fallback to simple key generation if relationship not found
+			objectKey = s.generateObjectKey(req.ContentID, objectID, nil)
+		}
+	} else {
+		// For original content, use standard key generation
+		objectKey = s.generateObjectKey(req.ContentID, objectID, nil)
+	}
+
+	object := &Object{
+		ID:                 objectID,
+		ContentID:          req.ContentID,
+		ObjectKey:          objectKey,
+		StorageBackendName: storageBackend,
+		Version:            1,
+		Status:             string(ObjectStatusCreated),
+		CreatedAt:          now,
+		UpdatedAt:          now,
+	}
+
+	// Set optional fields
+	if req.FileName != "" {
+		object.FileName = req.FileName
+	}
+	if req.MimeType != "" {
+		object.ObjectType = req.MimeType
+	}
+
+	if err := s.repository.CreateObject(ctx, object); err != nil {
+		return nil, &ObjectError{
+			ObjectID: objectID,
+			Op:       "upload_object_create",
+			Err:      err,
+		}
+	}
+
+	// Step 4: Upload the data
+	backend, err := s.GetBackend(storageBackend)
+	if err != nil {
+		return nil, &ObjectError{ObjectID: objectID, Op: "upload_object_get_backend", Err: err}
+	}
+
+	// Upload with metadata if provided
+	if req.MimeType != "" {
+		uploadParams := UploadParams{
+			ObjectKey: objectKey,
+			MimeType:  req.MimeType,
+		}
+		if err := backend.UploadWithParams(ctx, req.Reader, uploadParams); err != nil {
+			return nil, &ObjectError{ObjectID: objectID, Op: "upload_object_data", Err: err}
+		}
+	} else {
+		// Simple upload without metadata
+		if err := backend.Upload(ctx, objectKey, req.Reader); err != nil {
+			return nil, &ObjectError{ObjectID: objectID, Op: "upload_object_data", Err: err}
+		}
+	}
+
+	// Step 5: Update object status to uploaded
+	object.Status = string(ObjectStatusUploaded)
+	if err := s.repository.UpdateObject(ctx, object); err != nil {
+		return nil, &ObjectError{ObjectID: objectID, Op: "upload_object_update_status", Err: err}
+	}
+
+	// Step 6: Update object metadata from storage
+	if err := s.updateObjectFromStorage(ctx, objectID); err != nil {
+		// Log warning but don't fail - object was uploaded successfully
+	}
+
+	// Fire event
+	if s.eventSink != nil {
+		if err := s.eventSink.ObjectCreated(ctx, object); err != nil {
+			// Log error but don't fail the operation
+		}
+	}
+
+	return object, nil
 }
 
 func (s *service) DownloadContent(ctx context.Context, contentID uuid.UUID) (io.ReadCloser, error) {

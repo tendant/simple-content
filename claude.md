@@ -809,6 +809,70 @@ thumbnail, err := svc.UploadDerivedContent(ctx, simplecontent.UploadDerivedConte
 details, err := svc.GetContentDetails(ctx, contentID)
 ```
 
+### Async Workflow Patterns (Worker-Based Processing)
+
+For scenarios where processing happens asynchronously (e.g., thumbnail generation workers, video transcoding):
+
+```go
+// Step 1: Create derived content placeholder (before processing)
+derived, err := svc.CreateDerivedContent(ctx, simplecontent.CreateDerivedContentRequest{
+    ParentID:       parentID,
+    OwnerID:        ownerID,
+    TenantID:       tenantID,
+    DerivationType: "thumbnail",
+    Variant:        "thumbnail_256",
+    InitialStatus:  simplecontent.ContentStatusProcessing, // NEW: Set initial status
+    Metadata: map[string]interface{}{
+        "target_size": "256x256",
+        "format":      "jpeg",
+    },
+})
+
+// Step 2: Worker downloads source and generates thumbnail
+sourceData, _ := svc.DownloadContent(ctx, parentID)
+thumbnailData := generateThumbnail(sourceData) // expensive operation
+
+// Step 3: Upload object for existing content (NEW)
+object, err := svc.UploadObjectForContent(ctx, simplecontent.UploadObjectForContentRequest{
+    ContentID: derived.ID,
+    Reader:    thumbnailData,
+    FileName:  "thumb_256.jpg",
+    MimeType:  "image/jpeg",
+})
+
+// Step 4: Mark processing complete
+err = svc.UpdateContentStatus(ctx, derived.ID, simplecontent.ContentStatusProcessed)
+```
+
+**Async Workflow Benefits:**
+- **Early visibility**: Placeholder created before processing (UI can show "processing" state)
+- **Worker flexibility**: Processing happens separately from content creation
+- **Status tracking**: Query content by status to find work or monitor progress
+- **Error handling**: Status remains "processing" on failure, worker can retry
+
+**Status Lifecycle for Async:**
+```
+created → processing → processed ✓
+         ↓
+        (transient error: retry entire job)
+```
+
+**Worker Query Patterns:**
+```go
+// Find content waiting for processing
+pending, _ := svc.GetContentByStatus(ctx, simplecontent.ContentStatusProcessing)
+
+// Error handling: Store error metadata for debugging
+svc.SetContentMetadata(ctx, simplecontent.SetContentMetadataRequest{
+    ContentID: derived.ID,
+    CustomMetadata: map[string]interface{}{
+        "last_error":   err.Error(),
+        "error_count":  retryCount,
+        "last_attempt": time.Now(),
+    },
+})
+```
+
 ### Legacy Patterns (Still Supported)
 ```go
 // Multi-step object workflow (3 steps) - use StorageService interface

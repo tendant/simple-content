@@ -591,6 +591,196 @@ func TestGetContentDetailsReadyLogic(t *testing.T) {
 	})
 }
 
+func TestUploadObjectForContent(t *testing.T) {
+	svc := setupTestService(t)
+	ctx := context.Background()
+
+	// Create parent content first
+	parentContent, err := svc.UploadContent(ctx, simplecontent.UploadContentRequest{
+		OwnerID:      uuid.New(),
+		TenantID:     uuid.New(),
+		Name:         "Parent Content",
+		DocumentType: "text/plain",
+		Reader:       strings.NewReader("parent data"),
+		FileName:     "parent.txt",
+	})
+	require.NoError(t, err)
+	require.NotNil(t, parentContent)
+
+	// Create derived content (without object/data)
+	derivedContent, err := svc.CreateDerivedContent(ctx, simplecontent.CreateDerivedContentRequest{
+		ParentID:       parentContent.ID,
+		OwnerID:        parentContent.OwnerID,
+		TenantID:       parentContent.TenantID,
+		DerivationType: "thumbnail",
+		Variant:        "thumbnail_256",
+		InitialStatus:  simplecontent.ContentStatusProcessing,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, derivedContent)
+	assert.Equal(t, string(simplecontent.ContentStatusProcessing), derivedContent.Status,
+		"Initial status should be 'processing'")
+
+	// Upload object for existing content
+	thumbnailData := strings.NewReader("thumbnail image data")
+	object, err := svc.UploadObjectForContent(ctx, simplecontent.UploadObjectForContentRequest{
+		ContentID: derivedContent.ID,
+		Reader:    thumbnailData,
+		FileName:  "thumb.jpg",
+		MimeType:  "image/jpeg",
+	})
+	require.NoError(t, err)
+	require.NotNil(t, object)
+
+	// Verify object was created correctly
+	assert.Equal(t, derivedContent.ID, object.ContentID)
+	assert.Equal(t, string(simplecontent.ObjectStatusUploaded), object.Status)
+	assert.Equal(t, "thumb.jpg", object.FileName)
+	assert.Equal(t, "image/jpeg", object.ObjectType)
+
+	// Verify object can be retrieved
+	objects, err := svc.GetObjectsByContentID(ctx, derivedContent.ID)
+	require.NoError(t, err)
+	assert.Len(t, objects, 1)
+	assert.Equal(t, object.ID, objects[0].ID)
+}
+
+func TestAsyncWorkflow(t *testing.T) {
+	svc := setupTestService(t)
+	ctx := context.Background()
+
+	t.Run("CompleteAsyncWorkflow", func(t *testing.T) {
+		// Step 1: Create parent content
+		parentContent, err := svc.UploadContent(ctx, simplecontent.UploadContentRequest{
+			OwnerID:      uuid.New(),
+			TenantID:     uuid.New(),
+			Name:         "Source Image",
+			DocumentType: "image/png",
+			Reader:       strings.NewReader("source image data"),
+			FileName:     "source.png",
+		})
+		require.NoError(t, err)
+		assert.Equal(t, string(simplecontent.ContentStatusUploaded), parentContent.Status)
+
+		// Step 2: Create derived content placeholder (before processing)
+		derivedContent, err := svc.CreateDerivedContent(ctx, simplecontent.CreateDerivedContentRequest{
+			ParentID:       parentContent.ID,
+			OwnerID:        parentContent.OwnerID,
+			TenantID:       parentContent.TenantID,
+			DerivationType: "thumbnail",
+			Variant:        "thumbnail_256",
+			InitialStatus:  simplecontent.ContentStatusProcessing,
+			Metadata: map[string]interface{}{
+				"target_size": "256x256",
+				"format":      "jpeg",
+			},
+		})
+		require.NoError(t, err)
+		assert.Equal(t, string(simplecontent.ContentStatusProcessing), derivedContent.Status,
+			"Derived content should start in 'processing' state")
+
+		// Step 3: Simulate worker processing (generate thumbnail)
+		// In real workflow, worker would:
+		// - Download parent content
+		// - Generate thumbnail
+		// - Upload thumbnail data
+		thumbnailData := strings.NewReader("generated thumbnail data")
+
+		// Step 4: Upload object for the derived content
+		object, err := svc.UploadObjectForContent(ctx, simplecontent.UploadObjectForContentRequest{
+			ContentID: derivedContent.ID,
+			Reader:    thumbnailData,
+			FileName:  "thumb_256.jpg",
+			MimeType:  "image/jpeg",
+		})
+		require.NoError(t, err)
+		require.NotNil(t, object)
+		assert.Equal(t, string(simplecontent.ObjectStatusUploaded), object.Status)
+
+		// Step 5: Update content status to processed
+		err = svc.UpdateContentStatus(ctx, derivedContent.ID, simplecontent.ContentStatusProcessed)
+		require.NoError(t, err)
+
+		// Step 6: Verify final state
+		finalContent, err := svc.GetContent(ctx, derivedContent.ID)
+		require.NoError(t, err)
+		assert.Equal(t, string(simplecontent.ContentStatusProcessed), finalContent.Status,
+			"Final status should be 'processed'")
+
+		// Verify object is accessible
+		objects, err := svc.GetObjectsByContentID(ctx, derivedContent.ID)
+		require.NoError(t, err)
+		assert.Len(t, objects, 1)
+		assert.Equal(t, object.ID, objects[0].ID)
+
+		// Verify content can be downloaded
+		reader, err := svc.DownloadContent(ctx, derivedContent.ID)
+		require.NoError(t, err)
+		defer reader.Close()
+
+		downloadedData, err := io.ReadAll(reader)
+		require.NoError(t, err)
+		assert.Equal(t, "generated thumbnail data", string(downloadedData))
+	})
+
+	t.Run("AsyncWorkflowWithFailure", func(t *testing.T) {
+		// Create parent content
+		parentContent, err := svc.UploadContent(ctx, simplecontent.UploadContentRequest{
+			OwnerID:      uuid.New(),
+			TenantID:     uuid.New(),
+			Name:         "Source for Failed Processing",
+			DocumentType: "image/png",
+			Reader:       strings.NewReader("source data"),
+		})
+		require.NoError(t, err)
+
+		// Create derived content placeholder
+		derivedContent, err := svc.CreateDerivedContent(ctx, simplecontent.CreateDerivedContentRequest{
+			ParentID:       parentContent.ID,
+			OwnerID:        parentContent.OwnerID,
+			TenantID:       parentContent.TenantID,
+			DerivationType: "thumbnail",
+			Variant:        "thumbnail_512",
+			InitialStatus:  simplecontent.ContentStatusProcessing,
+		})
+		require.NoError(t, err)
+
+		// Simulate processing failure - content remains in "processing" state
+		// In real workflow, worker would detect failure and either:
+		// - Leave status as "processing" for retry
+		// - Store error metadata
+		err = svc.SetContentMetadata(ctx, simplecontent.SetContentMetadataRequest{
+			ContentID: derivedContent.ID,
+			CustomMetadata: map[string]interface{}{
+				"last_error":   "processing failed: invalid image format",
+				"error_count":  1,
+				"last_attempt": time.Now().Format(time.RFC3339),
+			},
+		})
+		require.NoError(t, err)
+
+		// Verify content is still in processing state
+		content, err := svc.GetContent(ctx, derivedContent.ID)
+		require.NoError(t, err)
+		assert.Equal(t, string(simplecontent.ContentStatusProcessing), content.Status)
+
+		// Worker can query for stuck content and retry
+		processingContent, err := svc.GetContentByStatus(ctx, simplecontent.ContentStatusProcessing)
+		require.NoError(t, err)
+		assert.NotEmpty(t, processingContent)
+
+		// Find our content in the processing list
+		found := false
+		for _, c := range processingContent {
+			if c.ID == derivedContent.ID {
+				found = true
+				break
+			}
+		}
+		assert.True(t, found, "Content should be in processing state for retry")
+	})
+}
+
 // Benchmark tests
 func BenchmarkCreateContent(b *testing.B) {
 	svc := setupBenchmarkService(b)
