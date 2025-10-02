@@ -1,201 +1,260 @@
-# Refactoring Complete: simple-content
+# Simple Content Refactoring - Current Status
 
-## 🎉 **Refactoring Successfully Completed**
+**Last Updated:** 2025-10-01
 
-The `simple-content` project has been successfully refactored from a monolithic server application into a clean, reusable Go library with pluggable architecture. All planned phases have been implemented and tested.
+## 🎉 Core Refactoring Complete
 
----
-
-## ✅ **Completed Implementation**
-
-### **Phase 1-3: Core Foundation**
-- ✅ **Library Structure**: Complete `/pkg/simplecontent` package with clean API
-- ✅ **Domain Types**: All types (Content, Object, metadata) moved to library
-- ✅ **Interfaces**: Comprehensive interfaces for Repository, BlobStore, EventSink, Previewer
-- ✅ **Service Layer**: Full orchestration with use cases, error handling, and events
-- ✅ **Functional Options**: Clean configuration with `WithRepository()`, `WithBlobStore()`, etc.
-
-### **Phase 4-5: Storage & Repository Implementations**
-- ✅ **Memory Storage**: Complete in-memory BlobStore for testing
-- ✅ **Filesystem Storage**: Full filesystem BlobStore with directory management
-- ✅ **S3 Storage**: Complete S3-compatible BlobStore (AWS, MinIO) with presigned URLs
-- ✅ **Memory Repository**: Full in-memory Repository for testing with concurrency safety
-- ✅ **PostgreSQL Repository**: Complete PostgreSQL Repository with proper error handling
-
-### **Phase 6-8: Server & Configuration**
-- ✅ **Configuration Management**: Environment-based config with multiple storage backends
-- ✅ **HTTP Server**: Clean HTTP wrapper that uses library exclusively
-- ✅ **Event System**: NoopEventSink, LoggingEventSink, BasicImagePreviewer implementations
-- ✅ **Database Schema**: Complete PostgreSQL schema with indexes and triggers
-
-### **Phase 9: Testing & Quality**
-- ✅ **Unit Tests**: Comprehensive test suite (100+ test cases)
-- ✅ **Integration Tests**: Storage backend and repository tests
-- ✅ **Concurrency Tests**: Thread-safe operations verified
-- ✅ **Benchmark Tests**: Performance testing for key operations
-- ✅ **Error Handling**: Typed errors and proper error propagation
+The `simple-content` project has been successfully refactored into a clean, reusable Go library (`pkg/simplecontent`) with a pluggable architecture. The legacy packages have been deprecated and a comprehensive migration path is in place.
 
 ---
 
-## 📊 **Test Results**
+## ✅ Completed Work (Summary)
 
-All tests are passing with comprehensive coverage:
+### Architecture & Core Library
+- ✅ **Clean Library Structure**: Complete `pkg/simplecontent` package with unified Service interface
+- ✅ **Domain Types**: Content, Object, DerivedContent, typed enums for statuses
+- ✅ **Comprehensive Interfaces**: Repository, BlobStore, EventSink, Previewer, URLStrategy
+- ✅ **Functional Options Pattern**: Clean configuration with `WithRepository()`, `WithBlobStore()`, etc.
+- ✅ **Typed Error Handling**: Sentinel errors with `errors.Is()` support
 
+### Storage Backends (pkg/simplecontent/storage)
+- ✅ **Memory Storage**: In-memory BlobStore for testing
+- ✅ **Filesystem Storage**: Full filesystem BlobStore with configurable base path
+- ✅ **S3 Storage**: AWS S3 and MinIO-compatible BlobStore with presigned URLs
+- ✅ **Object Key Generators**: Git-like, tenant-aware, high-performance, legacy, custom
+- ✅ **URL Strategy System**: Content-based, CDN (hybrid), storage-delegated
+
+### Repository Implementations (pkg/simplecontent/repo)
+- ✅ **Memory Repository**: Thread-safe in-memory Repository for testing
+- ✅ **PostgreSQL Repository**: Full Postgres implementation with dedicated schema support
+- ✅ **Schema Migrations**: Goose-compatible migrations in `migrations/postgres/`
+- ✅ **Soft Delete Support**: deleted_at timestamp pattern throughout
+- ✅ **Status Management**: Query by status, update status with validation
+
+### Service Layer Features
+- ✅ **Unified Operations**: Single-call `UploadContent()`, `UploadDerivedContent()`
+- ✅ **Content Details API**: `GetContentDetails()` - unified metadata + URLs
+- ✅ **Derived Content**: Automatic type inference, relationship tracking
+- ✅ **Status Management**: `UpdateContentStatus()`, `GetContentByStatus()`, etc.
+- ✅ **Event System**: Pluggable EventSink for status changes, lifecycle events
+- ✅ **Preview Generation**: Pluggable Previewer interface with BasicImagePreviewer
+
+### HTTP Server (cmd/server-configured)
+- ✅ **Environment Configuration**: Full config loading from env vars
+- ✅ **REST API**: Complete `/api/v1` endpoints for content, objects, derived content
+- ✅ **Error Mapping**: Typed errors → HTTP status codes with structured JSON
+- ✅ **Handler Coverage**: Create, Get, Update, Delete, List, Upload, Download for all entities
+
+### Docker & Development Environment
+- ✅ **Docker Compose**: Postgres + MinIO configured and tested
+- ✅ **Helper Scripts**: `docker-dev.sh`, `run-migrations.sh`, `init-db.sh`
+- ✅ **Database Initialization**: Automatic schema creation in docker-compose
+- ✅ **Development Guide**: Complete DOCKER_SETUP.md documentation
+
+### Testing
+- ✅ **Service Tests**: 33 test functions (vs 22 in legacy)
+- ✅ **Storage Tests**: Complete coverage for memory, fs, s3
+- ✅ **Integration Tests**: Postgres + MinIO via docker-compose
+- ✅ **Status Management Tests**: Comprehensive validation and query tests
+- ✅ **Backward Compatibility Tests**: Ensures API stability
+- ✅ **Test Coverage Audit**: Complete analysis in TEST_COVERAGE_AUDIT.md
+
+### Documentation
+- ✅ **CLAUDE.md**: Complete architectural guide and conventions
+- ✅ **README.md**: Updated with docker-compose, env vars, testing guide
+- ✅ **DOCKER_SETUP.md**: Comprehensive docker development guide
+- ✅ **PROGRAMMATIC_USAGE.md**: Library usage examples
+- ✅ **MIGRATION_FROM_LEGACY.md**: 400+ line comprehensive migration guide
+- ✅ **TEST_COVERAGE_AUDIT.md**: Detailed test coverage analysis
+
+### Legacy Package Deprecation
+- ✅ **Deprecation Notices**: All 14 legacy package files marked deprecated
+- ✅ **Migration Guide**: Complete before/after examples for all patterns
+- ✅ **Timeline Set**: Deprecated 2025-10-01, Removal 2026-01-01 (3 months)
+- ✅ **README Warning**: Prominent deprecation notice at top of README
+
+---
+
+## 📊 Test Results
+
+**Overall Test Coverage:**
+- **Service Layer**: ✅ Excellent (33 tests vs 22 legacy tests)
+- **Repository Layer**: ✅ Good (integration tests + service tests)
+- **Storage Layer**: ✅ Complete (memory, fs, s3 all tested)
+
+**Test Execution:**
 ```bash
-# Storage Backend Tests
-✅ pkg/simplecontent/storage/memory    - 10 tests PASSED
-✅ pkg/simplecontent/repo/memory       - 15+ tests PASSED  
-✅ pkg/simplecontent                   - 25+ tests PASSED
+# Unit tests (all packages)
+go test ./pkg/simplecontent/...
 
-# Example Application 
-✅ examples/basic                      - Full workflow PASSED
+# Integration tests (requires docker-compose)
+./scripts/docker-dev.sh start
+./scripts/run-migrations.sh up
+DATABASE_TYPE=postgres \
+DATABASE_URL='postgresql://content:contentpass@localhost:5433/simple_content?sslmode=disable&search_path=content' \
+go test -tags=integration ./pkg/simplecontent/...
 ```
 
+**Confidence Level:** **Very High**
+- 100% test parity with legacy packages
+- No critical gaps identified
+- All storage backends fully tested
+- Integration tests passing with real Postgres and MinIO
+
 ---
 
-## 🏗️ **Final Architecture**
+## 🏗️ Architecture Overview
 
+### Package Structure
 ```
 pkg/simplecontent/
-├── types.go              # Domain types (Content, Object, etc.)
-├── service.go            # Main Service interface
-├── service_impl.go       # Service implementation with orchestration
-├── interfaces.go         # All interfaces (Repository, BlobStore, etc.)
-├── requests.go           # Request/Response DTOs
-├── errors.go             # Typed errors
-├── noop.go              # NoOp implementations
-├── service_test.go      # Comprehensive test suite
-├── config/
-│   └── config.go        # Configuration management
+├── service.go              # Main Service interface
+├── service_impl.go         # Service implementation
+├── types.go                # Domain types (Content, Object, DerivedContent)
+├── interfaces.go           # All interfaces (Repository, BlobStore, EventSink, etc.)
+├── requests.go             # Request/Response DTOs
+├── errors.go               # Typed sentinel errors
+├── status_validation.go    # Status enum validation
+├── noop.go                 # No-op implementations for optional services
+├── config/                 # Environment-based configuration
 ├── repo/
-│   ├── memory/          # In-memory repository + tests
-│   └── postgres/        # PostgreSQL repository + schema
-└── storage/
-    ├── memory/          # In-memory storage + tests  
-    ├── fs/              # Filesystem storage
-    └── s3/              # S3-compatible storage
+│   ├── memory/             # In-memory repository (testing)
+│   └── postgres/           # PostgreSQL repository
+├── storage/
+│   ├── memory/             # In-memory blob store (testing)
+│   ├── fs/                 # Filesystem blob store
+│   └── s3/                 # S3/MinIO blob store
+├── objectkey/              # Pluggable object key generators
+└── urlstrategy/            # Pluggable URL generation strategies
 ```
+
+### Design Patterns
+- **Interface Separation**: Service (main API) vs StorageService (advanced)
+- **Functional Options**: Clean configuration without massive constructors
+- **Dependency Injection**: All dependencies injected via options
+- **Repository Pattern**: Data access abstracted behind Repository interface
+- **Strategy Pattern**: Pluggable URL generation and object key generation
+- **Observer Pattern**: EventSink for lifecycle events
+- **Soft Delete**: deleted_at timestamp as single source of truth
 
 ---
 
-## 🚀 **Usage Examples**
+## 🚀 Quick Start
 
-### **As a Library**
+### Installation
+```bash
+go get github.com/tendant/simple-content/pkg/simplecontent
+```
+
+### Basic Usage
 ```go
-repo := memory.New()
-store := memorystorage.New()
+import (
+    "github.com/tendant/simple-content/pkg/simplecontent"
+    memoryrepo "github.com/tendant/simple-content/pkg/simplecontent/repo/memory"
+    memorystorage "github.com/tendant/simple-content/pkg/simplecontent/storage/memory"
+)
 
-svc, _ := simplecontent.New(
+// Setup
+repo := memoryrepo.New()
+storage := memorystorage.New()
+
+svc, err := simplecontent.New(
     simplecontent.WithRepository(repo),
-    simplecontent.WithBlobStore("memory", store),
+    simplecontent.WithBlobStore("memory", storage),
 )
 
-// Create, upload, download content
-content, _ := svc.CreateContent(ctx, simplecontent.CreateContentRequest{...})
-object, _ := svc.CreateObject(ctx, simplecontent.CreateObjectRequest{...})
-svc.UploadObject(ctx, object.ID, dataReader)
+// Upload content in one call
+content, err := svc.UploadContent(ctx, simplecontent.UploadContentRequest{
+    OwnerID:      ownerID,
+    TenantID:     tenantID,
+    Name:         "Document",
+    DocumentType: "text/plain",
+    Reader:       dataReader,
+    FileName:     "doc.txt",
+})
 ```
 
-### **As a Configured Server**
-```go
-config, _ := config.LoadServerConfig() // From environment
-svc, _ := config.BuildService()        // Auto-configured
-server := NewHTTPServer(svc, config)  // HTTP wrapper
-http.ListenAndServe(":8080", server.Routes())
-```
+### Development Environment
+```bash
+# Start Postgres + MinIO
+./scripts/docker-dev.sh start
 
-### **With Multiple Storage Backends**
-```go
-svc, _ := simplecontent.New(
-    simplecontent.WithRepository(postgresRepo),
-    simplecontent.WithBlobStore("s3-primary", s3Store),
-    simplecontent.WithBlobStore("s3-backup", s3BackupStore),  
-    simplecontent.WithBlobStore("local", fsStore),
-    simplecontent.WithEventSink(eventSink),
-    simplecontent.WithPreviewer(previewer),
-)
+# Run migrations
+./scripts/run-migrations.sh up
+
+# Run application
+ENVIRONMENT=development \
+DATABASE_TYPE=postgres \
+DATABASE_URL='postgresql://content:contentpass@localhost:5433/simple_content?sslmode=disable&search_path=content' \
+STORAGE_BACKEND=memory \
+go run ./cmd/server-configured
 ```
 
 ---
 
-## 🎯 **Key Benefits Achieved**
+## 📋 Remaining Work
 
-### **1. Clean Architecture**
-- ✅ Clear separation between domain, interfaces, and implementations
-- ✅ Dependency injection through functional options
-- ✅ No circular dependencies or tight coupling
+See [REFACTORING_NEXT_STEPS.md](./REFACTORING_NEXT_STEPS.md) for detailed remaining tasks:
 
-### **2. Pluggable Design**  
-- ✅ Easy to swap repositories: `memory` ↔ `postgres`
-- ✅ Easy to swap storage: `memory` ↔ `filesystem` ↔ `s3`
-- ✅ Extensible event and preview systems
+1. **Docs and CI** (3-4 hours):
+   - [ ] Add GitHub Actions CI workflow
+   - [ ] Add test coverage reporting
+   - [ ] Add backend comparison tables to README
 
-### **3. Production Ready**
-- ✅ Proper error handling with typed errors
-- ✅ Comprehensive logging and event system
-- ✅ Configuration management for different environments
-- ✅ Database schema with proper indexing
-
-### **4. Developer Experience**
-- ✅ **Library-First**: Embed in any Go application
-- ✅ **Testable**: In-memory implementations for unit tests
-- ✅ **Type-Safe**: Full type safety with comprehensive DTOs
-- ✅ **Well-Tested**: 100+ test cases with benchmarks
-
-### **5. Scalable & Extensible**
-- ✅ **Multi-Tenant**: Built-in tenant isolation
-- ✅ **Versioning**: Support for content versions
-- ✅ **Event-Driven**: Lifecycle events for integration
-- ✅ **Preview System**: Extensible content preview generation
+2. **Legacy Package Removal** (After 2026-01-01):
+   - [ ] Remove `pkg/service` after migration window
+   - [ ] Remove `pkg/repository` after migration window
+   - [ ] Remove `pkg/storage` after migration window
 
 ---
 
-## 📈 **Performance**
+## 🎯 Definition of Done (Status)
 
-Based on benchmark tests:
-- **Content Creation**: ~50,000 ops/sec
-- **Upload/Download**: ~10,000 ops/sec for 9KB objects
-- **Memory Usage**: Minimal overhead, efficient in-memory caching
-- **Concurrency**: Full thread-safety with optimized locking
-
----
-
-## 🔮 **Future Extensibility**
-
-The refactored architecture provides excellent foundation for:
-
-- **Additional Storage Backends**: Azure Blob, Google Cloud Storage
-- **Database Backends**: MongoDB, CockroachDB, etc.
-- **Event Systems**: Kafka, RabbitMQ integration
-- **Preview Engines**: PDF, video, document preview generation
-- **Caching Layers**: Redis integration
-- **Monitoring**: Metrics and tracing integration
+- ✅ Configured server provides full REST surface using only `pkg/simplecontent`
+- ✅ Postgres backend wired via config; migrations available and documented
+- ✅ Unit tests cover memory/fs/s3 paths
+- ✅ Integration tests pass locally via docker-compose
+- ✅ README and refactoring docs updated
+- ⏳ **CI enforces quality gates** (next task)
+- ✅ Legacy packages deprecated with migration guide
 
 ---
 
-## 📋 **Migration Path**
+## 📚 Key Documentation
 
-Existing code can migrate incrementally:
-
-1. **Phase 1**: Replace direct repository calls with service calls
-2. **Phase 2**: Move to functional options configuration  
-3. **Phase 3**: Adopt new storage backend structure
-4. **Phase 4**: Use configuration management for deployments
+| Document | Purpose |
+|----------|---------|
+| [CLAUDE.md](./CLAUDE.md) | Architectural guide, conventions, API patterns |
+| [README.md](./README.md) | Project overview, quick start, features |
+| [DOCKER_SETUP.md](./DOCKER_SETUP.md) | Docker development environment guide |
+| [MIGRATION_FROM_LEGACY.md](./MIGRATION_FROM_LEGACY.md) | Complete migration guide with examples |
+| [TEST_COVERAGE_AUDIT.md](./TEST_COVERAGE_AUDIT.md) | Test coverage analysis and status |
+| [REFACTORING_NEXT_STEPS.md](./REFACTORING_NEXT_STEPS.md) | Remaining work tracker |
+| [PROGRAMMATIC_USAGE.md](./PROGRAMMATIC_USAGE.md) | Library usage patterns |
 
 ---
 
-## ✨ **Summary**
+## 📅 Timeline
 
-The refactoring has **successfully transformed** the `simple-content` project:
+| Date | Milestone |
+|------|-----------|
+| 2025-09-01 | Refactoring started |
+| 2025-09-06 | Core library structure complete |
+| 2025-09-29 | Docker compose integration complete |
+| 2025-10-01 | **Legacy packages deprecated**, S3 tests ported, test parity achieved |
+| 2025-11-01 | CI/CD pipeline (planned) |
+| 2026-01-01 | Legacy packages removed (scheduled) |
 
-**Before**: Monolithic server application with tight coupling
-**After**: Reusable Go library with clean architecture
+---
 
-The new structure provides:
-- 🔧 **Pluggable** storage and repository backends
-- 🧪 **Testable** with comprehensive test coverage  
-- 📚 **Reusable** as a library in any Go application
-- ⚡ **Type-Safe** with comprehensive error handling
-- 🚀 **Production-Ready** with proper configuration management
+## 🙏 Migration Support
 
-**The refactoring is complete and ready for production use!** 🎉
+Developers migrating from legacy packages can:
+1. Read [MIGRATION_FROM_LEGACY.md](./MIGRATION_FROM_LEGACY.md) for complete guide
+2. Check [TEST_COVERAGE_AUDIT.md](./TEST_COVERAGE_AUDIT.md) for test equivalents
+3. Reference [CLAUDE.md](./CLAUDE.md) for architectural patterns
+4. Run examples in `examples/` directory
+5. Use docker-compose for local testing
+
+**Deprecation Timeline:** 3 months (2025-10-01 to 2026-01-01)
+**Confidence Level:** Very High - 100% feature parity achieved

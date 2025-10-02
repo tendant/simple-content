@@ -1,0 +1,227 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        go-version: ['1.21', '1.22', '1.23']
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: ${{ matrix.go-version }}
+
+    - name: Cache Go modules
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cache/go-build
+          ~/go/pkg/mod
+        key: ${{ runner.os }}-go-${{ matrix.go-version }}-${{ hashFiles('**/go.sum') }}
+        restore-keys: |
+          ${{ runner.os }}-go-${{ matrix.go-version }}-
+
+    - name: Download dependencies
+      run: go mod download
+
+    - name: Verify dependencies
+      run: go mod verify
+
+    - name: Run go vet
+      run: go vet ./...
+
+    - name: Run go fmt check
+      run: |
+        if [ "$(gofmt -s -l . | wc -l)" -gt 0 ]; then
+          echo "The following files are not formatted:"
+          gofmt -s -l .
+          exit 1
+        fi
+
+    - name: Run unit tests
+      run: go test -v -race -coverprofile=coverage.txt -covermode=atomic ./pkg/simplecontent/...
+
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v4
+      with:
+        file: ./coverage.txt
+        flags: unittests
+        name: codecov-umbrella
+      env:
+        CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.23'
+
+    - name: Run golangci-lint
+      uses: golangci/golangci-lint-action@v6
+      with:
+        version: latest
+        args: --timeout=5m
+
+  mod-tidy:
+    name: Check go mod tidy
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.23'
+
+    - name: Run go mod tidy
+      run: go mod tidy
+
+    - name: Check for changes
+      run: |
+        if [ -n "$(git status --porcelain go.mod go.sum)" ]; then
+          echo "go.mod or go.sum is not tidy. Please run 'go mod tidy' and commit the changes."
+          git diff go.mod go.sum
+          exit 1
+        fi
+
+  integration:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_DB: simple_content
+          POSTGRES_USER: content
+          POSTGRES_PASSWORD: contentpass
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+      minio:
+        image: minio/minio
+        env:
+          MINIO_ROOT_USER: minioadmin
+          MINIO_ROOT_PASSWORD: minioadmin
+        options: >-
+          --health-cmd "curl -f http://localhost:9000/minio/health/live"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 9000:9000
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.23'
+
+    - name: Cache Go modules
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cache/go-build
+          ~/go/pkg/mod
+        key: ${{ runner.os }}-go-1.23-${{ hashFiles('**/go.sum') }}
+        restore-keys: |
+          ${{ runner.os }}-go-1.23-
+
+    - name: Install goose
+      run: go install github.com/pressly/goose/v3/cmd/goose@latest
+
+    - name: Wait for Postgres
+      run: |
+        timeout 30 bash -c 'until pg_isready -h localhost -p 5432 -U content; do sleep 1; done'
+
+    - name: Create schema and run migrations
+      env:
+        PGPASSWORD: contentpass
+      run: |
+        psql -h localhost -p 5432 -U content -d simple_content -c "CREATE SCHEMA IF NOT EXISTS content;"
+        goose -dir ./migrations/postgres postgres "postgresql://content:contentpass@localhost:5432/simple_content?sslmode=disable&search_path=content" up
+
+    - name: Wait for MinIO
+      run: |
+        timeout 30 bash -c 'until curl -f http://localhost:9000/minio/health/live; do sleep 1; done'
+
+    - name: Create MinIO bucket
+      run: |
+        docker run --network host --rm \
+          -e AWS_ACCESS_KEY_ID=minioadmin \
+          -e AWS_SECRET_ACCESS_KEY=minioadmin \
+          amazon/aws-cli --endpoint-url http://localhost:9000 \
+          s3 mb s3://content-bucket || true
+
+    - name: Run integration tests
+      env:
+        DATABASE_TYPE: postgres
+        DATABASE_URL: postgresql://content:contentpass@localhost:5432/simple_content?sslmode=disable&search_path=content
+        AWS_S3_ENDPOINT: http://localhost:9000
+        AWS_ACCESS_KEY_ID: minioadmin
+        AWS_SECRET_ACCESS_KEY: minioadmin
+        AWS_S3_BUCKET: content-bucket
+        AWS_S3_REGION: us-east-1
+        AWS_S3_USE_SSL: "false"
+      run: go test -v -tags=integration -coverprofile=coverage-integration.txt -covermode=atomic ./pkg/simplecontent/...
+
+    - name: Upload integration coverage to Codecov
+      uses: codecov/codecov-action@v4
+      with:
+        file: ./coverage-integration.txt
+        flags: integrationtests
+        name: codecov-integration
+      env:
+        CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.23'
+
+    - name: Build server
+      run: go build -v ./cmd/server-configured
+
+    - name: Build examples
+      run: |
+        for dir in examples/*/; do
+          echo "Building $dir"
+          (cd "$dir" && go build -v .) || exit 1
+        done

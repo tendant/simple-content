@@ -1,5 +1,10 @@
 # Simple Content Management System
 
+[![CI](https://github.com/tendant/simple-content/workflows/CI/badge.svg)](https://github.com/tendant/simple-content/actions)
+[![codecov](https://codecov.io/gh/tendant/simple-content/branch/main/graph/badge.svg)](https://codecov.io/gh/tendant/simple-content)
+[![Go Report Card](https://goreportcard.com/badge/github.com/tendant/simple-content)](https://goreportcard.com/report/github.com/tendant/simple-content)
+[![Go Reference](https://pkg.go.dev/badge/github.com/tendant/simple-content.svg)](https://pkg.go.dev/github.com/tendant/simple-content)
+
 A flexible content management system with simplified APIs that focus on content operations while abstracting storage implementation details.
 
 > **⚠️ DEPRECATION NOTICE**
@@ -377,16 +382,51 @@ Access:
 - **Variant**: Specific variant (`thumbnail_256`, `preview_720p`, `mp4_1080p`)
 
 ### Storage Backends
-- **Memory**: In-memory storage for testing
-- **Filesystem**: Local file system storage
-- **S3**: Amazon S3 or S3-compatible storage (MinIO)
+
+The system supports multiple pluggable storage backends:
+
+| Backend | Use Case | Presigned URLs | Streaming | Performance | Best For |
+|---------|----------|----------------|-----------|-------------|----------|
+| **Memory** | Testing, development | ❌ | ✅ | Fastest | Unit tests, local dev |
+| **Filesystem** | Simple deployments | ✅ | ✅ | Fast | Single server, development |
+| **S3/MinIO** | Production | ✅ | ✅ | Scalable | Production, multi-server, CDN |
+
+**Configuration:**
+- **Memory**: No configuration needed, data lost on restart
+- **Filesystem**: Set `FS_BASE_PATH` (default: `./data`)
+- **S3/MinIO**: Set `AWS_S3_ENDPOINT`, credentials, bucket, region
+
+### Repository Backends
+
+The system supports multiple database backends for metadata storage:
+
+| Backend | Use Case | Transactions | Concurrency | Schema | Best For |
+|---------|----------|--------------|-------------|--------|----------|
+| **Memory** | Testing | ✅ | Thread-safe (mutex) | N/A | Unit tests, demos |
+| **PostgreSQL** | Production | ✅ | Full ACID | Dedicated `content` schema | Production, multi-user |
+
+**PostgreSQL Features:**
+- Dedicated schema support (default: `content`, configurable)
+- Soft delete with `deleted_at` timestamp
+- Optimized indexes for status queries
+- Goose-compatible migrations
+- Search path configuration
+
+**Configuration:**
+- **Memory**: No configuration needed
+- **PostgreSQL**: Set `DATABASE_URL` or individual `CONTENT_PG_*` vars
 
 ### URL Strategies
-- **Content-Based**: Application-routed URLs for maximum control (default)
-- **CDN**: Direct CDN URLs with hybrid upload support for maximum performance
-- **Storage-Delegated**: Backward compatibility with storage backend URL generation
 
-#### Quick Configuration
+The system supports multiple URL generation strategies:
+
+| Strategy | Download | Upload | Best For |
+|----------|----------|--------|----------|
+| **Content-Based** | Via app `/api/v1/contents/{id}/download` | Via app | Development, debugging, security |
+| **CDN (Hybrid)** | Direct CDN URLs | Via app | Production, performance |
+| **Storage-Delegated** | Via storage backend | Via storage backend | Legacy compatibility |
+
+**Quick Configuration:**
 
 **Development (Default):**
 ```bash

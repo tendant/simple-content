@@ -1,30 +1,41 @@
-# Simple Content Refactor — Next Steps Plan
+# Simple Content Refactor — Remaining Work
 
-Last updated: 2025-09-08
+**Last updated:** 2025-10-01
 
-## Scope
+## Current Status Summary
 
-Track completion of the refactor centered on `pkg/simplecontent`, finishing the configured HTTP server, wiring Postgres, consolidating tests, and deprecating legacy packages. Complements REFACTORING_STATUS.md.
+**🎉 Core Refactoring: COMPLETE**
 
-## Current Status (summary)
+The simple-content project has been successfully refactored into a clean, reusable Go library with comprehensive test coverage and docker-based development environment.
 
-- Core library in `pkg/simplecontent` implemented (Service, interfaces, DTOs, typed errors).
-- Repositories: memory implemented and used in tests; Postgres repository implemented with `schema.sql` but not yet wired by config.
-- Storage backends: memory, fs, and s3 implemented under `pkg/simplecontent/storage`.
-- Event/Preview: Noop and simple logging/image previewers available.
-- Example servers:
-  - `cmd/server-simple`: demo-only endpoint working pattern.
-  - `cmd/server-configured`: wiring via env-driven `config`, but REST handlers are placeholders.
-- Docs inconsistency: `REFACTORING_COMPLETE.md` claims completion; `REFACTORING_STATUS.md` shows pending work.
+### ✅ Completed (as of 2025-10-01)
+- ✅ Core library `pkg/simplecontent` with unified Service interface
+- ✅ All storage backends implemented and tested (memory, fs, s3)
+- ✅ Repository implementations (memory, postgres) with migrations
+- ✅ Docker compose environment (Postgres + MinIO) with helper scripts
+- ✅ Complete test coverage (33 service tests, all storage backends, integration tests)
+- ✅ Legacy packages deprecated with 3-month migration window
+- ✅ Comprehensive documentation (CLAUDE.md, migration guide, docker setup, test audit)
+- ✅ Status management operations (update status, query by status)
+- ✅ Soft delete support throughout
+- ✅ URL strategy system and object key generators
 
-## Gaps / Issues
+### ⏳ Remaining Work
+- [ ] CI/CD pipeline (GitHub Actions)
+- [ ] Test coverage reporting
+- [ ] Backend comparison tables in README
+- [ ] Legacy package removal (after 2026-01-01)
 
-- DTO cleanup: Unified on `DerivationType` (user-facing) and `Variant` (specific). Removed `Category` field.
-- `pkg/simplecontent/config` does not wire Postgres (returns error); migrations are not integrated.
-- `cmd/server-configured` handlers are stubbed (`Not implemented yet`).
-- Legacy packages (`pkg/service`, `pkg/repository`, `pkg/storage`) still present alongside new code.
-- Tests: good coverage for memory; fs/s3 and server paths need tests; integration path not set up.
-- Docs: status files conflict; README lacks clear server configuration examples and env matrix.
+See detailed task lists below for implementation plans.
+
+## Resolved Issues (2025-10-01)
+
+- ✅ DTO cleanup: Unified on `DerivationType` and `Variant`
+- ✅ Postgres wiring: Complete via config with schema support
+- ✅ Server handlers: All REST endpoints implemented
+- ✅ Legacy packages: Deprecated with migration guide
+- ✅ Tests: Complete coverage (memory, fs, s3, integration)
+- ✅ Docs: Status files reconciled, comprehensive documentation
 
 ## Plan (checklist)
 
@@ -72,10 +83,13 @@ Track completion of the refactor centered on `pkg/simplecontent`, finishing the 
 
 6) Docs and CI
 
-- [ ] Reconcile `REFACTORING_STATUS.md` and `REFACTORING_COMPLETE.md` (single source of truth)
-- [ ] Update README: library usage, configured server setup, environment variables, backend matrix
-- [ ] Add CI: `go vet`, lint, unit tests, (optional) integration matrix; enforce `go mod tidy`
+- [x] Reconcile `REFACTORING_STATUS.md` and `REFACTORING_COMPLETE.md` (single source of truth)
+- [x] Update README: library usage, configured server setup, environment variables, backend matrix
+- [x] Add CI: `go vet`, lint, unit tests, (optional) integration matrix; enforce `go mod tidy`
 - [x] Add `claude.md` with conventions, API outline, and migration docs
+- [x] GitHub Actions workflow with unit tests, integration tests, linting
+- [x] Backend comparison tables in README
+- [x] CI status badges in README
 
 7) Derivation/Variant model
 
@@ -128,3 +142,16 @@ Track completion of the refactor centered on `pkg/simplecontent`, finishing the 
 - Completed test coverage audit (TEST_COVERAGE_AUDIT.md)
 - **Result**: 100% test parity achieved across all storage backends
 - Confidence level: Very High - no critical gaps remain
+
+**Documentation & CI Complete (2025-10-01)**
+- Reconciled refactoring status documents (archived outdated files)
+- Rewrote REFACTORING_COMPLETE.md with current state
+- Created comprehensive GitHub Actions CI workflow:
+  - Multi-version Go matrix (1.21, 1.22, 1.23)
+  - Unit tests with coverage reporting
+  - Integration tests with Postgres + MinIO services
+  - Linting (golangci-lint)
+  - go mod tidy check
+- Added backend comparison tables to README (storage + repository)
+- Added CI status badges to README
+- **Result**: Automated quality gates in place, comprehensive documentation
