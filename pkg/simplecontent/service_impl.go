@@ -161,10 +161,20 @@ func (s *service) CreateContent(ctx context.Context, req CreateContentRequest) (
 }
 
 func (s *service) CreateDerivedContent(ctx context.Context, req CreateDerivedContentRequest) (*Content, error) {
-    // Verify parent content exists
-    _, err := s.repository.GetContent(ctx, req.ParentID)
+    // Verify parent content exists and validate status
+    parentContent, err := s.repository.GetContent(ctx, req.ParentID)
     if err != nil {
         return nil, fmt.Errorf("parent content not found: %w", err)
+    }
+
+    // Validate parent content status for creating derived content
+    parentStatus := ContentStatus(parentContent.Status)
+    if ok, statusErr := canCreateDerived(parentStatus); !ok {
+        return nil, &ContentError{
+            ContentID: req.ParentID,
+            Op:        "create_derived",
+            Err:       statusErr,
+        }
     }
 
     // Infer derivation_type from variant if missing
@@ -260,6 +270,26 @@ func (s *service) UpdateContent(ctx context.Context, req UpdateContentRequest) e
 }
 
 func (s *service) DeleteContent(ctx context.Context, id uuid.UUID) error {
+	// Get content to validate status
+	content, err := s.repository.GetContent(ctx, id)
+	if err != nil {
+		return &ContentError{
+			ContentID: id,
+			Op:        "delete_get_content",
+			Err:       err,
+		}
+	}
+
+	// Validate content status for deletion
+	contentStatus := ContentStatus(content.Status)
+	if ok, statusErr := canDeleteContent(contentStatus, false); !ok {
+		return &ContentError{
+			ContentID: id,
+			Op:        "delete",
+			Err:       statusErr,
+		}
+	}
+
 	if err := s.repository.DeleteContent(ctx, id); err != nil {
 		return &ContentError{
 			ContentID: id,
@@ -410,10 +440,20 @@ func (s *service) UploadContent(ctx context.Context, req UploadContentRequest) (
 }
 
 func (s *service) UploadDerivedContent(ctx context.Context, req UploadDerivedContentRequest) (*Content, error) {
-	// Step 1: Verify parent content exists
-	_, err := s.repository.GetContent(ctx, req.ParentID)
+	// Step 1: Verify parent content exists and validate status
+	parentContent, err := s.repository.GetContent(ctx, req.ParentID)
 	if err != nil {
 		return nil, fmt.Errorf("parent content not found: %w", err)
+	}
+
+	// Validate parent content status for creating derived content
+	parentStatus := ContentStatus(parentContent.Status)
+	if ok, statusErr := canCreateDerived(parentStatus); !ok {
+		return nil, &ContentError{
+			ContentID: req.ParentID,
+			Op:        "upload_derived",
+			Err:       statusErr,
+		}
 	}
 
 	// Step 2: Infer derivation_type from variant if missing
@@ -556,6 +596,26 @@ func (s *service) UploadDerivedContent(ctx context.Context, req UploadDerivedCon
 }
 
 func (s *service) DownloadContent(ctx context.Context, contentID uuid.UUID) (io.ReadCloser, error) {
+	// Get content to validate status
+	content, err := s.repository.GetContent(ctx, contentID)
+	if err != nil {
+		return nil, &ContentError{
+			ContentID: contentID,
+			Op:        "download_get_content",
+			Err:       err,
+		}
+	}
+
+	// Validate content status for download
+	contentStatus := ContentStatus(content.Status)
+	if ok, statusErr := canDownloadContent(contentStatus); !ok {
+		return nil, &ContentError{
+			ContentID: contentID,
+			Op:        "download",
+			Err:       statusErr,
+		}
+	}
+
 	// Get objects for this content
 	objects, err := s.repository.GetObjectsByContentID(ctx, contentID)
 	if err != nil {
@@ -841,6 +901,16 @@ func (s *service) DownloadObject(ctx context.Context, id uuid.UUID) (io.ReadClos
 	object, err := s.repository.GetObject(ctx, id)
 	if err != nil {
 		return nil, &ObjectError{ObjectID: id, Op: "download", Err: err}
+	}
+
+	// Validate object status for download
+	objectStatus := ObjectStatus(object.Status)
+	if ok, statusErr := canDownloadObject(objectStatus); !ok {
+		return nil, &ObjectError{
+			ObjectID: id,
+			Op:       "download",
+			Err:      statusErr,
+		}
 	}
 
 	// Get the backend implementation

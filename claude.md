@@ -71,6 +71,66 @@ This document gives AI coding assistants (Claude, ChatGPT, etc.) the context and
 
 **DerivedContent.status** uses Object status semantics (see "Content Ready Status" section below)
 
+### Status-Based Authorization
+
+The system enforces status-based authorization rules to ensure operations are only performed when content is in an appropriate state. These validations are implemented in `status_validation.go` and automatically applied by service methods.
+
+**Download Operations** (Content & Object):
+- ✅ **Allowed**: `uploaded`, `processed`, `archived` (content) / `uploaded`, `processed` (object)
+- ❌ **Denied**: `created`, `uploading`, `processing`, `failed`
+- Error: `ErrContentNotReady` / `ErrObjectNotReady`
+
+**Upload Operations** (Content & Object):
+- ✅ **Allowed**: `created`, `failed` (allow retry after failure)
+- ❌ **Denied**: `uploading`, `uploaded`, `processing`, `processed`, `archived`
+- Error: `ErrInvalidUploadState`
+
+**Create Derived Content** (Parent Status):
+- ✅ **Allowed**: `uploaded`, `processed` (parent must have data before creating derivatives)
+- ❌ **Denied**: `created`, `uploading`, `processing`, `failed`, `archived`
+- Error: `ErrParentNotReady`
+
+**Delete Operations**:
+- ✅ **Allowed**: All statuses except `processing`
+- ❌ **Denied**: `processing` (prevents data loss during active processing)
+- Error: `ErrContentBeingProcessed`
+- Note: The validation function supports a `force` parameter for emergency deletions, but the current `DeleteContent()` interface does not expose this
+
+**Implementation Example:**
+```go
+// Download validation (service_impl.go)
+func (s *service) DownloadContent(ctx context.Context, contentID uuid.UUID) (io.ReadCloser, error) {
+    content, err := s.repository.GetContent(ctx, contentID)
+    if err != nil {
+        return nil, &ContentError{ContentID: contentID, Op: "download_get_content", Err: err}
+    }
+
+    // Validate content status for download
+    contentStatus := ContentStatus(content.Status)
+    if ok, statusErr := canDownloadContent(contentStatus); !ok {
+        return nil, &ContentError{ContentID: contentID, Op: "download", Err: statusErr}
+    }
+
+    // ... proceed with download
+}
+```
+
+**Error Handling:**
+All status validation errors wrap the appropriate sentinel error (`ErrContentNotReady`, `ErrObjectNotReady`, `ErrInvalidUploadState`, `ErrParentNotReady`, `ErrContentBeingProcessed`) and can be checked using `errors.Is()`:
+
+```go
+_, err := svc.DownloadContent(ctx, contentID)
+if errors.Is(err, simplecontent.ErrContentNotReady) {
+    // Handle not-ready case
+}
+```
+
+**Benefits:**
+- Prevents invalid operations (e.g., downloading content that hasn't been uploaded)
+- Clear error messages with specific status information
+- Consistent behavior across all service methods
+- Supports retry workflows (upload retry after failure)
+
 ### Soft Delete Pattern
 
 **Primary Mechanism:** `deleted_at` timestamp

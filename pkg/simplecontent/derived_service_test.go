@@ -19,6 +19,12 @@ func TestCreateDerived_InferDerivationTypeFromVariant(t *testing.T) {
     })
     if err != nil { t.Fatalf("create parent: %v", err) }
 
+    // Update parent status to "uploaded" so derived content can be created
+    parent.Status = string(simplecontent.ContentStatusUploaded)
+    if err := svc.UpdateContent(ctx, simplecontent.UpdateContentRequest{Content: parent}); err != nil {
+        t.Fatalf("update parent status: %v", err)
+    }
+
     derived, err := svc.CreateDerivedContent(ctx, simplecontent.CreateDerivedContentRequest{
         ParentID: parent.ID,
         OwnerID: parent.OwnerID,
@@ -39,6 +45,12 @@ func TestListDerivedAndGetRelationship(t *testing.T) {
         OwnerID: uuid.New(), TenantID: uuid.New(), Name: "parent",
     })
     if err != nil { t.Fatalf("create parent: %v", err) }
+
+    // Update parent status to "uploaded" so derived content can be created
+    parent.Status = string(simplecontent.ContentStatusUploaded)
+    if err := svc.UpdateContent(ctx, simplecontent.UpdateContentRequest{Content: parent}); err != nil {
+        t.Fatalf("update parent status: %v", err)
+    }
 
     // create two variants
     for _, v := range []string{"thumbnail_128","thumbnail_256"} {
@@ -73,6 +85,12 @@ func TestBackwardCompatibility_ListDerivedContentParams(t *testing.T) {
         OwnerID: uuid.New(), TenantID: uuid.New(), Name: "parent",
     })
     if err != nil { t.Fatalf("create parent: %v", err) }
+
+    // Update parent status to "uploaded" so derived content can be created
+    parent.Status = string(simplecontent.ContentStatusUploaded)
+    if err := svc.UpdateContent(ctx, simplecontent.UpdateContentRequest{Content: parent}); err != nil {
+        t.Fatalf("update parent status: %v", err)
+    }
 
     // Create derived content using existing API patterns
     variants := []string{"thumbnail_128", "thumbnail_256", "preview_720"}
@@ -148,6 +166,12 @@ func TestBackwardCompatibility_DerivedContentStruct(t *testing.T) {
     })
     if err != nil { t.Fatalf("create parent: %v", err) }
 
+    // Update parent status to "uploaded" so derived content can be created
+    parent.Status = string(simplecontent.ContentStatusUploaded)
+    if err := svc.UpdateContent(ctx, simplecontent.UpdateContentRequest{Content: parent}); err != nil {
+        t.Fatalf("update parent status: %v", err)
+    }
+
     derivedContent, err := svc.CreateDerivedContent(ctx, simplecontent.CreateDerivedContentRequest{
         ParentID: parent.ID,
         OwnerID: parent.OwnerID,
@@ -209,6 +233,12 @@ func TestBackwardCompatibility_ServiceInterface(t *testing.T) {
     })
     if err != nil { t.Fatalf("create parent: %v", err) }
 
+    // Update parent status to "uploaded" so derived content can be created
+    parent.Status = string(simplecontent.ContentStatusUploaded)
+    if err := svc.UpdateContent(ctx, simplecontent.UpdateContentRequest{Content: parent}); err != nil {
+        t.Fatalf("update parent status: %v", err)
+    }
+
     derived, err := svc.CreateDerivedContent(ctx, simplecontent.CreateDerivedContentRequest{
         ParentID: parent.ID,
         OwnerID: parent.OwnerID,
@@ -249,6 +279,12 @@ func TestBackwardCompatibility_CreateDerivedContentRequest(t *testing.T) {
         OwnerID: uuid.New(), TenantID: uuid.New(), Name: "parent",
     })
     if err != nil { t.Fatalf("create parent: %v", err) }
+
+    // Update parent status to "uploaded" so derived content can be created
+    parent.Status = string(simplecontent.ContentStatusUploaded)
+    if err := svc.UpdateContent(ctx, simplecontent.UpdateContentRequest{Content: parent}); err != nil {
+        t.Fatalf("update parent status: %v", err)
+    }
 
     // Test 1: Existing creation patterns should work unchanged
     t.Run("Existing_Creation_Patterns", func(t *testing.T) {
@@ -300,6 +336,12 @@ func TestBackwardCompatibility_DataConsistency(t *testing.T) {
         OwnerID: uuid.New(), TenantID: uuid.New(), Name: "parent",
     })
     if err != nil { t.Fatalf("create parent: %v", err) }
+
+    // Update parent status to "uploaded" so derived content can be created
+    parent.Status = string(simplecontent.ContentStatusUploaded)
+    if err := svc.UpdateContent(ctx, simplecontent.UpdateContentRequest{Content: parent}); err != nil {
+        t.Fatalf("update parent status: %v", err)
+    }
 
     // Simulate "legacy" data created before enhancement (no explicit Variant field)
     // This would represent data created by older versions of the system
@@ -361,6 +403,12 @@ func TestListDerivedContent_BasicFiltering(t *testing.T) {
     })
     if err != nil { t.Fatalf("create parent: %v", err) }
 
+    // Update parent status to "uploaded" so derived content can be created
+    parent.Status = string(simplecontent.ContentStatusUploaded)
+    if err := svc.UpdateContent(ctx, simplecontent.UpdateContentRequest{Content: parent}); err != nil {
+        t.Fatalf("update parent status: %v", err)
+    }
+
     // Create some derived content
     variants := []string{"thumbnail_128", "thumbnail_256", "preview_720"}
     for _, variant := range variants {
@@ -399,6 +447,12 @@ func TestListDerivedContent_MultipleVariants(t *testing.T) {
         OwnerID: uuid.New(), TenantID: uuid.New(), Name: "parent",
     })
     if err != nil { t.Fatalf("create parent: %v", err) }
+
+    // Update parent status to "uploaded" so derived content can be created
+    parent.Status = string(simplecontent.ContentStatusUploaded)
+    if err := svc.UpdateContent(ctx, simplecontent.UpdateContentRequest{Content: parent}); err != nil {
+        t.Fatalf("update parent status: %v", err)
+    }
 
     // Create various derived content
     variants := []string{"thumbnail_128", "thumbnail_256", "preview_720", "preview_1080"}
@@ -439,6 +493,12 @@ func TestListDerivedContent_WithURLsAndMetadata(t *testing.T) {
     })
     if err != nil { t.Fatalf("create parent: %v", err) }
 
+    // Update parent status to "uploaded" so derived content can be created
+    parent.Status = string(simplecontent.ContentStatusUploaded)
+    if err := svc.UpdateContent(ctx, simplecontent.UpdateContentRequest{Content: parent}); err != nil {
+        t.Fatalf("update parent status: %v", err)
+    }
+
     _, err = svc.CreateDerivedContent(ctx, simplecontent.CreateDerivedContentRequest{
         ParentID: parent.ID,
         OwnerID: parent.OwnerID,
@@ -467,6 +527,12 @@ func TestListDerivedContent_Pagination(t *testing.T) {
         OwnerID: uuid.New(), TenantID: uuid.New(), Name: "parent",
     })
     if err != nil { t.Fatalf("create parent: %v", err) }
+
+    // Update parent status to "uploaded" so derived content can be created
+    parent.Status = string(simplecontent.ContentStatusUploaded)
+    if err := svc.UpdateContent(ctx, simplecontent.UpdateContentRequest{Content: parent}); err != nil {
+        t.Fatalf("update parent status: %v", err)
+    }
 
     // Create multiple derived content
     for i := 0; i < 5; i++ {
@@ -517,6 +583,12 @@ func TestOptionPatternVsLegacyConvenienceFunctions(t *testing.T) {
         OwnerID: uuid.New(), TenantID: uuid.New(), Name: "parent",
     })
     if err != nil { t.Fatalf("create parent: %v", err) }
+
+    // Update parent status to "uploaded" so derived content can be created
+    parent.Status = string(simplecontent.ContentStatusUploaded)
+    if err := svc.UpdateContent(ctx, simplecontent.UpdateContentRequest{Content: parent}); err != nil {
+        t.Fatalf("update parent status: %v", err)
+    }
 
     // Create thumbnails
     sizes := []string{"128", "256", "512"}

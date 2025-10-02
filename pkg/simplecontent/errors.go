@@ -29,6 +29,21 @@ var (
 	
 	// ErrDownloadFailed indicates a download operation failed
 	ErrDownloadFailed = errors.New("download failed")
+
+	// ErrContentNotReady indicates content is not in a state ready for download
+	ErrContentNotReady = errors.New("content not ready for download")
+
+	// ErrObjectNotReady indicates object is not in a state ready for download
+	ErrObjectNotReady = errors.New("object not ready for download")
+
+	// ErrInvalidUploadState indicates content/object cannot be uploaded in its current state
+	ErrInvalidUploadState = errors.New("invalid state for upload operation")
+
+	// ErrParentNotReady indicates parent content is not ready for creating derived content
+	ErrParentNotReady = errors.New("parent content not ready for derivation")
+
+	// ErrContentBeingProcessed indicates operation cannot proceed while content is being processed
+	ErrContentBeingProcessed = errors.New("content is being processed")
 )
 
 // ContentError represents an error related to content operations

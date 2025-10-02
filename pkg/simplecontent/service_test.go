@@ -418,6 +418,11 @@ func TestDerivedContent(t *testing.T) {
 	parent, err := svc.CreateContent(ctx, parentReq)
 	require.NoError(t, err)
 
+	// Update parent status to "uploaded" so derived content can be created
+	parent.Status = string(simplecontent.ContentStatusUploaded)
+	err = svc.UpdateContent(ctx, simplecontent.UpdateContentRequest{Content: parent})
+	require.NoError(t, err)
+
     t.Run("CreateDerivedContent", func(t *testing.T) {
         derivedReq := simplecontent.CreateDerivedContentRequest{
             ParentID:       parent.ID,
@@ -665,6 +670,11 @@ func TestGetContentDetails(t *testing.T) {
 			MimeType: "image/jpeg",
 		}
 		err = storageSvc.UploadObject(ctx, uploadReq)
+		require.NoError(t, err)
+
+		// Update parent status to "uploaded" so derived content can be created
+		parent.Status = string(simplecontent.ContentStatusUploaded)
+		err = svc.UpdateContent(ctx, simplecontent.UpdateContentRequest{Content: parent})
 		require.NoError(t, err)
 
 		// Create derived content (thumbnail)
