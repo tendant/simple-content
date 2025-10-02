@@ -341,7 +341,7 @@ func (r *Repository) CreateDerivedContentRelationship(ctx context.Context, param
         ProcessingMetadata: params.ProcessingMetadata,
         CreatedAt:          now,
         UpdatedAt:          now,
-        Status:             string(simplecontent.ContentStatusCreated),
+        Status:             string(simplecontent.ObjectStatusCreated), // Uses Object status semantics
     }
 	
 	r.derivedContents[params.DerivedContentID] = derived
@@ -382,6 +382,23 @@ func (r *Repository) GetDerivedRelationshipByContentID(ctx context.Context, cont
     }
     copy := *dc
     return &copy, nil
+}
+
+// UpdateDerivedContentStatus updates the status field in the derived content relationship
+// This is a temporary helper method to keep DerivedContent.Status in sync with Content.Status
+// TODO: Replace with proper UpdateDerivedContentRelationship method in Repository interface
+func (r *Repository) UpdateDerivedContentStatus(ctx context.Context, contentID uuid.UUID, status string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	dc, exists := r.derivedContents[contentID]
+	if !exists {
+		return fmt.Errorf("derived relationship not found for content %s", contentID)
+	}
+
+	dc.Status = status
+	dc.UpdatedAt = time.Now().UTC()
+	return nil
 }
 
 // Enhanced filtering logic for derived content

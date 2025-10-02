@@ -53,6 +53,9 @@ type Repository interface {
     ListDerivedContent(ctx context.Context, params ListDerivedContentParams) ([]*DerivedContent, error)
     // GetDerivedRelationshipByContentID returns the derived-content relationship for a given derived content ID
     GetDerivedRelationshipByContentID(ctx context.Context, contentID uuid.UUID) (*DerivedContent, error)
+    // UpdateDerivedContentStatus updates the status field in the derived content relationship
+    // This keeps the DerivedContent.Status field in sync with the Content.Status field
+    UpdateDerivedContentStatus(ctx context.Context, contentID uuid.UUID, status string) error
 	
 	// Object operations
 	CreateObject(ctx context.Context, object *Object) error

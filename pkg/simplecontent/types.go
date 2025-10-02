@@ -123,6 +123,10 @@ type Content struct {
 // DerivedContent represents content derived from a parent content.
 // DerivationType here represents the category (e.g., "thumbnail", "preview").
 // Variant represents the specific variant (e.g., "thumbnail_256").
+//
+// Status Field: Uses Object status semantics (not Content status semantics) to track
+// granular processing states: created, uploading, uploaded, processing, processed, failed.
+// This allows distinguishing between "uploaded" and "ready to serve" for derived content.
 type DerivedContent struct {
 	// Persisted fields
 	ParentID           uuid.UUID              `json:"parent_id" db:"parent_id"`
@@ -134,7 +138,7 @@ type DerivedContent struct {
 	CreatedAt          time.Time              `json:"created_at" db:"created_at"`
 	UpdatedAt          time.Time              `json:"updated_at" db:"updated_at"`
 	DocumentType       string                 `json:"document_type" db:"document_type"`
-	Status             string                 `json:"status" db:"status"`
+	Status             string                 `json:"status" db:"status"` // Uses Object status semantics (see above)
 
 	// Computed fields (not persisted - populated by service layer)
 	DownloadURL        string                 `json:"download_url,omitempty" db:"-"`
@@ -230,7 +234,7 @@ type ContentDetails struct {
 	Checksum    string            `json:"checksum,omitempty"`        // File checksum
 
 	// Status and timing
-	Ready       bool              `json:"ready"`                     // Are all URLs ready/available?
+	Ready       bool              `json:"ready"`                     // True when parent is uploaded AND all derived content status is uploaded/processed (Object semantics)
 	ExpiresAt   *time.Time        `json:"expires_at,omitempty"`      // When URLs expire (for presigned URLs)
 	CreatedAt   time.Time         `json:"created_at"`                // Content creation time
 	UpdatedAt   time.Time         `json:"updated_at"`                // Content last update time

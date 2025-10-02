@@ -591,7 +591,7 @@ func TestGetContentDetails(t *testing.T) {
 		assert.Empty(t, details.Thumbnails)
 		assert.Empty(t, details.Previews)
 		assert.Empty(t, details.Transcodes)
-		assert.True(t, details.Ready) // Content exists and is ready
+		assert.False(t, details.Ready) // Created content is not ready until uploaded
 		assert.Equal(t, content.CreatedAt, details.CreatedAt)
 		assert.Equal(t, content.UpdatedAt, details.UpdatedAt)
 	})
@@ -632,7 +632,9 @@ func TestGetContentDetails(t *testing.T) {
 		assert.Equal(t, content.ID.String(), details.ID)
 		// Memory backend doesn't generate URLs (returns empty strings)
 		// This is expected behavior - it supports direct download only
-		assert.True(t, details.Ready)
+		// Note: Content status is still "created" because UploadObject doesn't update content status
+		// Ready flag reflects the actual content status, not object upload state
+		assert.False(t, details.Ready)
 	})
 
 	// Test 3: Content with derived content (thumbnails)
@@ -703,7 +705,9 @@ func TestGetContentDetails(t *testing.T) {
 		assert.NotNil(t, details.Thumbnails)
 		assert.NotNil(t, details.Previews)
 		assert.NotNil(t, details.Transcodes)
-		assert.True(t, details.Ready)
+		// Both parent and derived content are still in "created" status (legacy API)
+		// Ready flag is false because content status was never updated to "uploaded"
+		assert.False(t, details.Ready)
 	})
 
 	// Test 4: Non-existent content
@@ -714,5 +718,106 @@ func TestGetContentDetails(t *testing.T) {
 		// Should be a ContentError with not found
 		var contentErr *simplecontent.ContentError
 		assert.True(t, errors.As(err, &contentErr))
+	})
+
+	// Test 5: Ready flag - created status (not ready)
+	t.Run("ReadyFlag_CreatedStatus", func(t *testing.T) {
+		req := simplecontent.CreateContentRequest{
+			OwnerID:  ownerID,
+			TenantID: tenantID,
+			Name:     "Created Content",
+		}
+		content, err := svc.CreateContent(ctx, req)
+		require.NoError(t, err)
+		require.Equal(t, string(simplecontent.ContentStatusCreated), content.Status)
+
+		details, err := svc.GetContentDetails(ctx, content.ID)
+		require.NoError(t, err)
+		assert.False(t, details.Ready, "Created content should not be ready")
+	})
+
+	// Test 6: Ready flag - uploaded status (ready)
+	t.Run("ReadyFlag_UploadedStatus", func(t *testing.T) {
+		// Use UploadContent to create and upload in one step
+		uploadReq := simplecontent.UploadContentRequest{
+			OwnerID:      ownerID,
+			TenantID:     tenantID,
+			Name:         "Uploaded Content",
+			DocumentType: "text/plain",
+			Reader:       strings.NewReader("test content"),
+			FileName:     "test.txt",
+		}
+		content, err := svc.UploadContent(ctx, uploadReq)
+		require.NoError(t, err)
+		require.Equal(t, string(simplecontent.ContentStatusUploaded), content.Status)
+
+		details, err := svc.GetContentDetails(ctx, content.ID)
+		require.NoError(t, err)
+		assert.True(t, details.Ready, "Uploaded content should be ready")
+	})
+
+	// Test 7: Ready flag - uploaded parent with created derived content (not ready)
+	t.Run("ReadyFlag_UploadedParentWithCreatedDerived", func(t *testing.T) {
+		// Create and upload parent content
+		parentReq := simplecontent.UploadContentRequest{
+			OwnerID:      ownerID,
+			TenantID:     tenantID,
+			Name:         "Parent Content",
+			DocumentType: "image/jpeg",
+			Reader:       strings.NewReader("parent image data"),
+			FileName:     "parent.jpg",
+		}
+		parent, err := svc.UploadContent(ctx, parentReq)
+		require.NoError(t, err)
+		require.Equal(t, string(simplecontent.ContentStatusUploaded), parent.Status)
+
+		// Create derived content but don't upload it yet
+		derivedReq := simplecontent.CreateDerivedContentRequest{
+			ParentID:       parent.ID,
+			OwnerID:        ownerID,
+			TenantID:       tenantID,
+			DerivationType: "thumbnail",
+			Variant:        "thumbnail_256",
+		}
+		_, err = svc.CreateDerivedContent(ctx, derivedReq)
+		require.NoError(t, err)
+
+		// Get parent details - should not be ready because derived content is not uploaded
+		details, err := svc.GetContentDetails(ctx, parent.ID)
+		require.NoError(t, err)
+		assert.False(t, details.Ready, "Parent with non-uploaded derived content should not be ready")
+	})
+
+	// Test 8: Ready flag - uploaded parent with uploaded derived content (ready)
+	t.Run("ReadyFlag_UploadedParentWithUploadedDerived", func(t *testing.T) {
+		// Create and upload parent content
+		parentReq := simplecontent.UploadContentRequest{
+			OwnerID:      ownerID,
+			TenantID:     tenantID,
+			Name:         "Parent Content",
+			DocumentType: "image/jpeg",
+			Reader:       strings.NewReader("parent image data"),
+			FileName:     "parent.jpg",
+		}
+		parent, err := svc.UploadContent(ctx, parentReq)
+		require.NoError(t, err)
+
+		// Create and upload derived content
+		derivedReq := simplecontent.UploadDerivedContentRequest{
+			ParentID:       parent.ID,
+			OwnerID:        ownerID,
+			TenantID:       tenantID,
+			DerivationType: "thumbnail",
+			Variant:        "thumbnail_256",
+			Reader:         strings.NewReader("thumbnail data"),
+			FileName:       "thumb.jpg",
+		}
+		_, err = svc.UploadDerivedContent(ctx, derivedReq)
+		require.NoError(t, err)
+
+		// Get parent details - should be ready now
+		details, err := svc.GetContentDetails(ctx, parent.ID)
+		require.NoError(t, err)
+		assert.True(t, details.Ready, "Parent with uploaded derived content should be ready")
 	})
 }

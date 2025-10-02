@@ -99,6 +99,52 @@ query := `UPDATE content SET deleted_at = NULL WHERE id = $1`
 // Status field already contains the correct operational status
 ```
 
+### Content Ready Status
+
+The `ContentDetails.Ready` field indicates when content and its derived content are ready for use.
+
+**Ready Semantics:**
+- `Ready = true` when:
+  - Parent content `status = "uploaded"` AND
+  - All derived content (thumbnails, previews, transcodes) have `status = "uploaded"` OR `"processed"` (Object status semantics)
+- `Ready = false` when:
+  - Parent content `status = "created"` (not yet uploaded), OR
+  - Any derived content has `status = "created"`, `"uploading"`, `"processing"`, or `"failed"` (Object status semantics)
+
+**Examples:**
+```go
+// Created content - not ready
+content := svc.CreateContent(ctx, req)
+// content.Status = "created"
+details, _ := svc.GetContentDetails(ctx, content.ID)
+// details.Ready = false
+
+// After upload - ready
+uploaded, _ := svc.UploadContent(ctx, uploadReq)
+// uploaded.Status = "uploaded"
+details, _ := svc.GetContentDetails(ctx, uploaded.ID)
+// details.Ready = true
+
+// With derived content - only ready when all are uploaded
+parent, _ := svc.UploadContent(ctx, parentReq)
+svc.CreateDerivedContent(ctx, CreateDerivedContentRequest{...}) // status="created"
+details, _ := svc.GetContentDetails(ctx, parent.ID)
+// details.Ready = false (derived not uploaded yet)
+
+svc.UploadDerivedContent(ctx, UploadDerivedContentRequest{...}) // status="uploaded"
+details, _ := svc.GetContentDetails(ctx, parent.ID)
+// details.Ready = true (all content uploaded)
+```
+
+**Implementation Notes:**
+- **DerivedContent.status uses Object status semantics** (not Content status semantics)
+- This allows tracking granular processing states: `created`, `uploading`, `uploaded`, `processing`, `processed`, `failed`
+- When `UploadDerivedContent()` completes:
+  - `content.status` is set to `"uploaded"` (Content status)
+  - `content_derived.status` is set to `"uploaded"` (Object status - same value, different semantic domain)
+  - The underlying object's status is also `"uploaded"`
+- See [docs/STATUS_LIFECYCLE.md § Content Derived Status](docs/STATUS_LIFECYCLE.md) for full details
+
 ## HTTP API (cmd/server-configured)
 
 Base path: `/api/v1`

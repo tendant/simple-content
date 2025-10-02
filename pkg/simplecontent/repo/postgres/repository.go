@@ -366,6 +366,8 @@ func (r *Repository) GetObjectMetadata(ctx context.Context, objectID uuid.UUID) 
 // Derived content operations (simplified implementations)
 
 func (r *Repository) CreateDerivedContentRelationship(ctx context.Context, params simplecontent.CreateDerivedContentParams) (*simplecontent.DerivedContent, error) {
+	// Note: DerivedContent.status uses Object status semantics ('created' = ObjectStatusCreated)
+	// This allows tracking granular processing states (uploading, processing, processed, failed)
 	query := `
 	        INSERT INTO content_derived (
 	            parent_id, content_id, derivation_type, variant, derivation_params,
@@ -442,6 +444,17 @@ func (r *Repository) GetDerivedRelationshipByContentID(ctx context.Context, cont
 		return nil, r.handlePostgresError("get derived relationship by content id", err)
 	}
 	return &derived, nil
+}
+
+// UpdateDerivedContentStatus updates the status field in the derived content relationship
+// This keeps the DerivedContent.Status field in sync with the Content.Status field
+func (r *Repository) UpdateDerivedContentStatus(ctx context.Context, contentID uuid.UUID, status string) error {
+	query := `UPDATE content_derived SET status = $1, updated_at = NOW() WHERE content_id = $2 AND deleted_at IS NULL`
+	_, err := r.db.Exec(ctx, query, status, contentID)
+	if err != nil {
+		return r.handlePostgresError("update derived content status", err)
+	}
+	return nil
 }
 
 // buildEnhancedQuery builds a PostgreSQL query with enhanced filtering capabilities

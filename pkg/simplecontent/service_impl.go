@@ -537,6 +537,14 @@ func (s *service) UploadDerivedContent(ctx context.Context, req UploadDerivedCon
 		// Log warning but don't fail - content was uploaded successfully
 	}
 
+	// Step 11: Update derived content relationship status to match object status
+	// Note: DerivedContent.status should mirror Object.status semantics (not Content.status)
+	// because derived content represents processing work with granular states.
+	// See docs/STATUS_LIFECYCLE.md § Content Derived Status
+	if err := s.repository.UpdateDerivedContentStatus(ctx, content.ID, string(ObjectStatusUploaded)); err != nil {
+		// Log warning but don't fail - content was uploaded successfully
+	}
+
 	// Fire event
 	if s.eventSink != nil {
 		if err := s.eventSink.ContentCreated(ctx, content); err != nil {
@@ -920,10 +928,8 @@ func (s *service) GetContentDetails(ctx context.Context, contentID uuid.UUID, op
 		return nil, &ContentError{ContentID: contentID, Op: "get_content_details", Err: err}
 	}
 
-	// Check if content is ready
-	if content.Status != "created" && content.Status != "active" {
-		result.Ready = false
-	}
+	// Check if content is ready (uploaded status means content is available)
+	result.Ready = (content.Status == string(ContentStatusUploaded))
 
 	// Get primary objects for this content (for download/preview URLs)
 	objects, err := s.repository.GetObjectsByContentID(ctx, contentID)
@@ -997,7 +1003,8 @@ func (s *service) GetContentDetails(ctx context.Context, contentID uuid.UUID, op
 		}
 
 		// If any derived content is not ready, mark the whole result as not ready
-		if derived.Status != "created" && derived.Status != "active" {
+		// DerivedContent.status uses Object status semantics: ready when "uploaded" or "processed"
+		if derived.Status != string(ObjectStatusUploaded) && derived.Status != string(ObjectStatusProcessed) {
 			result.Ready = false
 		}
 	}
