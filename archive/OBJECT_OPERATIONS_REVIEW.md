@@ -1,5 +1,11 @@
 # Object Operations Review and Simplification Plan
 
+> **⚠️ ARCHIVED - PLANNING DOCUMENT**
+>
+> This is a **planning document** for potential future API improvements. The proposed changes have **not been implemented**.
+>
+> **Current API**: See [CLAUDE.md](../CLAUDE.md) for the current object operations API.
+
 ## Current State Analysis
 
 The current object upload/download operations have these issues:

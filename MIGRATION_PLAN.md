@@ -1,5 +1,7 @@
 # Migration Plan: Legacy → pkg/simplecontent
 
+> **Note:** This guide focuses on **database schema changes and deployment steps**. For **API/code migration examples**, see [MIGRATION_FROM_LEGACY.md](./MIGRATION_FROM_LEGACY.md).
+
 This document outlines how to migrate from the legacy packages (pkg/service, pkg/repository, pkg/storage) to the new library-first API in pkg/simplecontent and the configured HTTP server in cmd/server-configured.
 
 ## Overview

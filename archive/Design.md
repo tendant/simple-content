@@ -1,5 +1,13 @@
 # Content System Design Document
 
+> **⚠️ ARCHIVED - OUTDATED DOCUMENT**
+>
+> This is the **original design document** from the project's inception. Many details are now outdated.
+>
+> **For current architecture and conventions**, see [CLAUDE.md](../CLAUDE.md).
+>
+> **For current status**, see [REFACTORING_COMPLETE.md](../REFACTORING_COMPLETE.md).
+
 ## Overview
 This document outlines the architecture and design for a generic content management system that supports multi-backend storage, versioning, preview generation, lifecycle events, and audit trails. The system is designed to be flexible, extensible, and integration-friendly with external systems handling access control (ACL).
 

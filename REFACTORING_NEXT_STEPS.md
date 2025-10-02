@@ -20,11 +20,10 @@ The simple-content project has been successfully refactored into a clean, reusab
 - ✅ Soft delete support throughout
 - ✅ URL strategy system and object key generators
 
-### ⏳ Remaining Work
-- [ ] CI/CD pipeline (GitHub Actions)
-- [ ] Test coverage reporting
-- [ ] Backend comparison tables in README
-- [ ] Legacy package removal (after 2026-01-01)
+### ✅ All Core Work Complete
+
+The only remaining task is scheduled for the future:
+- [ ] **Legacy package removal** (scheduled for 2026-01-01 - after 3-month migration window)
 
 See detailed task lists below for implementation plans.
 
@@ -81,7 +80,7 @@ See detailed task lists below for implementation plans.
 - [x] Set removal timeline: deprecated 2025-10-01, removal 2026-01-01 (3 months)
 - [ ] Plan final removal once `cmd/server-configured` reaches parity and passes tests
 
-6) Docs and CI
+6) Docs and CI (✅ COMPLETE)
 
 - [x] Reconcile `REFACTORING_STATUS.md` and `REFACTORING_COMPLETE.md` (single source of truth)
 - [x] Update README: library usage, configured server setup, environment variables, backend matrix
@@ -90,6 +89,8 @@ See detailed task lists below for implementation plans.
 - [x] GitHub Actions workflow with unit tests, integration tests, linting
 - [x] Backend comparison tables in README
 - [x] CI status badges in README
+
+**All documentation and CI/CD work completed 2025-10-01.**
 
 7) Derivation/Variant model
 

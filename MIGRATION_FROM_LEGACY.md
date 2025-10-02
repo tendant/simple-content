@@ -1,5 +1,7 @@
 # Migration Guide: Legacy Packages → pkg/simplecontent
 
+> **Note:** This guide focuses on **API and code migration**. For **database schema changes and deployment**, see [MIGRATION_PLAN.md](./MIGRATION_PLAN.md).
+
 **Deprecation Date:** 2025-10-01
 **Removal Date:** 2026-01-01 (3 months)
 

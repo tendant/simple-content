@@ -241,9 +241,8 @@ See [REFACTORING_NEXT_STEPS.md](./REFACTORING_NEXT_STEPS.md) for detailed remain
 | 2025-09-01 | Refactoring started |
 | 2025-09-06 | Core library structure complete |
 | 2025-09-29 | Docker compose integration complete |
-| 2025-10-01 | **Legacy packages deprecated**, S3 tests ported, test parity achieved |
-| 2025-11-01 | CI/CD pipeline (planned) |
-| 2026-01-01 | Legacy packages removed (scheduled) |
+| 2025-10-01 | **Core refactoring COMPLETE**: Legacy packages deprecated, S3 tests ported, test parity achieved, CI/CD pipeline complete |
+| 2026-01-01 | Legacy packages removal (scheduled) |
 
 ---
 
