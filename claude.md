@@ -323,6 +323,33 @@ details, _ := svc.GetContentDetails(ctx, parent.ID)
   - This reflects that derived content IS the output of processing
 - No duplication: `content_derived` table does NOT have a status column (avoids sync issues)
 
+**Migration for Existing Data:**
+
+If you have existing derived content with `status='uploaded'`, update them to `'processed'`:
+
+```sql
+-- Update all derived content from 'uploaded' to 'processed'
+UPDATE content
+SET status = 'processed', updated_at = NOW()
+WHERE derivation_type != ''
+  AND derivation_type IS NOT NULL
+  AND status = 'uploaded'
+  AND deleted_at IS NULL;
+```
+
+To verify the migration:
+```sql
+-- Count by content type and status
+SELECT
+    CASE WHEN derivation_type = '' OR derivation_type IS NULL THEN 'original' ELSE 'derived' END as type,
+    status,
+    COUNT(*) as count
+FROM content
+WHERE deleted_at IS NULL
+GROUP BY type, status
+ORDER BY type, status;
+```
+
 ## HTTP API (cmd/server-configured)
 
 Base path: `/api/v1`

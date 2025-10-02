@@ -29,12 +29,13 @@ The status lifecycle is a core concept in simple-content. These three documents 
 **Purpose:** Comprehensive guide to how the status system **should** work
 
 **Contents:**
-- Three-tier status model (Content, Object, Derived Content)
+- Simplified status model (Content type-based: uploaded vs processed)
 - Status state machines and transitions
 - Complete lifecycle flows with diagrams
 - Database schema and queries
 - Best practices and troubleshooting
 - Monitoring and debugging queries
+- **Updated 2025-10-02**: Removed content_derived.status, made "processed" exclusive to derived content
 
 **When to use:** Reference this for day-to-day development and operations.
 

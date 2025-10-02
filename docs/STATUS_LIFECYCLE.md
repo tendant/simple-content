@@ -70,28 +70,33 @@ Object status provides granular tracking of binary data and processing states.
 - Retry logic for failed processing
 - Distinguishing between "uploaded" and "ready to serve"
 
-### Content Derived Status (Processing Tracking)
+### Derived Content Status (Processing Output)
 
-Content derived status tracks the processing state of derived content relationships (e.g., thumbnails, previews).
+**Current Implementation (as of 2025-10-02):**
 
-| Status | Description | Next States |
-|--------|-------------|-------------|
-| `created` | Relationship created, processing not started | `processing`, `processed`, `failed` |
-| `processing` | Derived content generation in progress | `processed`, `failed` |
-| `processed` | Derived content successfully generated and verified | `deleted` |
-| `failed` | Derived content generation failed | `processing` (retry), `deleted` |
-| `uploaded` | _(Deprecated)_ Binary uploaded but not verified - use `processed` instead | `processed` |
+Derived content status is tracked in the **`content.status`** column (same table as original content). The `content_derived` table does NOT have a status column (removed to avoid duplication).
+
+**Status Semantics by Content Type:**
+
+| Content Type | Status | Description |
+|-------------|--------|-------------|
+| **Original Content** | `uploaded` | Binary uploaded to storage (terminal state for originals) |
+| **Derived Content** | `processed` | Generated output ready to serve (terminal state for derivatives) |
+
+**Lifecycle:**
+- **Original content**: `created` → `uploaded` (source material)
+- **Derived content**: `created` → `processed` (processing output)
+
+**Key Points:**
+- Derived content IS the output of processing (thumbnails, previews, transcodes)
+- Once uploaded via `UploadDerivedContent()`, status is immediately set to `"processed"`
+- No intermediate "uploaded" state for derived content
+- Status field makes content type semantically clear: "uploaded" = original, "processed" = derived
 
 **Use Cases:**
-- Tracking which thumbnails are ready
-- Retry failed thumbnail generation
-- Monitoring processing backlog
-- Verification that derived content exists
-
-**Important:** Content derived status should mirror **object status** semantics (not content status) because:
-- Derived content represents the result of processing work
-- Need to distinguish "processing" from "completed"
-- Need to handle processing failures explicitly
+- Tracking which thumbnails are ready: query `derivation_type='thumbnail' AND status='processed'`
+- Monitoring processing backlog: query `derivation_type != '' AND status='created'`
+- Distinguishing originals from derivatives: filter by status
 
 ## Complete Lifecycle Flows
 
@@ -124,43 +129,45 @@ Content derived status tracks the processing state of derived content relationsh
 
 ### Derived Content (Thumbnail) Generation
 
+**Current Implementation:**
+
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│ 1. Job published for thumbnail generation                   │
-│    → content_derived row created                            │
-│    → content_derived.status = "created"                     │
-└─────────────────────────────────────────────────────────────┘
-                           ↓
-┌─────────────────────────────────────────────────────────────┐
-│ 2. Worker picks up job from queue                           │
-│    → content_derived.status = "processing"                  │
-└─────────────────────────────────────────────────────────────┘
-                           ↓
-┌─────────────────────────────────────────────────────────────┐
-│ 3. Worker downloads source image                            │
+│ 1. Worker downloads source image from parent content        │
 │    → Reads original content binary                          │
 └─────────────────────────────────────────────────────────────┘
                            ↓
 ┌─────────────────────────────────────────────────────────────┐
-│ 4. Worker generates thumbnail                               │
+│ 2. Worker generates thumbnail                               │
 │    → Resizes image to target dimensions                     │
-│    → Creates derived content record                         │
-│    → derived_content.status = "created"                     │
-│    → derived_object.status = "created"                      │
+│    → Prepares thumbnail data for upload                     │
 └─────────────────────────────────────────────────────────────┘
                            ↓
 ┌─────────────────────────────────────────────────────────────┐
-│ 5. Worker uploads thumbnail via UploadDerivedContent()      │
-│    → derived_content.status = "uploaded"                    │
-│    → derived_object.status = "uploaded"                     │
+│ 3. Worker calls UploadDerivedContent()                      │
+│    → Creates derived content record (content.status="created")│
+│    → Creates object record (object.status="created")        │
+│    → Creates content_derived relationship row               │
+│    → Uploads binary to blob storage                         │
+│    → Updates content.status = "processed"  ← FINAL STATE    │
+│    → Updates object.status = "uploaded"                     │
 └─────────────────────────────────────────────────────────────┘
                            ↓
 ┌─────────────────────────────────────────────────────────────┐
-│ 6. Worker marks job complete                                │
-│    → content_derived.status = "processed"  ← FINAL STATE    │
-│    → Publishes completion event                             │
+│ 4. Content is ready to serve                                │
+│    → content.status = "processed"                           │
+│    → content.derivation_type = "thumbnail"                  │
+│    → content_derived.parent_id = original content ID        │
+│    → Derived content immediately available for download     │
 └─────────────────────────────────────────────────────────────┘
 ```
+
+**Key Changes from Legacy Design:**
+- ✅ Single-step upload: `UploadDerivedContent()` handles everything atomically
+- ✅ No separate content_derived.status column (removed for simplicity)
+- ✅ Status tracked in content.status (same as original content)
+- ✅ Derived content goes directly to "processed" (not "uploaded")
+- ✅ Semantics: "processed" status indicates generated output ready to serve
 
 ### Status Verification (Backfill)
 
@@ -175,27 +182,24 @@ The backfill tool verifies and fixes status inconsistencies:
 ┌─────────────────────────────────────────────────────────────┐
 │ 2. Check if derived content exists                          │
 │    → Query content_derived for thumbnail variants           │
-│    → Check expected variants exist (thumbnail, preview, full)│
+│    → Check expected variants exist (thumbnail_256, etc.)    │
 └─────────────────────────────────────────────────────────────┘
                            ↓
 ┌─────────────────────────────────────────────────────────────┐
-│ 3. Verify thumbnail objects exist and are uploaded          │
-│    → Check derived_content.status = "uploaded"              │
-│    → Check derived_object.status = "uploaded"               │
+│ 3. Verify derived content status                            │
+│    → Query content table for derived content IDs            │
+│    → Check content.status = "processed" for each derivative │
+│    → Check objects exist and are uploaded                   │
 └─────────────────────────────────────────────────────────────┘
                            ↓
 ┌─────────────────────────────────────────────────────────────┐
-│ 4. Update relationship status (if verification passes)      │
-│    → content_derived.status = "processed"                   │
-│    → Log verification success                               │
-└─────────────────────────────────────────────────────────────┘
-                           ↓ (if missing)
-┌─────────────────────────────────────────────────────────────┐
-│ 5. Publish job for missing thumbnails                       │
-│    → Creates new job in NATS queue                          │
-│    → Returns to step 2 in thumbnail generation flow         │
+│ 4. Log verification success or schedule missing work        │
+│    → If all derivatives are "processed": mark parent ready  │
+│    → If missing: publish job for thumbnail generation       │
 └─────────────────────────────────────────────────────────────┘
 ```
+
+**Note:** Since content_derived table no longer has a status column, status is checked in the content table using the derived content's ID.
 
 ## Status State Machine Diagrams
 
@@ -267,49 +271,60 @@ The backfill tool verifies and fixes status inconsistencies:
                  deleted_at timestamp)
 ```
 
-### Content Derived Status State Machine
+### Derived Content Status State Machine
+
+**Current Implementation (Simplified Model):**
 
 ```
     ┌─────────┐
     │ created │
     └────┬────┘
          │
-         │ Worker picks up job
+         │ UploadDerivedContent()
+         │ completes
          ↓
-    ┌────────────┐
-    │ processing │───────┐
-    └──────┬─────┘       │
-           │             │ Generation fails
-           │ Generation  │
-           │ completes   ↓
-           │         ┌────────┐
-           ↓         │ failed │
-    ┌───────────┐   └────┬───┘
-    │ processed │        │
-    └───────────┘        │ Retry
-                         │
-                         └───────────┐
-                                     │
-                                     ↓
-                              (back to processing)
+    ┌───────────┐
+    │ processed │ ← TERMINAL STATE
+    └───────────┘
+
 ```
+
+**Key Points:**
+- Derived content goes directly from `created` to `processed` in a single operation
+- No intermediate states (no "processing", "uploading", etc.)
+- Status is tracked in content.status column (not content_derived table)
+- "processed" status indicates the derivative is generated and ready to serve
+- Compare to original content which uses "uploaded" as terminal state
+
+**Legacy Model (Deprecated):**
+The previous multi-step model with "processing" and "failed" states is no longer used. Worker-based async processing should create the content record only after successful generation, then immediately upload it to "processed" status.
 
 ## Database Schema
 
 ### Content Table Status
 
+**Current Implementation (as of 2025-10-02):**
+
 ```sql
 CREATE TABLE content (
     id UUID PRIMARY KEY,
+    derivation_type VARCHAR(32),  -- Empty/NULL for originals, set for derived
     status VARCHAR(32) NOT NULL DEFAULT 'created',
-    -- Valid values: 'created', 'uploaded', 'deleted'
-    -- (Future: 'uploading', 'processing', 'processed', 'failed', 'archived')
+    -- Valid values:
+    --   For originals: 'created', 'uploaded'
+    --   For derived:   'created', 'processed'
+    --   Reserved:      'uploading', 'processing', 'failed', 'archived'
+    deleted_at TIMESTAMP NULL,  -- Soft delete (NOT using status='deleted')
     ...
 );
 ```
 
-> **⚠️ Implementation Gap:** No CHECK constraint enforces valid status values.
-> See [STATUS_LIFECYCLE_REFACTORING.md § 2.2](STATUS_LIFECYCLE_REFACTORING.md#22-database-constraints)
+**Status Semantics:**
+- Original content (`derivation_type = '' OR NULL`): Uses `'uploaded'` as terminal state
+- Derived content (`derivation_type != ''`): Uses `'processed'` as terminal state
+- Status field makes content type semantically clear
+
+> **⚠️ Note:** No CHECK constraint enforces valid status values (application-level validation only).
 
 ### Object Table Status
 
@@ -318,32 +333,34 @@ CREATE TABLE object (
     id UUID PRIMARY KEY,
     status VARCHAR(32) NOT NULL DEFAULT 'created',
     -- Valid values: 'created', 'uploading', 'uploaded',
-    --               'processing', 'processed', 'failed', 'deleted'
+    --               'processing', 'processed', 'failed'
+    deleted_at TIMESTAMP NULL,  -- Soft delete (NOT using status='deleted')
     ...
 );
 ```
 
-> **⚠️ Implementation Gap:** No CHECK constraint enforces valid status values.
-> Recommended constraint:
-> ```sql
-> ALTER TABLE object ADD CONSTRAINT object_status_check
-> CHECK (status IN ('created', 'uploading', 'uploaded', 'processing', 'processed', 'failed', 'deleted'));
-> ```
+> **⚠️ Note:** No CHECK constraint enforces valid status values (application-level validation only).
 
-### Content Derived Table Status
+### Content Derived Table (Relationship Only)
+
+**Current Implementation:**
 
 ```sql
 CREATE TABLE content_derived (
     parent_id UUID NOT NULL,
     content_id UUID NOT NULL,
-    status VARCHAR(32) NOT NULL DEFAULT 'created',
-    -- Valid values: 'created', 'processing', 'processed', 'failed'
-    -- Note: Uses object-like status semantics
+    variant VARCHAR(32) NOT NULL,
+    derivation_type VARCHAR(32) NOT NULL,
+    -- NO STATUS COLUMN - status is tracked in content.status
     ...
 );
 ```
 
-> **⚠️ Implementation Gap:** No CHECK constraint enforces valid status values.
+**Key Points:**
+- This table only stores the parent-child relationship
+- Status is tracked in the `content.status` column for the derived content
+- Removed `status` column to eliminate duplication and sync issues
+- Query derived content status by joining with content table
 
 ## Best Practices
 
@@ -397,58 +414,86 @@ GROUP BY status;
 
 ### Count derived content by status
 ```sql
-SELECT status, COUNT(*)
-FROM content_derived
-WHERE derivation_type = 'thumbnail'
-GROUP BY status;
+-- Status is in content table, not content_derived
+SELECT c.status, COUNT(*)
+FROM content c
+WHERE c.derivation_type = 'thumbnail'
+  AND c.deleted_at IS NULL
+GROUP BY c.status;
 ```
 
-### Find stuck processing jobs
+### Count content by type and status
 ```sql
-SELECT cd.parent_id, cd.content_id, cd.status, cd.updated_at,
-       EXTRACT(EPOCH FROM (NOW() - cd.updated_at)) as seconds_in_state
+-- Distinguish original vs derived by status
+SELECT
+    CASE
+        WHEN derivation_type = '' OR derivation_type IS NULL THEN 'original'
+        ELSE 'derived'
+    END as content_type,
+    status,
+    COUNT(*) as count
+FROM content
+WHERE deleted_at IS NULL
+GROUP BY content_type, status
+ORDER BY content_type, status;
+```
+
+### Find derived content not yet processed
+```sql
+-- Find derivatives that haven't been generated yet
+SELECT cd.parent_id, cd.content_id, cd.variant, c.status, c.updated_at
 FROM content_derived cd
-WHERE cd.status = 'processing'
-  AND cd.updated_at < NOW() - INTERVAL '10 minutes'
-ORDER BY cd.updated_at ASC;
+JOIN content c ON cd.content_id = c.id
+WHERE c.status != 'processed'
+  AND c.deleted_at IS NULL
+ORDER BY c.updated_at ASC;
 ```
 
 ### Find status inconsistencies
 ```sql
--- Derived content marked 'processed' but content not uploaded
-SELECT cd.parent_id, cd.content_id, c.status as content_status, cd.status as derived_status
+-- Derived content with wrong status (should be 'processed')
+SELECT cd.parent_id, cd.content_id, cd.derivation_type, cd.variant, c.status
 FROM content_derived cd
 JOIN content c ON cd.content_id = c.id
-WHERE cd.status = 'processed'
-  AND c.status != 'uploaded';
+WHERE c.derivation_type != ''
+  AND c.status NOT IN ('created', 'processed')
+  AND c.deleted_at IS NULL;
 ```
 
 ## Migration Notes
 
-### From 'uploaded' to 'processed' in content_derived
+### Update Derived Content Status from 'uploaded' to 'processed'
 
-If you have existing data using 'uploaded' status in content_derived:
+**Current Implementation (as of 2025-10-02):**
+
+Derived content now uses `status='processed'` instead of `'uploaded'`. If you have existing derived content with the old status, update them:
 
 ```sql
--- One-time migration
-UPDATE content_derived
+-- Update all derived content from 'uploaded' to 'processed'
+UPDATE content
 SET status = 'processed', updated_at = NOW()
-WHERE status = 'uploaded'
-  AND derivation_type = 'thumbnail';
+WHERE derivation_type != ''
+  AND derivation_type IS NOT NULL
+  AND status = 'uploaded'
+  AND deleted_at IS NULL;
 ```
 
 ### Verification Query
 
 ```sql
--- Verify all processed thumbnails have uploaded content
+-- Verify migration: count by content type and status
 SELECT
-    COUNT(*) as total_processed,
-    COUNT(CASE WHEN c.status = 'uploaded' THEN 1 END) as valid_count,
-    COUNT(CASE WHEN c.status != 'uploaded' THEN 1 END) as invalid_count
-FROM content_derived cd
-JOIN content c ON cd.content_id = c.id
-WHERE cd.status = 'processed'
-  AND cd.derivation_type = 'thumbnail';
+    CASE WHEN derivation_type = '' OR derivation_type IS NULL THEN 'original' ELSE 'derived' END as type,
+    status,
+    COUNT(*) as count
+FROM content
+WHERE deleted_at IS NULL
+GROUP BY type, status
+ORDER BY type, status;
+
+-- Expected results:
+-- original  | uploaded   | N  (originals stay as 'uploaded')
+-- derived   | processed  | M  (derivatives should be 'processed')
 ```
 
 ## Troubleshooting
@@ -456,34 +501,64 @@ WHERE cd.status = 'processed'
 ### Content stuck in 'created'
 **Symptom:** Content has status='created' but upload completed
 **Cause:** UploadContent() didn't complete status update
-**Fix:** Manually update status if object exists and is uploaded
+**Fix:** Manually update status based on content type:
+```sql
+-- For original content
+UPDATE content SET status = 'uploaded', updated_at = NOW()
+WHERE id = '<content-id>' AND (derivation_type = '' OR derivation_type IS NULL);
 
-### Derived content stuck in 'processing'
-**Symptom:** content_derived.status='processing' for extended period
-**Cause:** Worker crashed or job failed without updating status
-**Fix:** Check worker logs, retry job, or mark as failed
+-- For derived content
+UPDATE content SET status = 'processed', updated_at = NOW()
+WHERE id = '<content-id>' AND derivation_type != '';
+```
 
-### Status mismatch between tables
-**Symptom:** content.status='uploaded' but content_derived.status='created'
-**Cause:** Status update logic incomplete or backfill not run
-**Fix:** Run backfill with `-fix-status` flag
+### Derived content with wrong status
+**Symptom:** Derived content has status='uploaded' instead of 'processed'
+**Cause:** Created before 2025-10-02 status semantics change
+**Fix:** Run migration query:
+```sql
+UPDATE content
+SET status = 'processed', updated_at = NOW()
+WHERE derivation_type != '' AND status = 'uploaded' AND deleted_at IS NULL;
+```
+
+### Status mismatch - derived content not ready
+**Symptom:** Parent is uploaded but GetContentDetails() shows not ready
+**Cause:** Derived content status is not 'processed'
+**Fix:** Check derived content status and update if objects exist:
+```sql
+-- Find the issue
+SELECT cd.parent_id, cd.content_id, c.status, cd.derivation_type, cd.variant
+FROM content_derived cd
+JOIN content c ON cd.content_id = c.id
+WHERE cd.parent_id = '<parent-id>' AND c.status != 'processed';
+```
 
 ## Implementation Status Summary
 
-### ✅ Currently Implemented
-- Three-tier status tracking (Content, Object, Content Derived)
-- Basic status enums defined in code
-- Soft delete with `deleted` status
-- Status fields in database tables
+### ✅ Currently Implemented (as of 2025-10-02)
+- **Simplified status model**: Two terminal states (uploaded/processed) based on content type
+- **Status tracked in content.status**: Single source of truth (no content_derived.status column)
+- **Type-based semantics**:
+  - Original content: `created` → `uploaded`
+  - Derived content: `created` → `processed`
+- **Typed enums**: ContentStatus and ObjectStatus with validation
+- **Status-based authorization**: Operations validate status before execution
+- **Soft delete**: Uses `deleted_at` timestamp (not status field)
+- **Ready logic**: Content-type-aware ready checking in GetContentDetails()
 
-### ⚠️ Implementation Gaps
-- **No status validation** - Any string value accepted
-- **No transition enforcement** - Invalid transitions not prevented
-- **Incomplete content lifecycle** - Missing processing/failed/archived statuses
-- **No database constraints** - Status values not enforced at DB level
-- **No status-based authorization** - Operations don't check status
-- **No audit trail** - Status changes not logged
-- **"active" status bug** - Referenced in code but undefined
+### ✅ Recent Improvements
+- Removed content_derived.status column (eliminated duplication)
+- Made "processed" status exclusive to derived content
+- Updated UploadDerivedContent() to set status="processed" directly
+- Added comprehensive status validation in status_validation.go
+- Clarified semantic distinction between original and derived content
+
+### ⚠️ Known Limitations
+- **No database constraints**: Status values not enforced at DB level (application-level validation only)
+- **No audit trail**: Status changes not logged (consider adding in future)
+- **Reserved statuses**: `processing`, `failed`, `archived` defined but not actively used
+- **No transition enforcement**: State machine transitions not strictly enforced
 
 ### 🔄 Refactoring Plan
 See [STATUS_LIFECYCLE_REFACTORING.md](STATUS_LIFECYCLE_REFACTORING.md) for:
