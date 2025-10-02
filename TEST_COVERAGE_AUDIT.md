@@ -12,7 +12,7 @@ This document compares test coverage between legacy packages (`pkg/service`, `pk
 |--------------|-------------|-----------|--------|
 | Service | 22 tests | 33 tests | ✅ Better coverage |
 | Repository | 6 test files | 1 test file + integration tests | ✅ Consolidated |
-| Storage | 2 test files (fs, s3) | 2 test files (fs, memory) | ⚠️ S3 needs porting |
+| Storage | 2 test files (fs, s3) | 3 test files (fs, memory, s3) | ✅ Complete coverage |
 
 ## Detailed Comparison
 
@@ -101,17 +101,20 @@ This document compares test coverage between legacy packages (`pkg/service`, `pk
 ### 1. Missing Tests to Port
 
 #### High Priority
-- ⚠️ **S3 Storage Tests** (`pkg/storage/s3/s3_test.go`)
-  - Presigned URL generation
-  - S3-specific error handling
-  - MinIO compatibility
-  - Multipart upload support (if applicable)
+- ✅ **S3 Storage Tests** (`pkg/storage/s3/s3_test.go`) - **COMPLETED**
+  - ✅ Presigned URL generation
+  - ✅ S3-specific error handling
+  - ✅ MinIO compatibility
+  - ✅ Configuration validation (SSE, KMS, endpoints)
+  - ✅ Integration tests with MinIO
+  - **File:** `pkg/simplecontent/storage/s3/s3_test.go` (created 2025-10-01)
 
 #### Medium Priority
-- ⚠️ **Max Depth Limit** (`TestContentService_CreateDerivedContent_MaxDepthLimit`)
-  - Tests recursive derivation depth limits
-  - Prevents infinite derivation chains
-  - Should be ported to `pkg/simplecontent`
+- ⏸️ **Max Depth Limit** (`TestContentService_CreateDerivedContent_MaxDepthLimit`)
+  - **Status:** NOT IMPLEMENTED (in either legacy or new package)
+  - Legacy test is skipped with: "Max derivation depth check not implemented in ContentService.CreateDerivedContent"
+  - **Recommendation:** Feature needs to be designed and implemented, not just ported
+  - **Future work:** Add derivation depth tracking and limiting as new feature
 
 ### 2. Test Cases Already Covered
 
@@ -136,22 +139,21 @@ The new test suite has additional coverage for:
 
 ## Recommendations
 
-### Immediate Actions
+### Completed Actions ✅
 
-1. **Port S3 Storage Tests** (Priority: HIGH)
-   ```bash
-   # Create pkg/simplecontent/storage/s3/s3_test.go
-   # Port tests from pkg/storage/s3/s3_test.go
-   # Add MinIO integration tests
-   ```
+1. ✅ **Port S3 Storage Tests** (Priority: HIGH) - **COMPLETED 2025-10-01**
+   - Created `pkg/simplecontent/storage/s3/s3_test.go`
+   - Ported all test cases from legacy package
+   - Added MinIO integration tests
+   - Added configuration validation tests (SSE, KMS, endpoints)
+   - Added context cancellation tests
 
-2. **Port Max Depth Limit Test** (Priority: MEDIUM)
-   ```bash
-   # Add to pkg/simplecontent/service_test.go or derived_service_test.go
-   # Test recursive derivation depth limiting
-   ```
+2. ⏸️ **Max Depth Limit Test** (Priority: MEDIUM) - **NOT APPLICABLE**
+   - Feature not implemented in either legacy or new package
+   - Legacy test is skipped
+   - Requires feature design and implementation (future work)
 
-3. **Add Deprecation Notices to Legacy Tests** (Priority: LOW)
+3. **Add Deprecation Notices to Legacy Tests** (Priority: LOW) - **RECOMMENDED**
    ```go
    // Deprecated: These tests are for legacy packages.
    // See pkg/simplecontent tests for current test suite.
@@ -207,25 +209,32 @@ go test -tags=integration ./pkg/simplecontent/...
 
 ## Conclusion
 
-**Overall Assessment:** ✅ **Good Coverage**
+**Overall Assessment:** ✅ **Excellent Coverage**
 
-The new `pkg/simplecontent` package has comprehensive test coverage that meets or exceeds the legacy package coverage in most areas.
+The new `pkg/simplecontent` package has comprehensive test coverage that meets or exceeds the legacy package coverage in all areas.
 
 ### Coverage Status:
 - **Service Layer:** ✅ Excellent (33 tests vs 22 legacy tests)
 - **Repository Layer:** ✅ Good (integration tests + service tests)
-- **Storage Layer:** ⚠️ Needs S3 tests ported
+- **Storage Layer:** ✅ **Complete** (fs, memory, s3 all tested)
 
-### Action Items:
-1. Port S3 storage tests (HIGH priority)
-2. Add max depth limit test (MEDIUM priority)
-3. Add deprecation notices to legacy tests (LOW priority)
+### Completed Action Items (2025-10-01):
+1. ✅ Port S3 storage tests (HIGH priority) - **COMPLETED**
+2. ⏸️ Max depth limit test (MEDIUM priority) - Feature not implemented, documented for future
+3. 📝 Add deprecation notices to legacy tests (LOW priority) - Recommended next step
 
-### Timeline:
-- **Week 1:** Port S3 storage tests
-- **Week 2:** Add max depth limit test
-- **Week 3:** Review and add any additional edge case tests
-- **Before Legacy Removal (2026-01-01):** Ensure 100% feature parity in tests
+### Timeline Update:
+- ✅ **2025-10-01:** S3 storage tests ported and validated
+- 📝 **Next:** Add deprecation notices to legacy test files
+- ✅ **Before Legacy Removal (2026-01-01):** Test parity achieved
 
 ### Confidence Level:
-**High** - The new test suite provides better coverage overall, with only minor gaps that can be filled quickly.
+**Very High** - The new test suite provides complete coverage with:
+- ✅ All storage backends tested (memory, fs, s3)
+- ✅ Integration tests with Postgres and MinIO
+- ✅ Better service layer coverage (33 vs 22 tests)
+- ✅ Status management operations tested
+- ✅ Backward compatibility verified
+- ✅ Error handling comprehensive
+
+**No critical gaps remain.** The legacy packages can be safely removed on the scheduled date (2026-01-01).
