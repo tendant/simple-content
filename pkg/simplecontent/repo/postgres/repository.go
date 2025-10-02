@@ -437,15 +437,14 @@ func (r *Repository) GetObjectMetadata(ctx context.Context, objectID uuid.UUID) 
 // Derived content operations (simplified implementations)
 
 func (r *Repository) CreateDerivedContentRelationship(ctx context.Context, params simplecontent.CreateDerivedContentParams) (*simplecontent.DerivedContent, error) {
-	// Note: DerivedContent.status uses Object status semantics ('created' = ObjectStatusCreated)
-	// This allows tracking granular processing states (uploading, processing, processed, failed)
+	// Note: Status is tracked in content.status, not content_derived (avoid duplication)
 	query := `
 	        INSERT INTO content_derived (
 	            parent_id, content_id, derivation_type, variant, derivation_params,
-	            processing_metadata, created_at, updated_at, status
-	        ) VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW(), 'created')
+	            processing_metadata, created_at, updated_at
+	        ) VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
 	        RETURNING parent_id, content_id, derivation_type, variant, derivation_params,
-	                  processing_metadata, created_at, updated_at, status`
+	                  processing_metadata, created_at, updated_at`
 
 	var derived simplecontent.DerivedContent
 
@@ -454,7 +453,7 @@ func (r *Repository) CreateDerivedContentRelationship(ctx context.Context, param
 		params.DerivationParams, params.ProcessingMetadata).Scan(
 		&derived.ParentID, &derived.ContentID, &derived.DerivationType, &derived.Variant,
 		&derived.DerivationParams, &derived.ProcessingMetadata,
-		&derived.CreatedAt, &derived.UpdatedAt, &derived.Status)
+		&derived.CreatedAt, &derived.UpdatedAt)
 
 	if err != nil {
 		return nil, err
@@ -502,14 +501,14 @@ func (r *Repository) ListDerivedContent(ctx context.Context, params simpleconten
 func (r *Repository) GetDerivedRelationshipByContentID(ctx context.Context, contentID uuid.UUID) (*simplecontent.DerivedContent, error) {
 	query := `
         SELECT parent_id, content_id, variant as derivation_type, derivation_params,
-               processing_metadata, created_at, updated_at, status
+               processing_metadata, created_at, updated_at
         FROM content_derived WHERE content_id = $1`
 
 	var derived simplecontent.DerivedContent
 	err := r.db.QueryRow(ctx, query, contentID).Scan(
 		&derived.ParentID, &derived.ContentID, &derived.DerivationType,
 		&derived.DerivationParams, &derived.ProcessingMetadata,
-		&derived.CreatedAt, &derived.UpdatedAt, &derived.Status,
+		&derived.CreatedAt, &derived.UpdatedAt,
 	)
 	if err != nil {
 		return nil, r.handlePostgresError("get derived relationship by content id", err)
@@ -517,23 +516,12 @@ func (r *Repository) GetDerivedRelationshipByContentID(ctx context.Context, cont
 	return &derived, nil
 }
 
-// UpdateDerivedContentStatus updates the status field in the derived content relationship
-// This keeps the DerivedContent.Status field in sync with the Content.Status field
-func (r *Repository) UpdateDerivedContentStatus(ctx context.Context, contentID uuid.UUID, status string) error {
-	query := `UPDATE content_derived SET status = $1, updated_at = NOW() WHERE content_id = $2 AND deleted_at IS NULL`
-	_, err := r.db.Exec(ctx, query, status, contentID)
-	if err != nil {
-		return r.handlePostgresError("update derived content status", err)
-	}
-	return nil
-}
-
 // buildEnhancedQuery builds a PostgreSQL query with enhanced filtering capabilities
 func (r *Repository) buildEnhancedQuery(params simplecontent.ListDerivedContentParams) (string, []interface{}) {
 	query := `
 		SELECT cd.parent_id, cd.content_id, cd.derivation_type, cd.variant, cd.derivation_params,
 			   cd.processing_metadata, cd.created_at, cd.updated_at,
-			   COALESCE(c.document_type, '') as document_type, cd.status
+			   COALESCE(c.document_type, '') as document_type
 		FROM content_derived cd
 		LEFT JOIN content c ON cd.content_id = c.id
 		WHERE cd.deleted_at IS NULL
@@ -602,9 +590,9 @@ func (r *Repository) buildEnhancedQuery(params simplecontent.ListDerivedContentP
 		query += fmt.Sprintf(" AND (%s)", strings.Join(conditions, " OR "))
 	}
 
-	// Content status filtering
+	// Content status filtering (uses content.status, not content_derived.status)
 	if params.ContentStatus != nil {
-		query += fmt.Sprintf(" AND cd.status = $%d", argIndex)
+		query += fmt.Sprintf(" AND c.status = $%d", argIndex)
 		args = append(args, *params.ContentStatus)
 		argIndex++
 	}

@@ -72,11 +72,11 @@ CREATE TABLE IF NOT EXISTS content_derived (
     derivation_type VARCHAR(32) NOT NULL,
     derivation_params JSONB,
     processing_metadata JSONB,
-    status VARCHAR(32) NOT NULL DEFAULT 'created',
     created_at TIMESTAMP NOT NULL DEFAULT (NOW() AT TIME ZONE 'utc'),
     updated_at TIMESTAMP NOT NULL DEFAULT (NOW() AT TIME ZONE 'utc'),
     deleted_at TIMESTAMP NULL,
     -- PRIMARY KEY (parent_id, content_id) -- (parent_id, content_id) can not be primary key bc of soft delete
+    -- Note: Status is tracked in content.status, not here (avoid duplication)
 );
 
 

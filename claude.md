@@ -69,7 +69,7 @@ This document gives AI coding assistants (Claude, ChatGPT, etc.) the context and
 - `failed` - Processing failed, manual intervention may be required
 - ~~`deleted`~~ - DEPRECATED: Use `deleted_at` timestamp instead
 
-**DerivedContent.status** uses Object status semantics (see "Content Ready Status" section below)
+**Note:** Derived content uses the same ContentStatus enum as original content (tracked in `content.status`).
 
 ### Status-Based Authorization
 
@@ -259,10 +259,10 @@ The `ContentDetails.Ready` field indicates when content and its derived content 
 **Ready Semantics:**
 - `Ready = true` when:
   - Parent content `status = "uploaded"` AND
-  - All derived content (thumbnails, previews, transcodes) have `status = "uploaded"` OR `"processed"` (Object status semantics)
+  - All derived content (thumbnails, previews, transcodes) have `status = "uploaded"` OR `"processed"`
 - `Ready = false` when:
   - Parent content `status = "created"` (not yet uploaded), OR
-  - Any derived content has `status = "created"`, `"uploading"`, `"processing"`, or `"failed"` (Object status semantics)
+  - Any derived content has `status = "created"`, `"uploading"`, `"processing"`, or `"failed"`
 
 **Examples:**
 ```go
@@ -290,13 +290,12 @@ details, _ := svc.GetContentDetails(ctx, parent.ID)
 ```
 
 **Implementation Notes:**
-- **DerivedContent.status uses Object status semantics** (not Content status semantics)
-- This allows tracking granular processing states: `created`, `uploading`, `uploaded`, `processing`, `processed`, `failed`
+- **Derived content status is tracked in `content.status`** (same as original content)
+- Uses ContentStatus enum for both original and derived content (no separate status semantics)
 - When `UploadDerivedContent()` completes:
-  - `content.status` is set to `"uploaded"` (Content status)
-  - `content_derived.status` is set to `"uploaded"` (Object status - same value, different semantic domain)
+  - `content.status` is set to `"uploaded"` for the derived content row
   - The underlying object's status is also `"uploaded"`
-- See [docs/STATUS_LIFECYCLE.md § Content Derived Status](docs/STATUS_LIFECYCLE.md) for full details
+- No duplication: `content_derived` table does NOT have a status column (avoids sync issues)
 
 ## HTTP API (cmd/server-configured)
 

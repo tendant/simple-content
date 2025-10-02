@@ -140,13 +140,13 @@ type DerivedContent struct {
 	ParentID           uuid.UUID              `json:"parent_id" db:"parent_id"`
 	ContentID          uuid.UUID              `json:"content_id" db:"content_id"`
 	DerivationType     string                 `json:"derivation_type" db:"derivation_type"`
-	Variant            string                 `json:"variant" db:"variant"`                      // NEW: Specific variant (persisted)
+	Variant            string                 `json:"variant" db:"variant"`                      // Specific variant (persisted)
 	DerivationParams   map[string]interface{} `json:"derivation_params" db:"derivation_params"`
 	ProcessingMetadata map[string]interface{} `json:"processing_metadata" db:"processing_metadata"`
 	CreatedAt          time.Time              `json:"created_at" db:"created_at"`
 	UpdatedAt          time.Time              `json:"updated_at" db:"updated_at"`
 	DocumentType       string                 `json:"document_type" db:"document_type"`
-	Status             string                 `json:"status" db:"status"` // Uses Object status semantics (see above)
+	// Note: Status is tracked in content.status, not here (avoid duplication)
 
 	// Computed fields (not persisted - populated by service layer)
 	DownloadURL        string                 `json:"download_url,omitempty" db:"-"`
