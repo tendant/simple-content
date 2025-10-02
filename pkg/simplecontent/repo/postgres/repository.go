@@ -123,7 +123,7 @@ func (r *Repository) UpdateContent(ctx context.Context, content *simplecontent.C
 	_, err := r.db.Exec(ctx, query,
 		content.ID, content.TenantID, content.OwnerID, content.OwnerType,
 		content.Name, content.Description, content.DocumentType,
-		content.Status, content.DerivationType, content.UpdatedAt)
+		content.Status, content.DerivationType, time.Now().UTC())
 
 	return err
 }
@@ -184,7 +184,7 @@ func (r *Repository) SetContentMetadata(ctx context.Context, metadata *simplecon
 	_, err := r.db.Exec(ctx, query,
 		metadata.ContentID, metadata.Tags, metadata.FileSize, metadata.FileName,
 		metadata.MimeType, metadata.Checksum, metadata.ChecksumAlgorithm,
-		metadata.Metadata, metadata.CreatedAt, metadata.UpdatedAt)
+		metadata.Metadata, metadata.CreatedAt, time.Now().UTC())
 
 	return err
 }
@@ -409,7 +409,7 @@ func (r *Repository) SetObjectMetadata(ctx context.Context, metadata *simplecont
 
 	_, err := r.db.Exec(ctx, query,
 		metadata.ObjectID, metadata.SizeBytes, metadata.MimeType,
-		metadata.ETag, metadata.Metadata, metadata.CreatedAt, metadata.UpdatedAt)
+		metadata.ETag, metadata.Metadata, metadata.CreatedAt, time.Now().UTC())
 
 	return err
 }
