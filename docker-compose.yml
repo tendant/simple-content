@@ -1,6 +1,28 @@
 version: '3.8'
 
 services:
+  # PostgreSQL database for content metadata
+  postgres:
+    image: postgres:15-alpine
+    container_name: simple-content-postgres
+    ports:
+      - "5433:5432"  # Using 5433 to avoid conflict with local postgres
+    environment:
+      POSTGRES_DB: simple_content
+      POSTGRES_USER: content
+      POSTGRES_PASSWORD: contentpass
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./scripts/init-db.sh:/docker-entrypoint-initdb.d/init-db.sh
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U content -d simple_content"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - simple-content-network
+
   # MinIO service for object storage
   minio:
     image: minio/minio
@@ -35,12 +57,12 @@ services:
       - HOST=0.0.0.0
       - PORT=4000
       
-      # Database configuration
-      - CONTENT_PG_HOST=powercard-db
+      # Database configuration (uses local postgres by default, can override with external)
+      - CONTENT_PG_HOST=postgres
       - CONTENT_PG_PORT=5432
-      - CONTENT_PG_NAME=powercard_db
+      - CONTENT_PG_NAME=simple_content
       - CONTENT_PG_USER=content
-      - CONTENT_PG_PASSWORD=pwd
+      - CONTENT_PG_PASSWORD=contentpass
       
       # S3/MinIO configuration
       - AWS_S3_ENDPOINT=http://minio:9000
@@ -50,6 +72,8 @@ services:
       - AWS_S3_REGION=us-east-1
       - AWS_S3_USE_SSL=false
     depends_on:
+      postgres:
+        condition: service_healthy
       minio:
         condition: service_healthy
     restart: unless-stopped
@@ -58,6 +82,7 @@ services:
       - powercard-net
 
 volumes:
+  postgres-data:
   minio-data:
 
 networks:

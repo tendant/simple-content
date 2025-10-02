@@ -41,13 +41,52 @@ go build -o simple-content ./cmd/server-configured
 
 The server will start on port 8080 by default. You can change the port by setting the `PORT` environment variable.
 
-### Database Setup
+### Local Development with Docker Compose
 
-- **Postgres**: Uses dedicated `content` schema by default
-- **Migrations**: Use goose with migration files in `migrations/postgres/`
-- **Schema**: Create schema first with `migrations/manual/000_create_schema.sql`
+The easiest way to get started is using Docker Compose for local development:
 
 ```bash
+# Start Postgres and MinIO services
+./scripts/docker-dev.sh start
+
+# Run database migrations
+./scripts/run-migrations.sh up
+
+# Create MinIO bucket (optional, for S3 storage)
+aws --endpoint-url http://localhost:9000 s3 mb s3://content-bucket
+
+# Run the application
+ENVIRONMENT=development \
+DATABASE_TYPE=postgres \
+DATABASE_URL='postgresql://content:contentpass@localhost:5433/simple_content?sslmode=disable&search_path=content' \
+STORAGE_BACKEND=memory \
+go run ./cmd/server-configured
+```
+
+**Development Services:**
+- **Postgres**: `localhost:5433` (user: `content`, password: `contentpass`, db: `simple_content`)
+- **MinIO**: `localhost:9000` (console: `localhost:9001`, credentials: `minioadmin/minioadmin`)
+
+**Helper Scripts:**
+- `./scripts/docker-dev.sh start|stop|restart|logs|clean|status` - Manage Docker services
+- `./scripts/run-migrations.sh up|down|status` - Run database migrations
+
+### Manual Database Setup
+
+If you prefer to manage your own database:
+
+**Postgres Setup:**
+- Uses dedicated `content` schema by default (configurable via `CONTENT_DB_SCHEMA`)
+- Migrations located in `migrations/postgres/`
+- Requires Go migration tool [goose](https://github.com/pressly/goose)
+
+```bash
+# Install goose
+go install github.com/pressly/goose/v3/cmd/goose@latest
+
+# Set your database URL
+export DATABASE_URL="postgresql://user:password@localhost:5432/dbname?sslmode=disable&search_path=content"
+
 # Run migrations
 goose -dir ./migrations/postgres postgres "$DATABASE_URL" up
 ```
@@ -233,27 +272,90 @@ Response:
 }
 ```
 
+## Environment Variables
+
+### Core Configuration
+- `ENVIRONMENT` - Environment name (`development`, `production`) (default: `development`)
+- `PORT` - HTTP server port (default: `8080`)
+- `HOST` - HTTP server host (default: `0.0.0.0`)
+
+### Database Configuration
+- `DATABASE_TYPE` - Database type: `memory` or `postgres` (default: `memory`)
+- `DATABASE_URL` - Postgres connection string (format: `postgresql://user:pass@host:port/db?sslmode=disable&search_path=content`)
+- `CONTENT_DB_SCHEMA` - Postgres schema name (default: `content`)
+
+**Individual Postgres Settings** (alternative to DATABASE_URL):
+- `CONTENT_PG_HOST` - Postgres host
+- `CONTENT_PG_PORT` - Postgres port
+- `CONTENT_PG_NAME` - Database name
+- `CONTENT_PG_USER` - Database user
+- `CONTENT_PG_PASSWORD` - Database password
+
+### Storage Configuration
+- `STORAGE_BACKEND` - Storage backend: `memory`, `fs`, or `s3` (default: `memory`)
+
+**Filesystem Storage:**
+- `FS_BASE_PATH` - Base path for file storage (default: `./data`)
+
+**S3 Storage:**
+- `AWS_S3_ENDPOINT` - S3 endpoint URL (for MinIO/compatible services)
+- `AWS_ACCESS_KEY_ID` - AWS access key
+- `AWS_SECRET_ACCESS_KEY` - AWS secret key
+- `AWS_S3_BUCKET` - S3 bucket name
+- `AWS_S3_REGION` - AWS region (default: `us-east-1`)
+- `AWS_S3_USE_SSL` - Use SSL for S3 (default: `true`)
+
+### URL Strategy Configuration
+- `URL_STRATEGY` - URL generation strategy: `content-based`, `cdn`, or `storage-delegated` (default: `content-based`)
+- `API_BASE_URL` - Base URL for content-based strategy (default: `/api/v1`)
+- `CDN_BASE_URL` - CDN base URL for cdn strategy
+- `UPLOAD_BASE_URL` - Upload base URL for hybrid cdn strategy
+
+### Object Key Generation
+- `OBJECT_KEY_GENERATOR` - Key generator: `git-like`, `tenant-aware`, `high-performance`, or `legacy` (default: `git-like`)
+
 ## Docker Deployment
 
-For a complete development environment:
+### Development Environment
+
+Use the provided helper scripts for local development:
 
 ```bash
-# Create network
-docker network create simple-content-network
+# Quick start - starts Postgres and MinIO
+./scripts/docker-dev.sh start
 
-# Start all services
-docker compose up --build
+# View logs
+./scripts/docker-dev.sh logs
+
+# Stop services
+./scripts/docker-dev.sh stop
+
+# Clean up (removes data volumes)
+./scripts/docker-dev.sh clean
+```
+
+### Full Stack with API Server
+
+To run the complete stack including the API server:
+
+```bash
+# Start all services (Postgres + MinIO + API)
+docker-compose up --build
+
+# Or start in detached mode
+docker-compose up -d --build
 ```
 
 This starts:
-- **PostgreSQL** database on port 5432
-- **MinIO** object storage on ports 9000 (API) and 9001 (Console)
-- **Content API** server on port 8080
+- **PostgreSQL** on `localhost:5433` (mapped from container port 5432)
+- **MinIO** on `localhost:9000` (API) and `localhost:9001` (Console)
+- **Content API** server on `localhost:4000`
 
 Access:
-- Content API: http://localhost:8080
-- MinIO Console: http://localhost:9001 (admin/minioadmin)
-- Health check: http://localhost:8080/health
+- Content API: http://localhost:4000
+- MinIO Console: http://localhost:9001 (credentials: `minioadmin/minioadmin`)
+
+**Note:** The docker-compose setup uses a local Postgres instance by default. To use an external database, override the environment variables in docker-compose.yml
 
 ## Key Concepts
 
@@ -330,6 +432,52 @@ content := svc.UploadContent(...)
 **Interface Separation:**
 - **Service**: Content-focused operations for most users
 - **StorageService**: Object-level operations for advanced use cases
+
+## Testing
+
+### Unit Tests
+
+Run unit tests with the memory backend:
+
+```bash
+go test ./pkg/simplecontent/...
+```
+
+### Integration Tests
+
+Integration tests require Postgres and MinIO. Use docker-compose for easy setup:
+
+```bash
+# Start test services
+./scripts/docker-dev.sh start
+
+# Run migrations
+./scripts/run-migrations.sh up
+
+# Run integration tests
+DATABASE_TYPE=postgres \
+DATABASE_URL='postgresql://content:contentpass@localhost:5433/simple_content?sslmode=disable&search_path=content' \
+go test -tags=integration ./pkg/simplecontent/...
+
+# Clean up
+./scripts/docker-dev.sh stop
+```
+
+### Running All Tests
+
+```bash
+# Start services
+./scripts/docker-dev.sh start
+./scripts/run-migrations.sh up
+
+# Run all tests (unit + integration)
+DATABASE_TYPE=postgres \
+DATABASE_URL='postgresql://content:contentpass@localhost:5433/simple_content?sslmode=disable&search_path=content' \
+go test -tags=integration ./...
+
+# Stop services
+./scripts/docker-dev.sh stop
+```
 
 ## Examples
 
