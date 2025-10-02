@@ -821,18 +821,27 @@ derived, err := svc.CreateDerivedContent(ctx, simplecontent.CreateDerivedContent
     TenantID:       tenantID,
     DerivationType: "thumbnail",
     Variant:        "thumbnail_256",
-    InitialStatus:  simplecontent.ContentStatusProcessing, // NEW: Set initial status
+    // InitialStatus defaults to "created" (job queued)
     Metadata: map[string]interface{}{
         "target_size": "256x256",
         "format":      "jpeg",
     },
 })
 
-// Step 2: Worker downloads source and generates thumbnail
-sourceData, _ := svc.DownloadContent(ctx, parentID)
-thumbnailData := generateThumbnail(sourceData) // expensive operation
+// Step 2: Worker downloads source image
+sourceData, err := svc.DownloadContent(ctx, parentID)
+if err != nil {
+    // Download failed - status remains "created" for retry
+    return err
+}
 
-// Step 3: Upload object for existing content (NEW)
+// Step 3: Update status after successful download
+err = svc.UpdateContentStatus(ctx, derived.ID, simplecontent.ContentStatusProcessing)
+
+// Step 4: Generate thumbnail (expensive operation)
+thumbnailData := generateThumbnail(sourceData)
+
+// Step 5: Upload object for existing content (NEW)
 object, err := svc.UploadObjectForContent(ctx, simplecontent.UploadObjectForContentRequest{
     ContentID: derived.ID,
     Reader:    thumbnailData,
@@ -840,27 +849,31 @@ object, err := svc.UploadObjectForContent(ctx, simplecontent.UploadObjectForCont
     MimeType:  "image/jpeg",
 })
 
-// Step 4: Mark processing complete
+// Step 6: Mark processing complete
 err = svc.UpdateContentStatus(ctx, derived.ID, simplecontent.ContentStatusProcessed)
 ```
 
 **Async Workflow Benefits:**
-- **Early visibility**: Placeholder created before processing (UI can show "processing" state)
+- **Early visibility**: Placeholder created before processing (UI can show "queued" state)
+- **Download tracking**: Status changes after download shows download phase completed
 - **Worker flexibility**: Processing happens separately from content creation
 - **Status tracking**: Query content by status to find work or monitor progress
-- **Error handling**: Status remains "processing" on failure, worker can retry
+- **Error isolation**: Distinguish download failures from processing failures
 
 **Status Lifecycle for Async:**
 ```
-created → processing → processed ✓
-         ↓
-        (transient error: retry entire job)
+created (queued) → [download] → processing (generating) → processed ✓
+   ↓ (download fails)               ↓ (generation fails)
+created (full retry)              processing (retry generation only)
 ```
 
 **Worker Query Patterns:**
 ```go
-// Find content waiting for processing
-pending, _ := svc.GetContentByStatus(ctx, simplecontent.ContentStatusProcessing)
+// Find jobs waiting to start (download phase)
+pending, _ := svc.GetContentByStatus(ctx, simplecontent.ContentStatusCreated)
+
+// Find jobs actively processing (generation phase)
+processing, _ := svc.GetContentByStatus(ctx, simplecontent.ContentStatusProcessing)
 
 // Error handling: Store error metadata for debugging
 svc.SetContentMetadata(ctx, simplecontent.SetContentMetadataRequest{
@@ -869,6 +882,7 @@ svc.SetContentMetadata(ctx, simplecontent.SetContentMetadataRequest{
         "last_error":   err.Error(),
         "error_count":  retryCount,
         "last_attempt": time.Now(),
+        "failed_phase": "download", // or "generation" or "upload"
     },
 })
 ```

@@ -178,24 +178,31 @@ For scenarios where processing happens asynchronously (e.g., queue-based workers
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │ 1. Client/Worker calls CreateDerivedContent()              │
-│    → content.status = "processing" (InitialStatus param)   │
+│    → content.status = "created" (default, job queued)      │
 │    → Creates content_derived relationship row              │
 │    → NO object created yet (placeholder only)              │
 └─────────────────────────────────────────────────────────────┘
                            ↓
 ┌─────────────────────────────────────────────────────────────┐
-│ 2. Worker downloads source image from parent content       │
+│ 2. Worker picks up job and downloads source from parent    │
 │    → Reads original content binary                         │
+│    → Download may be slow or fail                          │
 └─────────────────────────────────────────────────────────────┘
                            ↓
 ┌─────────────────────────────────────────────────────────────┐
-│ 3. Worker generates thumbnail (expensive operation)        │
+│ 3. Worker calls UpdateContentStatus("processing")          │
+│    → content.status = "processing" (download succeeded)    │
+│    → Tracks that download phase completed                  │
+└─────────────────────────────────────────────────────────────┘
+                           ↓
+┌─────────────────────────────────────────────────────────────┐
+│ 4. Worker generates thumbnail (expensive operation)        │
 │    → Resizes image to target dimensions                    │
 │    → Prepares thumbnail data in memory                     │
 └─────────────────────────────────────────────────────────────┘
                            ↓
 ┌─────────────────────────────────────────────────────────────┐
-│ 4. Worker calls UploadObjectForContent()  ← NEW METHOD     │
+│ 5. Worker calls UploadObjectForContent()  ← NEW METHOD     │
 │    → Creates object record (object.status="created")       │
 │    → Uploads binary to blob storage                        │
 │    → Updates object.status = "uploaded"                    │
@@ -203,45 +210,85 @@ For scenarios where processing happens asynchronously (e.g., queue-based workers
 └─────────────────────────────────────────────────────────────┘
                            ↓
 ┌─────────────────────────────────────────────────────────────┐
-│ 5. Worker calls UpdateContentStatus()                      │
+│ 6. Worker calls UpdateContentStatus("processed")           │
 │    → content.status = "processed"  ← FINAL STATE           │
 └─────────────────────────────────────────────────────────────┘
                            ↓
 ┌─────────────────────────────────────────────────────────────┐
-│ 6. Content is ready to serve                               │
+│ 7. Content is ready to serve                               │
 │    → content.status = "processed"                          │
 │    → Derived content available for download                │
 └─────────────────────────────────────────────────────────────┘
 ```
 
 **Async Workflow Benefits:**
-- **Early visibility**: Placeholder created before processing (UI can show "processing" state)
+- **Early visibility**: Placeholder created before processing (UI can show "queued" state)
+- **Download tracking**: Status change after download shows download phase completed
 - **Worker flexibility**: Processing happens separately from content creation
-- **Status queries**: Workers can query `GetContentByStatus(ContentStatusProcessing)` to find work
-- **Error handling**: Status remains "processing" on failure, worker can retry
+- **Status queries**: Workers can query `GetContentByStatus(ContentStatusCreated)` to find work
+- **Error isolation**: Distinguish download failures from processing failures
 
 **Error Handling in Async Workflow:**
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│ Processing fails (network error, invalid image, etc.)      │
+│ Download fails (network error, parent not ready, etc.)     │
+│    → content.status remains "created"                      │
+│    → Worker stores error in content metadata               │
+│    → Worker retries later by querying created content      │
+│    → Full retry including download                         │
+└─────────────────────────────────────────────────────────────┘
+                           ↓
+┌─────────────────────────────────────────────────────────────┐
+│ Processing fails after download (invalid image, etc.)      │
 │    → content.status remains "processing"                   │
 │    → Worker stores error in content metadata               │
-│    → Worker retries later by querying processing content   │
+│    → Worker can retry generation without re-downloading    │
+│    → More efficient retry (skip download phase)            │
 └─────────────────────────────────────────────────────────────┘
 ```
 
 **Status Lifecycle for Async:**
 ```
-created → processing → processed ✓
-         ↓
-        (transient error: retry entire job)
+created (queued) → [download] → processing (generating) → processed ✓
+   ↓ (download fails)               ↓ (generation fails)
+created (full retry)              processing (retry generation only)
+```
+
+**Worker Query Patterns:**
+```sql
+-- Find jobs waiting to start
+SELECT * FROM content
+WHERE status = 'created'
+  AND derivation_type != ''
+  AND deleted_at IS NULL;
+
+-- Find jobs actively processing
+SELECT * FROM content
+WHERE status = 'processing'
+  AND derivation_type != ''
+  AND deleted_at IS NULL;
+
+-- Find stalled downloads (created > 5 minutes ago)
+SELECT * FROM content
+WHERE status = 'created'
+  AND derivation_type != ''
+  AND updated_at < NOW() - INTERVAL '5 minutes'
+  AND deleted_at IS NULL;
+
+-- Find stalled processing (processing > 30 minutes ago)
+SELECT * FROM content
+WHERE status = 'processing'
+  AND derivation_type != ''
+  AND updated_at < NOW() - INTERVAL '30 minutes'
+  AND deleted_at IS NULL;
 ```
 
 **Key Differences from Synchronous:**
 - Synchronous: `UploadDerivedContent()` - single atomic operation
-- Async: `CreateDerivedContent()` → process → `UploadObjectForContent()` → `UpdateContentStatus()` - multi-step
+- Async: `CreateDerivedContent()` → download → `UpdateContentStatus("processing")` → generate → `UploadObjectForContent()` → `UpdateContentStatus("processed")` - multi-step
 - Async allows content placeholder to exist before data is ready
 - Async enables worker-based architectures with job queues
+- Async provides better observability with status tracking at each phase
 
 ### Status Verification (Backfill)
 
