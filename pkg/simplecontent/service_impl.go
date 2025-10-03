@@ -1254,14 +1254,16 @@ func (s *service) GetContentDetails(ctx context.Context, contentID uuid.UUID, op
 	if len(objects) > 0 && s.urlStrategy != nil {
 		primaryObject := objects[0] // Use first object as primary
 
-		// Generate download URL using URL strategy
-		if downloadURL, err := s.urlStrategy.GenerateDownloadURL(ctx, contentID, primaryObject.ObjectKey, primaryObject.StorageBackendName); err == nil {
-			result.Download = downloadURL
-		}
-
-		// Generate preview URL using URL strategy
-		if previewURL, err := s.urlStrategy.GeneratePreviewURL(ctx, contentID, primaryObject.ObjectKey, primaryObject.StorageBackendName); err == nil {
-			result.Preview = previewURL
+		// Verify if content is ready
+		if strings.ToLower(content.Status) == string(ContentStatusUploaded) {
+			// Generate download URL using URL strategy
+			if downloadURL, err := s.urlStrategy.GenerateDownloadURL(ctx, contentID, primaryObject.ObjectKey, primaryObject.StorageBackendName); err == nil {
+				result.Download = downloadURL
+			}
+			// Generate preview URL using URL strategy
+			if previewURL, err := s.urlStrategy.GeneratePreviewURL(ctx, contentID, primaryObject.ObjectKey, primaryObject.StorageBackendName); err == nil {
+				result.Preview = previewURL
+			}
 		}
 
 		// Generate upload URL if requested
