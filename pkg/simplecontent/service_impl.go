@@ -132,6 +132,7 @@ func (s *service) CreateContent(ctx context.Context, req CreateContentRequest) (
 		ID:             uuid.New(),
 		TenantID:       req.TenantID,
 		OwnerID:        req.OwnerID,
+		OwnerType:      req.OwnerType,
 		Name:           req.Name,
 		Description:    req.Description,
 		DocumentType:   req.DocumentType,
@@ -198,15 +199,16 @@ func (s *service) CreateDerivedContent(ctx context.Context, req CreateDerivedCon
 
     // Create derived content
     now := time.Now().UTC()
-    content := &Content{
-        ID:             uuid.New(),
-        TenantID:       req.TenantID,
-        OwnerID:        req.OwnerID,
-        Status:         string(initialStatus),
-        DerivationType: NormalizeDerivationType(req.DerivationType),
-        CreatedAt:      now,
-        UpdatedAt:      now,
-    }
+	content := &Content{
+		ID:             uuid.New(),
+		TenantID:       req.TenantID,
+		OwnerID:        req.OwnerID,
+		OwnerType:      req.OwnerType,
+		Status:         string(initialStatus),
+		DerivationType: NormalizeDerivationType(req.DerivationType),
+		CreatedAt:      now,
+		UpdatedAt:      now,
+	}
 
 	if err := s.repository.CreateContent(ctx, content); err != nil {
 		return nil, &ContentError{

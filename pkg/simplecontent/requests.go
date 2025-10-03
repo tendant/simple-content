@@ -11,6 +11,7 @@ import (
 // CreateContentRequest contains parameters for creating new content
 type CreateContentRequest struct {
 	OwnerID        uuid.UUID
+	OwnerType      string
 	TenantID       uuid.UUID
 	Name           string
 	Description    string
@@ -38,6 +39,7 @@ type CreateDerivedContentRequest struct {
     Variant        string
     Metadata       map[string]interface{}
     InitialStatus  ContentStatus // Optional: defaults to "created"
+	OwnerType      string
 }
 
 // UpdateContentRequest contains parameters for updating content
