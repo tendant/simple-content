@@ -1255,7 +1255,7 @@ func (s *service) GetContentDetails(ctx context.Context, contentID uuid.UUID, op
 		primaryObject := objects[0] // Use first object as primary
 
 		// Verify if content is ready
-		if content.Status == string(ContentStatusUploaded) {
+		if strings.ToLower(content.Status) == string(ContentStatusUploaded) {
 			// Generate download URL using URL strategy
 			if downloadURL, err := s.urlStrategy.GenerateDownloadURL(ctx, contentID, primaryObject.ObjectKey, primaryObject.StorageBackendName); err == nil {
 				result.Download = downloadURL
