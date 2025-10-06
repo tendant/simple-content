@@ -47,7 +47,7 @@ CREATE TABLE IF NOT EXISTS object (
     status VARCHAR(32) NOT NULL DEFAULT 'created',
     created_at TIMESTAMP NOT NULL DEFAULT (NOW() AT TIME ZONE 'utc'),
     updated_at TIMESTAMP NOT NULL DEFAULT (NOW() AT TIME ZONE 'utc'),
-    deleted_at TIMESTAMP NULL,
+    deleted_at TIMESTAMP NULL
     -- UNIQUE(storage_backend_name, object_key) -- (storage_backend_name, object_key) can not be unique bc of soft delete
     -- CREATE UNIQUE INDEX unique_active_object
     -- ON object(storage_backend_name, object_key)
