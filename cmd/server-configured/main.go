@@ -550,7 +550,24 @@ func (s *HTTPServer) handleGetContentDetails(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	details, err := s.service.GetContentDetails(r.Context(), contentID)
+	// Parse query parameters for options
+	var options []simplecontent.ContentDetailsOption
+
+	// Check if upload access is requested
+	if uploadAccess := r.URL.Query().Get("upload_access"); uploadAccess == "true" {
+		// Check if expiry time is specified
+		if expiryStr := r.URL.Query().Get("expiry_seconds"); expiryStr != "" {
+			if expirySeconds, err := strconv.Atoi(expiryStr); err == nil && expirySeconds > 0 {
+				options = append(options, simplecontent.WithUploadAccessExpiry(expirySeconds))
+			} else {
+				options = append(options, simplecontent.WithUploadAccess())
+			}
+		} else {
+			options = append(options, simplecontent.WithUploadAccess())
+		}
+	}
+
+	details, err := s.service.GetContentDetails(r.Context(), contentID, options...)
 	if err != nil {
 		writeServiceError(w, err)
 		return

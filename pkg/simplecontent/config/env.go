@@ -7,152 +7,174 @@ import (
 )
 
 // WithEnv applies environment variable overrides using the provided prefix.
+//
+// Simplified environment variable mapping:
+//
+// Server (cmd/server-configured only):
+//   PORT - Server port (default: "8080")
+//   ENVIRONMENT - Runtime environment (default: "development")
+//
+// Database:
+//   DATABASE_URL - Connection string (e.g., "postgresql://user:pass@host/db")
+//                  If set with "postgresql://" prefix, automatically sets DATABASE_TYPE=postgres
+//                  If empty or "memory", uses in-memory database
+//
+// Storage:
+//   STORAGE_URL - Storage connection string (one of):
+//                 - "memory://" - In-memory storage (default)
+//                 - "file:///path/to/data" - Filesystem storage
+//                 - "s3://bucket?region=us-east-1" - S3 storage
+//
+// That's it! Use programmatic config for advanced features.
 func WithEnv(prefix string) Option {
 	return func(c *ServerConfig) error {
+		// Server-level config (cmd/server-configured only)
 		if v, ok := lookupEnv(prefix, "PORT"); ok && v != "" {
 			c.Port = v
 		}
 		if v, ok := lookupEnv(prefix, "ENVIRONMENT"); ok && v != "" {
 			c.Environment = v
 		}
-		if v, ok := lookupEnv(prefix, "DATABASE_URL"); ok {
-			c.DatabaseURL = v
-		}
-		if v, ok := lookupEnv(prefix, "DATABASE_TYPE"); ok && v != "" {
-			c.DatabaseType = v
-		}
-		if v, ok := lookupEnv(prefix, "DATABASE_SCHEMA"); ok && v != "" {
-			c.DBSchema = v
-		}
-		if v, ok := lookupEnv(prefix, "DEFAULT_STORAGE_BACKEND"); ok && v != "" {
-			c.DefaultStorageBackend = v
-		}
-		if err := applyBoolEnv(prefix, "ENABLE_EVENT_LOGGING", func(b bool) {
-			c.EnableEventLogging = b
-		}); err != nil {
+
+		// Database config
+		if err := applyDatabaseEnv(prefix, c); err != nil {
 			return err
-		}
-		if err := applyBoolEnv(prefix, "ENABLE_PREVIEWS", func(b bool) {
-			c.EnablePreviews = b
-		}); err != nil {
-			return err
-		}
-		if err := applyBoolEnv(prefix, "ENABLE_ADMIN_API", func(b bool) {
-			c.EnableAdminAPI = b
-		}); err != nil {
-			return err
-		}
-		if v, ok := lookupEnv(prefix, "OBJECT_KEY_GENERATOR"); ok && v != "" {
-			c.ObjectKeyGenerator = v
-		}
-		if v, ok := lookupEnv(prefix, "URL_STRATEGY"); ok && v != "" {
-			c.URLStrategy = v
-		}
-		if v, ok := lookupEnv(prefix, "CDN_BASE_URL"); ok && v != "" {
-			c.CDNBaseURL = v
-		}
-		if v, ok := lookupEnv(prefix, "UPLOAD_BASE_URL"); ok && v != "" {
-			c.UploadBaseURL = v
-		}
-		if v, ok := lookupEnv(prefix, "API_BASE_URL"); ok && v != "" {
-			c.APIBaseURL = v
 		}
 
-		fsBaseDir, _ := lookupEnv(prefix, "FS_BASE_DIR")
-		if fsBaseDir != "" {
-			backend := StorageBackendConfig{
-				Name: "fs",
-				Type: "fs",
-				Config: map[string]interface{}{
-					"base_dir": fsBaseDir,
-				},
-			}
-			if v, ok := lookupEnv(prefix, "FS_URL_PREFIX"); ok && v != "" {
-				backend.Config["url_prefix"] = v
-			}
-			if v, ok := lookupEnv(prefix, "FS_SIGNATURE_SECRET_KEY"); ok && v != "" {
-				backend.Config["signature_secret_key"] = v
-			}
-			if v, ok, err := parseIntEnv(prefix, "FS_PRESIGN_EXPIRES_SECONDS"); err != nil {
-				return err
-			} else if ok {
-				backend.Config["presign_expires_seconds"] = v
-			}
-			c.StorageBackends = upsertStorageBackend(c.StorageBackends, backend)
-		}
-
-		if s3Bucket, _ := lookupEnv(prefix, "S3_BUCKET"); s3Bucket != "" {
-			backend := StorageBackendConfig{
-				Name: "s3",
-				Type: "s3",
-				Config: map[string]interface{}{
-					"bucket": s3Bucket,
-				},
-			}
-			if v, ok := lookupEnv(prefix, "S3_REGION"); ok && v != "" {
-				backend.Config["region"] = v
-			}
-			if v, ok := lookupEnv(prefix, "S3_ACCESS_KEY_ID"); ok && v != "" {
-				backend.Config["access_key_id"] = v
-			}
-			if v, ok := lookupEnv(prefix, "S3_SECRET_ACCESS_KEY"); ok && v != "" {
-				backend.Config["secret_access_key"] = v
-			}
-			if v, ok := lookupEnv(prefix, "S3_ENDPOINT"); ok && v != "" {
-				backend.Config["endpoint"] = v
-			}
-			if v, ok, err := parseBoolEnv(prefix, "S3_USE_SSL"); err != nil {
-				return err
-			} else if ok {
-				backend.Config["use_ssl"] = v
-			}
-			if v, ok, err := parseBoolEnv(prefix, "S3_USE_PATH_STYLE"); err != nil {
-				return err
-			} else if ok {
-				backend.Config["use_path_style"] = v
-			}
-			if v, ok, err := parseIntEnv(prefix, "S3_PRESIGN_DURATION"); err != nil {
-				return err
-			} else if ok {
-				backend.Config["presign_duration"] = v
-			}
-			if v, ok, err := parseBoolEnv(prefix, "S3_ENABLE_SSE"); err != nil {
-				return err
-			} else if ok {
-				backend.Config["enable_sse"] = v
-			}
-			if v, ok := lookupEnv(prefix, "S3_SSE_ALGORITHM"); ok && v != "" {
-				backend.Config["sse_algorithm"] = v
-			}
-			if v, ok := lookupEnv(prefix, "S3_SSE_KMS_KEY_ID"); ok && v != "" {
-				backend.Config["sse_kms_key_id"] = v
-			}
-			if v, ok, err := parseBoolEnv(prefix, "S3_CREATE_BUCKET_IF_NOT_EXIST"); err != nil {
-				return err
-			} else if ok {
-				backend.Config["create_bucket_if_not_exist"] = v
-			}
-			c.StorageBackends = upsertStorageBackend(c.StorageBackends, backend)
+		// Storage config
+		if err := applyStorageEnv(prefix, c); err != nil {
+			return err
 		}
 
 		return nil
 	}
+}
+
+// applyDatabaseEnv applies database configuration from environment
+func applyDatabaseEnv(prefix string, c *ServerConfig) error {
+	dbURL, hasURL := lookupEnv(prefix, "DATABASE_URL")
+
+	if !hasURL || dbURL == "" || dbURL == "memory" {
+		// Default to memory
+		c.DatabaseType = "memory"
+		c.DatabaseURL = ""
+		return nil
+	}
+
+	// Auto-detect database type from URL
+	if len(dbURL) > 13 && dbURL[:13] == "postgresql://" {
+		c.DatabaseType = "postgres"
+		c.DatabaseURL = dbURL
+	} else if len(dbURL) > 11 && dbURL[:11] == "postgres://" {
+		c.DatabaseType = "postgres"
+		c.DatabaseURL = dbURL
+	} else {
+		return fmt.Errorf("unsupported DATABASE_URL format: %s (use 'memory' or 'postgresql://...')", dbURL)
+	}
+
+	return nil
+}
+
+// applyStorageEnv applies storage configuration from environment
+func applyStorageEnv(prefix string, c *ServerConfig) error {
+	storageURL, hasURL := lookupEnv(prefix, "STORAGE_URL")
+
+	if !hasURL || storageURL == "" || storageURL == "memory" || storageURL == "memory://" {
+		// Default to memory storage
+		c.DefaultStorageBackend = "memory"
+		backend := StorageBackendConfig{
+			Name:   "memory",
+			Type:   "memory",
+			Config: map[string]interface{}{},
+		}
+		c.StorageBackends = upsertStorageBackend(c.StorageBackends, backend)
+		return nil
+	}
+
+	// Parse storage URL
+	if len(storageURL) > 7 && storageURL[:7] == "file://" {
+		return applyFilesystemStorage(storageURL, c)
+	} else if len(storageURL) > 5 && storageURL[:5] == "s3://" {
+		return applyS3Storage(storageURL, prefix, c)
+	}
+
+	return fmt.Errorf("unsupported STORAGE_URL format: %s (use 'memory://', 'file://...', or 's3://...')", storageURL)
+}
+
+// applyFilesystemStorage configures filesystem storage from URL
+// Format: file:///path/to/data
+func applyFilesystemStorage(url string, c *ServerConfig) error {
+	// Extract path (remove file:// prefix)
+	path := url[7:] // Remove "file://"
+	if path == "" {
+		return fmt.Errorf("filesystem path cannot be empty in STORAGE_URL")
+	}
+
+	backend := StorageBackendConfig{
+		Name: "fs",
+		Type: "fs",
+		Config: map[string]interface{}{
+			"base_dir": path,
+		},
+	}
+
+	c.DefaultStorageBackend = "fs"
+	c.StorageBackends = upsertStorageBackend(c.StorageBackends, backend)
+	return nil
+}
+
+// applyS3Storage configures S3 storage from URL
+// Format: s3://bucket?region=us-east-1&endpoint=http://localhost:9000
+func applyS3Storage(url string, prefix string, c *ServerConfig) error {
+	// Simple parsing: extract bucket name
+	// Format: s3://bucket or s3://bucket?params
+	bucket := url[5:] // Remove "s3://"
+
+	// Find query string if present
+	queryIdx := -1
+	for i, ch := range bucket {
+		if ch == '?' {
+			queryIdx = i
+			break
+		}
+	}
+
+	bucketName := bucket
+	if queryIdx > 0 {
+		bucketName = bucket[:queryIdx]
+	}
+
+	if bucketName == "" {
+		return fmt.Errorf("S3 bucket name cannot be empty in STORAGE_URL")
+	}
+
+	backend := StorageBackendConfig{
+		Name: "s3",
+		Type: "s3",
+		Config: map[string]interface{}{
+			"bucket": bucketName,
+			"region": "us-east-1", // Default
+		},
+	}
+
+	// Check for AWS credentials in environment
+	if accessKey, ok := os.LookupEnv("AWS_ACCESS_KEY_ID"); ok && accessKey != "" {
+		backend.Config["access_key_id"] = accessKey
+	}
+	if secretKey, ok := os.LookupEnv("AWS_SECRET_ACCESS_KEY"); ok && secretKey != "" {
+		backend.Config["secret_access_key"] = secretKey
+	}
+	if region, ok := os.LookupEnv("AWS_REGION"); ok && region != "" {
+		backend.Config["region"] = region
+	}
+
+	c.DefaultStorageBackend = "s3"
+	c.StorageBackends = upsertStorageBackend(c.StorageBackends, backend)
+	return nil
 }
 
 func lookupEnv(prefix, key string) (string, bool) {
 	return os.LookupEnv(prefix + key)
-}
-
-func applyBoolEnv(prefix, key string, setter func(bool)) error {
-	if setter == nil {
-		return nil
-	}
-	if v, ok, err := parseBoolEnv(prefix, key); err != nil {
-		return err
-	} else if ok {
-		setter(v)
-	}
-	return nil
 }
 
 func parseBoolEnv(prefix, key string) (bool, bool, error) {

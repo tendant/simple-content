@@ -50,31 +50,31 @@ func LoadServerConfig() (*ServerConfig, error) {
 
 func defaults() ServerConfig {
 	return ServerConfig{
-		Port:                  "8080",
-		Environment:           "development",
-		DatabaseType:          "memory",
-		DBSchema:              "content",
-		DefaultStorageBackend: "memory",
-		StorageBackends: []StorageBackendConfig{
-			{
-				Name:   "memory",
-				Type:   "memory",
-				Config: map[string]interface{}{},
+		ServiceConfig: ServiceConfig{
+			DatabaseType:          "memory",
+			DBSchema:              "content",
+			DefaultStorageBackend: "memory",
+			StorageBackends: []StorageBackendConfig{
+				{
+					Name:   "memory",
+					Type:   "memory",
+					Config: map[string]interface{}{},
+				},
 			},
+			EnableEventLogging: true,
+			EnablePreviews:     true,
+			URLStrategy:        "content-based", // Default URL strategy
+			APIBaseURL:         "/api/v1",       // Default API base URL
+			ObjectKeyGenerator: "git-like",      // Default to Git-like for better performance
 		},
-		EnableEventLogging: true,
-		EnablePreviews:     true,
-		URLStrategy:        "content-based", // Default URL strategy
-		APIBaseURL:         "/api/v1",       // Default API base URL
-		ObjectKeyGenerator: "git-like",      // Default to Git-like for better performance
+		Port:        "8080",
+		Environment: "development",
 	}
 }
 
-// ServerConfig represents server configuration for the simple-content service
-type ServerConfig struct {
-	Port        string
-	Environment string // development, production, testing
-
+// ServiceConfig represents service-level configuration for the simple-content library
+// This is the core configuration used by applications embedding the library
+type ServiceConfig struct {
 	// Database configuration
 	DatabaseURL  string
 	DatabaseType string // "memory", "postgres"
@@ -84,10 +84,9 @@ type ServerConfig struct {
 	DefaultStorageBackend string
 	StorageBackends       []StorageBackendConfig
 
-	// Server options
+	// Service options
 	EnableEventLogging bool
 	EnablePreviews     bool
-	EnableAdminAPI     bool // Enable admin API endpoints (requires authentication in production)
 
 	// URL generation
 	URLStrategy     string // "cdn", "content-based", "storage-delegated"
@@ -99,6 +98,17 @@ type ServerConfig struct {
 	ObjectKeyGenerator string // "default", "git-like", "tenant-aware", "legacy"
 }
 
+// ServerConfig represents server configuration for the simple-content HTTP server (cmd/server-configured)
+// This extends ServiceConfig with server-specific settings
+type ServerConfig struct {
+	ServiceConfig
+
+	// Server-specific configuration
+	Port           string
+	Environment    string // development, production, testing
+	EnableAdminAPI bool   // Enable admin API endpoints (requires authentication in production)
+}
+
 // StorageBackendConfig represents configuration for a storage backend
 type StorageBackendConfig struct {
 	Name   string
@@ -106,12 +116,8 @@ type StorageBackendConfig struct {
 	Config map[string]interface{}
 }
 
-// Validate validates the server configuration
-func (c *ServerConfig) Validate() error {
-	if c.Port == "" {
-		return errors.New("port is required")
-	}
-
+// Validate validates the service configuration
+func (c *ServiceConfig) Validate() error {
 	if c.DatabaseType != "memory" && c.DatabaseType != "postgres" {
 		return errors.New("database_type must be 'memory' or 'postgres'")
 	}
@@ -135,13 +141,23 @@ func (c *ServerConfig) Validate() error {
 	return nil
 }
 
-// BuildService creates a Service instance from the server configuration
-// BuildRepository builds just the repository from configuration
-func (c *ServerConfig) BuildRepository() (simplecontent.Repository, error) {
-	return c.buildRepository()
+// Validate validates the server configuration (includes service validation + server-specific checks)
+func (c *ServerConfig) Validate() error {
+	// Validate service-level config first
+	if err := c.ServiceConfig.Validate(); err != nil {
+		return err
+	}
+
+	// Server-specific validation
+	if c.Port == "" {
+		return errors.New("port is required")
+	}
+
+	return nil
 }
 
-func (c *ServerConfig) BuildService() (simplecontent.Service, error) {
+// BuildService creates a Service instance from the service configuration
+func (c *ServiceConfig) BuildService() (simplecontent.Service, error) {
 	var options []simplecontent.Option
 
 	// Set up repository
@@ -191,8 +207,25 @@ func (c *ServerConfig) BuildService() (simplecontent.Service, error) {
 	return simplecontent.New(options...)
 }
 
+// BuildRepository builds just the repository from configuration
+func (c *ServiceConfig) BuildRepository() (simplecontent.Repository, error) {
+	return c.buildRepository()
+}
+
+// BuildService creates a Service instance from the server configuration
+// This is a convenience method that delegates to ServiceConfig.BuildService()
+func (c *ServerConfig) BuildService() (simplecontent.Service, error) {
+	return c.ServiceConfig.BuildService()
+}
+
+// BuildRepository builds just the repository from configuration
+// This is a convenience method that delegates to ServiceConfig.BuildRepository()
+func (c *ServerConfig) BuildRepository() (simplecontent.Repository, error) {
+	return c.ServiceConfig.BuildRepository()
+}
+
 // buildRepository creates a Repository based on the configuration
-func (c *ServerConfig) buildRepository() (simplecontent.Repository, error) {
+func (c *ServiceConfig) buildRepository() (simplecontent.Repository, error) {
 	switch c.DatabaseType {
 	case "memory":
 		return memory.New(), nil
@@ -254,7 +287,7 @@ func PingPostgres(databaseURL, schema string) error {
 }
 
 // buildStorageBackend creates a BlobStore based on the backend configuration
-func (c *ServerConfig) buildStorageBackend(config StorageBackendConfig) (simplecontent.BlobStore, error) {
+func (c *ServiceConfig) buildStorageBackend(config StorageBackendConfig) (simplecontent.BlobStore, error) {
 	switch config.Type {
 	case "memory":
 		return memorystorage.New(), nil
@@ -332,7 +365,7 @@ func getInt(config map[string]interface{}, key string, defaultValue int) int {
 }
 
 // buildObjectKeyGenerator creates an ObjectKey Generator based on the configuration
-func (c *ServerConfig) buildObjectKeyGenerator() (objectkey.Generator, error) {
+func (c *ServiceConfig) buildObjectKeyGenerator() (objectkey.Generator, error) {
 	switch c.ObjectKeyGenerator {
 	case "legacy":
 		return objectkey.NewLegacyGenerator(), nil
@@ -348,7 +381,7 @@ func (c *ServerConfig) buildObjectKeyGenerator() (objectkey.Generator, error) {
 }
 
 // buildURLStrategyWithBlobStores creates a URL strategy based on the configuration with blob stores
-func (c *ServerConfig) buildURLStrategyWithBlobStores(blobStores map[string]simplecontent.BlobStore) (urlstrategy.URLStrategy, error) {
+func (c *ServiceConfig) buildURLStrategyWithBlobStores(blobStores map[string]simplecontent.BlobStore) (urlstrategy.URLStrategy, error) {
 	switch c.URLStrategy {
 	case "cdn":
 		if c.CDNBaseURL == "" {
