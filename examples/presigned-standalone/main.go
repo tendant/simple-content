@@ -3,6 +3,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -301,10 +302,9 @@ func (s *Server) handleDemo(w http.ResponseWriter, r *http.Request) {
 	)
 
 	// Simulate client upload
-	client := presigned.NewClient()
 	demoData := []byte("Hello from presigned package demo!")
 
-	// Create a reader with progress tracking
+	// Create a client with progress tracking
 	progressClient := presigned.NewClient(
 		presigned.WithProgress(func(bytes int64) {
 			log.Printf("Upload progress: %d bytes", bytes)
@@ -349,6 +349,3 @@ func generateSecretKey() string {
 	// For demo purposes, use a simple key
 	return "demo-secret-key-min-32-chars-abcdef0123456789"
 }
-
-// Additional import needed
-import "bytes"
