@@ -22,6 +22,7 @@ import (
 	"github.com/tendant/simple-content/pkg/simplecontent"
 	"github.com/tendant/simple-content/pkg/simplecontent/admin"
 	"github.com/tendant/simple-content/pkg/simplecontent/config"
+	"github.com/tendant/simple-content/pkg/simplecontent/presigned"
 	"github.com/tendant/simple-content/pkg/simplecontent/repo/memory"
 	repopg "github.com/tendant/simple-content/pkg/simplecontent/repo/postgres"
 	fsstorage "github.com/tendant/simple-content/pkg/simplecontent/storage/fs"
@@ -207,17 +208,10 @@ func (s *HTTPServer) Routes() http.Handler {
 		r.Get("/objects/{objectID}/download-url", s.handleGetDownloadURL)
 		r.Get("/objects/{objectID}/preview-url", s.handleGetPreviewURL)
 
-		// Presigned-style upload endpoint for filesystem storage (mimics S3 presigned URLs)
-		// Handles PUT requests to /upload/{objectKey...} (supports nested paths)
-		r.Put("/upload/*", s.handlePresignedUpload)
-
-		// Presigned-style download endpoint for filesystem storage
-		// Handles GET requests to /download/{objectKey...} (supports nested paths)
-		r.Get("/download/*", s.handlePresignedDownload)
-
-		// Presigned-style preview endpoint for filesystem storage
-		// Handles GET requests to /preview/{objectKey...} (supports nested paths)
-		r.Get("/preview/*", s.handlePresignedPreview)
+		// Presigned-style endpoints for filesystem storage (mimics S3 presigned URLs)
+		// Handles PUT /upload/{objectKey...} and GET /download|preview/{objectKey...}
+		presignedHandlers := presigned.NewHandlers(s.blobStores, s.config.DefaultStorageBackend)
+		presignedHandlers.Mount(r)
 
 		// Demo endpoint
 		r.Get("/demo", s.handleDemo)
@@ -754,233 +748,8 @@ func (s *HTTPServer) handleGetPreviewURL(w http.ResponseWriter, r *http.Request)
 	writeJSON(w, http.StatusOK, map[string]string{"url": url})
 }
 
-// handlePresignedUpload handles PUT requests to presigned upload URLs
-// This endpoint mimics S3 presigned URL behavior for filesystem storage
-// URL format: PUT /api/v1/upload/{objectKey...}?signature={hmac}&expires={timestamp}
-// The objectKey can contain slashes (e.g., "originals/objects/ab/cd1234_file.pdf")
-//
-// Authentication:
-// - If FS_SIGNATURE_SECRET_KEY is configured, validates HMAC signature and expiration
-// - If not configured, allows all uploads (backward compatibility, not recommended for production)
-func (s *HTTPServer) handlePresignedUpload(w http.ResponseWriter, r *http.Request) {
-	// Extract object key from URL path
-	// chi.URLParam(r, "*") gives us everything after /upload/
-	objectKey := chi.URLParam(r, "*")
-	if objectKey == "" {
-		writeError(w, http.StatusBadRequest, "missing_object_key", "object key is required in URL path", nil)
-		return
-	}
-
-	// Get the default storage backend (assumes filesystem)
-	blobStore, ok := s.blobStores[s.config.DefaultStorageBackend]
-	if !ok {
-		writeError(w, http.StatusInternalServerError, "storage_backend_not_found",
-			fmt.Sprintf("storage backend %s not found", s.config.DefaultStorageBackend), nil)
-		return
-	}
-
-	// If the blob store is filesystem backend with signature validation enabled, validate the signature
-	if fsBackend, ok := blobStore.(*fsstorage.Backend); ok && fsBackend.IsSignedURLEnabled() {
-		// Extract signature and expiration from query parameters
-		signature := r.URL.Query().Get("signature")
-		expiresStr := r.URL.Query().Get("expires")
-
-		if signature == "" {
-			writeError(w, http.StatusUnauthorized, "missing_signature", "signature parameter is required", nil)
-			return
-		}
-		if expiresStr == "" {
-			writeError(w, http.StatusUnauthorized, "missing_expires", "expires parameter is required", nil)
-			return
-		}
-
-		expiresAt, err := strconv.ParseInt(expiresStr, 10, 64)
-		if err != nil {
-			writeError(w, http.StatusBadRequest, "invalid_expires", "expires parameter must be a valid timestamp", nil)
-			return
-		}
-
-		// Validate signature
-		if err := fsBackend.ValidateUploadSignature(objectKey, signature, expiresAt); err != nil {
-			log.Printf("Presigned upload signature validation failed for objectKey %s: %v", objectKey, err)
-			writeError(w, http.StatusForbidden, "invalid_signature", err.Error(), nil)
-			return
-		}
-
-		log.Printf("Presigned upload signature validated for objectKey: %s", objectKey)
-	}
-
-	// Upload the file to storage
-	err := blobStore.Upload(r.Context(), objectKey, r.Body)
-	if err != nil {
-		log.Printf("Presigned upload failed for objectKey %s: %v", objectKey, err)
-		writeError(w, http.StatusInternalServerError, "upload_failed",
-			fmt.Sprintf("failed to upload file: %v", err), nil)
-		return
-	}
-
-	log.Printf("Presigned upload succeeded for objectKey: %s", objectKey)
-
-	// Return success (mimic S3 presigned URL response - typically 200 OK with empty body)
-	w.WriteHeader(http.StatusOK)
-}
-
-// handlePresignedDownload handles GET requests to presigned download URLs
-// This endpoint mimics S3 presigned URL behavior for filesystem storage
-// URL format: GET /api/v1/download/{objectKey...}?signature={hmac}&expires={timestamp}&filename={name}
-// The objectKey can contain slashes (e.g., "originals/objects/ab/cd1234_file.pdf")
-//
-// Authentication:
-// - If FS_SIGNATURE_SECRET_KEY is configured, validates HMAC signature and expiration
-// - If not configured, allows all downloads (backward compatibility, not recommended for production)
-func (s *HTTPServer) handlePresignedDownload(w http.ResponseWriter, r *http.Request) {
-	// Extract object key from URL path
-	objectKey := chi.URLParam(r, "*")
-	if objectKey == "" {
-		writeError(w, http.StatusBadRequest, "missing_object_key", "object key is required in URL path", nil)
-		return
-	}
-
-	filename := r.URL.Query().Get("filename")
-
-	// Get the default storage backend (assumes filesystem)
-	blobStore, ok := s.blobStores[s.config.DefaultStorageBackend]
-	if !ok {
-		writeError(w, http.StatusInternalServerError, "storage_backend_not_found",
-			fmt.Sprintf("storage backend %s not found", s.config.DefaultStorageBackend), nil)
-		return
-	}
-
-	// If the blob store is filesystem backend with signature validation enabled, validate the signature
-	if fsBackend, ok := blobStore.(*fsstorage.Backend); ok && fsBackend.IsSignedURLEnabled() {
-		// Extract signature and expiration from query parameters
-		signature := r.URL.Query().Get("signature")
-		expiresStr := r.URL.Query().Get("expires")
-
-		if signature == "" {
-			writeError(w, http.StatusUnauthorized, "missing_signature", "signature parameter is required", nil)
-			return
-		}
-		if expiresStr == "" {
-			writeError(w, http.StatusUnauthorized, "missing_expires", "expires parameter is required", nil)
-			return
-		}
-
-		expiresAt, err := strconv.ParseInt(expiresStr, 10, 64)
-		if err != nil {
-			writeError(w, http.StatusBadRequest, "invalid_expires", "expires parameter must be a valid timestamp", nil)
-			return
-		}
-
-		// Validate signature
-		if err := fsBackend.ValidateDownloadSignature(objectKey, signature, expiresAt, filename); err != nil {
-			log.Printf("Presigned download signature validation failed for objectKey %s: %v", objectKey, err)
-			writeError(w, http.StatusForbidden, "invalid_signature", err.Error(), nil)
-			return
-		}
-
-		log.Printf("Presigned download signature validated for objectKey: %s", objectKey)
-	}
-
-	// Download and serve the file
-	rc, err := blobStore.Download(r.Context(), objectKey)
-	if err != nil {
-		log.Printf("Presigned download failed for objectKey %s: %v", objectKey, err)
-		writeError(w, http.StatusNotFound, "download_failed", "object not found", nil)
-		return
-	}
-	defer rc.Close()
-
-	// Set content headers
-	if meta, err := blobStore.GetObjectMeta(r.Context(), objectKey); err == nil {
-		w.Header().Set("Content-Type", meta.ContentType)
-	}
-
-	if filename != "" {
-		w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", filename))
-	}
-
-	// Stream file to response
-	if _, err := io.Copy(w, rc); err != nil {
-		log.Printf("Presigned download copy error: %v", err)
-	}
-}
-
-// handlePresignedPreview handles GET requests to presigned preview URLs
-// This endpoint mimics S3 presigned URL behavior for filesystem storage
-// URL format: GET /api/v1/preview/{objectKey...}?signature={hmac}&expires={timestamp}
-// The objectKey can contain slashes (e.g., "originals/objects/ab/cd1234_file.pdf")
-//
-// Authentication:
-// - If FS_SIGNATURE_SECRET_KEY is configured, validates HMAC signature and expiration
-// - If not configured, allows all previews (backward compatibility, not recommended for production)
-func (s *HTTPServer) handlePresignedPreview(w http.ResponseWriter, r *http.Request) {
-	// Extract object key from URL path
-	objectKey := chi.URLParam(r, "*")
-	if objectKey == "" {
-		writeError(w, http.StatusBadRequest, "missing_object_key", "object key is required in URL path", nil)
-		return
-	}
-
-	// Get the default storage backend (assumes filesystem)
-	blobStore, ok := s.blobStores[s.config.DefaultStorageBackend]
-	if !ok {
-		writeError(w, http.StatusInternalServerError, "storage_backend_not_found",
-			fmt.Sprintf("storage backend %s not found", s.config.DefaultStorageBackend), nil)
-		return
-	}
-
-	// If the blob store is filesystem backend with signature validation enabled, validate the signature
-	if fsBackend, ok := blobStore.(*fsstorage.Backend); ok && fsBackend.IsSignedURLEnabled() {
-		// Extract signature and expiration from query parameters
-		signature := r.URL.Query().Get("signature")
-		expiresStr := r.URL.Query().Get("expires")
-
-		if signature == "" {
-			writeError(w, http.StatusUnauthorized, "missing_signature", "signature parameter is required", nil)
-			return
-		}
-		if expiresStr == "" {
-			writeError(w, http.StatusUnauthorized, "missing_expires", "expires parameter is required", nil)
-			return
-		}
-
-		expiresAt, err := strconv.ParseInt(expiresStr, 10, 64)
-		if err != nil {
-			writeError(w, http.StatusBadRequest, "invalid_expires", "expires parameter must be a valid timestamp", nil)
-			return
-		}
-
-		// Validate signature
-		if err := fsBackend.ValidatePreviewSignature(objectKey, signature, expiresAt); err != nil {
-			log.Printf("Presigned preview signature validation failed for objectKey %s: %v", objectKey, err)
-			writeError(w, http.StatusForbidden, "invalid_signature", err.Error(), nil)
-			return
-		}
-
-		log.Printf("Presigned preview signature validated for objectKey: %s", objectKey)
-	}
-
-	// Download and serve the file inline
-	rc, err := blobStore.Download(r.Context(), objectKey)
-	if err != nil {
-		log.Printf("Presigned preview failed for objectKey %s: %v", objectKey, err)
-		writeError(w, http.StatusNotFound, "preview_failed", "object not found", nil)
-		return
-	}
-	defer rc.Close()
-
-	// Set content headers (inline instead of attachment)
-	if meta, err := blobStore.GetObjectMeta(r.Context(), objectKey); err == nil {
-		w.Header().Set("Content-Type", meta.ContentType)
-	}
-	w.Header().Set("Content-Disposition", "inline")
-
-	// Stream file to response
-	if _, err := io.Copy(w, rc); err != nil {
-		log.Printf("Presigned preview copy error: %v", err)
-	}
-}
+// Presigned handlers are now provided by pkg/simplecontent/presigned package
+// See presigned.NewHandlers() for reusable HTTP handlers
 
 // --- Helpers ---
 
