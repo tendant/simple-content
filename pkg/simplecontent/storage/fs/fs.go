@@ -20,7 +20,8 @@ type Backend struct {
 	mu             sync.RWMutex
 	baseDir        string
 	urlPrefix      string
-	signer         *presigned.Signer // For authenticated presigned URLs
+	signer         *presigned.Signer // For authenticated presigned upload URLs
+	downloadSigner *presigned.Signer // For authenticated presigned download/preview URLs
 	presignExpires time.Duration     // Default expiration for presigned URLs
 }
 
@@ -55,12 +56,20 @@ func New(config Config) (simplecontent.BlobStore, error) {
 		presignExpires: presignExpires,
 	}
 
-	// Initialize presigned signer if secret key is provided
+	// Initialize presigned signers if secret key is provided
 	if config.SignatureSecretKey != "" {
+		// Upload signer (PUT method)
 		backend.signer = presigned.New(
 			presigned.WithSecretKey(config.SignatureSecretKey),
 			presigned.WithDefaultExpiration(presignExpires),
 			presigned.WithURLPattern("/upload/{key}"),
+		)
+
+		// Download signer (GET method)
+		backend.downloadSigner = presigned.New(
+			presigned.WithSecretKey(config.SignatureSecretKey),
+			presigned.WithDefaultExpiration(presignExpires),
+			presigned.WithURLPattern("/download/{key}"),
 		)
 	}
 
@@ -161,11 +170,20 @@ func (b *Backend) GetDownloadURL(ctx context.Context, objectKey string, download
 		return "", errors.New("direct download required for filesystem backend")
 	}
 
-	// Include the download filename in the URL if provided
+	path := "/download/" + objectKey
+
+	// Add filename to path if provided (will be included in signature)
 	if downloadFilename != "" {
-		return fmt.Sprintf("%s/download/%s?filename=%s", b.urlPrefix, objectKey, downloadFilename), nil
+		path = path + "?filename=" + downloadFilename
 	}
-	return fmt.Sprintf("%s/download/%s", b.urlPrefix, objectKey), nil
+
+	// If signer is configured, generate signed URL
+	if b.downloadSigner != nil {
+		return b.downloadSigner.SignURLWithBase(b.urlPrefix, "GET", path, b.presignExpires)
+	}
+
+	// Otherwise, return unsigned URL (backward compatibility)
+	return b.urlPrefix + path, nil
 }
 
 // GetPreviewURL returns a URL for previewing content
@@ -173,7 +191,16 @@ func (b *Backend) GetPreviewURL(ctx context.Context, objectKey string) (string, 
 	if b.urlPrefix == "" {
 		return "", errors.New("direct preview required for filesystem backend")
 	}
-	return fmt.Sprintf("%s/preview/%s", b.urlPrefix, objectKey), nil
+
+	path := "/preview/" + objectKey
+
+	// If signer is configured, generate signed URL
+	if b.downloadSigner != nil {
+		return b.downloadSigner.SignURLWithBase(b.urlPrefix, "GET", path, b.presignExpires)
+	}
+
+	// Otherwise, return unsigned URL (backward compatibility)
+	return b.urlPrefix + path, nil
 }
 
 // Download downloads content directly from the filesystem
@@ -250,4 +277,33 @@ func (b *Backend) IsSignedURLEnabled() bool {
 // This allows external code to use the signer directly
 func (b *Backend) GetSigner() *presigned.Signer {
 	return b.signer
+}
+
+// ValidateDownloadSignature validates a presigned download URL signature
+// Returns nil if signature is valid, error otherwise
+func (b *Backend) ValidateDownloadSignature(objectKey, signature string, expiresAt int64, filename string) error {
+	if b.downloadSigner == nil {
+		// No signature validation configured - allow all downloads
+		// This provides backward compatibility
+		return nil
+	}
+
+	path := "/download/" + objectKey
+	if filename != "" {
+		path = path + "?filename=" + filename
+	}
+	return b.downloadSigner.Validate("GET", path, signature, expiresAt)
+}
+
+// ValidatePreviewSignature validates a presigned preview URL signature
+// Returns nil if signature is valid, error otherwise
+func (b *Backend) ValidatePreviewSignature(objectKey, signature string, expiresAt int64) error {
+	if b.downloadSigner == nil {
+		// No signature validation configured - allow all previews
+		// This provides backward compatibility
+		return nil
+	}
+
+	path := "/preview/" + objectKey
+	return b.downloadSigner.Validate("GET", path, signature, expiresAt)
 }
