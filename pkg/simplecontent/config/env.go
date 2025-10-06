@@ -70,6 +70,14 @@ func WithEnv(prefix string) Option {
 			if v, ok := lookupEnv(prefix, "FS_URL_PREFIX"); ok && v != "" {
 				backend.Config["url_prefix"] = v
 			}
+			if v, ok := lookupEnv(prefix, "FS_SIGNATURE_SECRET_KEY"); ok && v != "" {
+				backend.Config["signature_secret_key"] = v
+			}
+			if v, ok, err := parseIntEnv(prefix, "FS_PRESIGN_EXPIRES_SECONDS"); err != nil {
+				return err
+			} else if ok {
+				backend.Config["presign_expires_seconds"] = v
+			}
 			c.StorageBackends = upsertStorageBackend(c.StorageBackends, backend)
 		}
 

@@ -24,6 +24,9 @@ import (
 	"github.com/tendant/simple-content/pkg/simplecontent/config"
 	"github.com/tendant/simple-content/pkg/simplecontent/repo/memory"
 	repopg "github.com/tendant/simple-content/pkg/simplecontent/repo/postgres"
+	fsstorage "github.com/tendant/simple-content/pkg/simplecontent/storage/fs"
+	memorystorage "github.com/tendant/simple-content/pkg/simplecontent/storage/memory"
+	s3storage "github.com/tendant/simple-content/pkg/simplecontent/storage/s3"
 )
 
 // loadServerConfigFromEnv constructs a ServerConfig by reading process environment variables.
@@ -105,6 +108,8 @@ type HTTPServer struct {
 	service        simplecontent.Service
 	storageService simplecontent.StorageService // For object operations
 	adminService   admin.AdminService           // For admin operations
+	repository     simplecontent.Repository     // For direct repository access (presigned uploads)
+	blobStores     map[string]simplecontent.BlobStore // For direct blob storage access
 	config         *config.ServerConfig
 }
 
@@ -116,18 +121,24 @@ func NewHTTPServer(service simplecontent.Service, serverConfig *config.ServerCon
 		log.Fatalf("Service does not implement StorageService interface - object operations will not be available")
 	}
 
+	// Build repository for direct access (needed for presigned uploads)
+	repo := buildRepository(serverConfig)
+
+	// Build blobstores for direct access (needed for presigned uploads)
+	blobStores := buildBlobStores(serverConfig)
+
 	// Create admin service if admin API is enabled
 	var adminSvc admin.AdminService
 	if serverConfig.EnableAdminAPI {
-		// We need to extract the repository from the service
-		// For now, we'll need to build it from config
-		adminSvc = buildAdminService(serverConfig)
+		adminSvc = admin.New(repo)
 	}
 
 	return &HTTPServer{
 		service:        service,
 		storageService: storageService,
 		adminService:   adminSvc,
+		repository:     repo,
+		blobStores:     blobStores,
 		config:         serverConfig,
 	}
 }
@@ -195,6 +206,10 @@ func (s *HTTPServer) Routes() http.Handler {
 		r.Get("/objects/{objectID}/upload-url", s.handleGetUploadURL)
 		r.Get("/objects/{objectID}/download-url", s.handleGetDownloadURL)
 		r.Get("/objects/{objectID}/preview-url", s.handleGetPreviewURL)
+
+		// Presigned-style upload endpoint for filesystem storage (mimics S3 presigned URLs)
+		// Handles PUT requests to /upload/{objectKey...} (supports nested paths)
+		r.Put("/upload/*", s.handlePresignedUpload)
 
 		// Demo endpoint
 		r.Get("/demo", s.handleDemo)
@@ -714,6 +729,77 @@ func (s *HTTPServer) handleGetPreviewURL(w http.ResponseWriter, r *http.Request)
 	writeJSON(w, http.StatusOK, map[string]string{"url": url})
 }
 
+// handlePresignedUpload handles PUT requests to presigned upload URLs
+// This endpoint mimics S3 presigned URL behavior for filesystem storage
+// URL format: PUT /api/v1/upload/{objectKey...}?signature={hmac}&expires={timestamp}
+// The objectKey can contain slashes (e.g., "originals/objects/ab/cd1234_file.pdf")
+//
+// Authentication:
+// - If FS_SIGNATURE_SECRET_KEY is configured, validates HMAC signature and expiration
+// - If not configured, allows all uploads (backward compatibility, not recommended for production)
+func (s *HTTPServer) handlePresignedUpload(w http.ResponseWriter, r *http.Request) {
+	// Extract object key from URL path
+	// chi.URLParam(r, "*") gives us everything after /upload/
+	objectKey := chi.URLParam(r, "*")
+	if objectKey == "" {
+		writeError(w, http.StatusBadRequest, "missing_object_key", "object key is required in URL path", nil)
+		return
+	}
+
+	// Get the default storage backend (assumes filesystem)
+	blobStore, ok := s.blobStores[s.config.DefaultStorageBackend]
+	if !ok {
+		writeError(w, http.StatusInternalServerError, "storage_backend_not_found",
+			fmt.Sprintf("storage backend %s not found", s.config.DefaultStorageBackend), nil)
+		return
+	}
+
+	// If the blob store is filesystem backend with signature validation enabled, validate the signature
+	if fsBackend, ok := blobStore.(*fsstorage.Backend); ok && fsBackend.IsSignedURLEnabled() {
+		// Extract signature and expiration from query parameters
+		signature := r.URL.Query().Get("signature")
+		expiresStr := r.URL.Query().Get("expires")
+
+		if signature == "" {
+			writeError(w, http.StatusUnauthorized, "missing_signature", "signature parameter is required", nil)
+			return
+		}
+		if expiresStr == "" {
+			writeError(w, http.StatusUnauthorized, "missing_expires", "expires parameter is required", nil)
+			return
+		}
+
+		expiresAt, err := strconv.ParseInt(expiresStr, 10, 64)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_expires", "expires parameter must be a valid timestamp", nil)
+			return
+		}
+
+		// Validate signature
+		if err := fsBackend.ValidateUploadSignature(objectKey, signature, expiresAt); err != nil {
+			log.Printf("Presigned upload signature validation failed for objectKey %s: %v", objectKey, err)
+			writeError(w, http.StatusForbidden, "invalid_signature", err.Error(), nil)
+			return
+		}
+
+		log.Printf("Presigned upload signature validated for objectKey: %s", objectKey)
+	}
+
+	// Upload the file to storage
+	err := blobStore.Upload(r.Context(), objectKey, r.Body)
+	if err != nil {
+		log.Printf("Presigned upload failed for objectKey %s: %v", objectKey, err)
+		writeError(w, http.StatusInternalServerError, "upload_failed",
+			fmt.Sprintf("failed to upload file: %v", err), nil)
+		return
+	}
+
+	log.Printf("Presigned upload succeeded for objectKey: %s", objectKey)
+
+	// Return success (mimic S3 presigned URL response - typically 200 OK with empty body)
+	w.WriteHeader(http.StatusOK)
+}
+
 // --- Helpers ---
 
 type errorBody struct {
@@ -946,7 +1032,8 @@ func (s *HTTPServer) handleContentUpload(w http.ResponseWriter, r *http.Request)
 }
 
 // buildAdminService builds the admin service from server config
-func buildAdminService(serverConfig *config.ServerConfig) admin.AdminService {
+// buildRepository creates a repository instance from server config
+func buildRepository(serverConfig *config.ServerConfig) simplecontent.Repository {
 	var repo simplecontent.Repository
 
 	switch serverConfig.DatabaseType {
@@ -954,7 +1041,7 @@ func buildAdminService(serverConfig *config.ServerConfig) admin.AdminService {
 		// Connect to postgres
 		poolConfig, err := pgxpool.ParseConfig(serverConfig.DatabaseURL)
 		if err != nil {
-			log.Fatalf("Failed to parse postgres URL for admin service: %v", err)
+			log.Fatalf("Failed to parse postgres URL: %v", err)
 		}
 
 		// Set search_path if schema is specified
@@ -964,16 +1051,109 @@ func buildAdminService(serverConfig *config.ServerConfig) admin.AdminService {
 
 		pool, err := pgxpool.NewWithConfig(context.Background(), poolConfig)
 		if err != nil {
-			log.Fatalf("Failed to connect to postgres for admin service: %v", err)
+			log.Fatalf("Failed to connect to postgres: %v", err)
 		}
 
 		repo = repopg.NewWithPool(pool)
 	case "memory":
 		repo = memory.New()
 	default:
-		log.Fatalf("Unsupported database type for admin service: %s", serverConfig.DatabaseType)
+		log.Fatalf("Unsupported database type: %s", serverConfig.DatabaseType)
 	}
 
+	return repo
+}
+
+// buildBlobStores creates blob storage backends from server config
+// This duplicates the logic from config.buildStorageBackend because that method is private
+func buildBlobStores(serverConfig *config.ServerConfig) map[string]simplecontent.BlobStore {
+	blobStores := make(map[string]simplecontent.BlobStore)
+
+	for _, backendCfg := range serverConfig.StorageBackends {
+		var store simplecontent.BlobStore
+		var err error
+
+		switch backendCfg.Type {
+		case "memory":
+			store = memorystorage.New()
+
+		case "fs":
+			baseDir := getStringFromConfig(backendCfg.Config, "base_dir", "./data/storage")
+			urlPrefix := getStringFromConfig(backendCfg.Config, "url_prefix", "")
+			signatureSecretKey := getStringFromConfig(backendCfg.Config, "signature_secret_key", "")
+			presignExpires := getIntFromConfig(backendCfg.Config, "presign_expires_seconds", 3600)
+			store, err = fsstorage.New(fsstorage.Config{
+				BaseDir:            baseDir,
+				URLPrefix:          urlPrefix,
+				SignatureSecretKey: signatureSecretKey,
+				PresignExpires:     time.Duration(presignExpires) * time.Second,
+			})
+
+		case "s3":
+			s3Cfg := s3storage.Config{
+				Region:                 getStringFromConfig(backendCfg.Config, "region", "us-east-1"),
+				Bucket:                 getStringFromConfig(backendCfg.Config, "bucket", ""),
+				AccessKeyID:            getStringFromConfig(backendCfg.Config, "access_key_id", ""),
+				SecretAccessKey:        getStringFromConfig(backendCfg.Config, "secret_access_key", ""),
+				Endpoint:               getStringFromConfig(backendCfg.Config, "endpoint", ""),
+				UseSSL:                 getBoolFromConfig(backendCfg.Config, "use_ssl", true),
+				UsePathStyle:           getBoolFromConfig(backendCfg.Config, "use_path_style", false),
+				PresignDuration:        getIntFromConfig(backendCfg.Config, "presign_duration", 3600),
+				EnableSSE:              getBoolFromConfig(backendCfg.Config, "enable_sse", false),
+				SSEAlgorithm:           getStringFromConfig(backendCfg.Config, "sse_algorithm", ""),
+				SSEKMSKeyID:            getStringFromConfig(backendCfg.Config, "sse_kms_key_id", ""),
+				CreateBucketIfNotExist: getBoolFromConfig(backendCfg.Config, "create_bucket_if_not_exist", false),
+			}
+			store, err = s3storage.New(s3Cfg)
+
+		default:
+			log.Fatalf("Unknown storage backend type: %s", backendCfg.Type)
+		}
+
+		if err != nil {
+			log.Fatalf("Failed to build storage backend %s: %v", backendCfg.Name, err)
+		}
+
+		blobStores[backendCfg.Name] = store
+	}
+
+	return blobStores
+}
+
+// Helper functions to extract values from config map
+func getStringFromConfig(config map[string]interface{}, key, defaultValue string) string {
+	if v, ok := config[key]; ok {
+		if s, ok := v.(string); ok {
+			return s
+		}
+	}
+	return defaultValue
+}
+
+func getBoolFromConfig(config map[string]interface{}, key string, defaultValue bool) bool {
+	if v, ok := config[key]; ok {
+		if b, ok := v.(bool); ok {
+			return b
+		}
+	}
+	return defaultValue
+}
+
+func getIntFromConfig(config map[string]interface{}, key string, defaultValue int) int {
+	if v, ok := config[key]; ok {
+		if i, ok := v.(int); ok {
+			return i
+		}
+		// Handle float64 from JSON unmarshaling
+		if f, ok := v.(float64); ok {
+			return int(f)
+		}
+	}
+	return defaultValue
+}
+
+func buildAdminService(serverConfig *config.ServerConfig) admin.AdminService {
+	repo := buildRepository(serverConfig)
 	return admin.New(repo)
 }
 

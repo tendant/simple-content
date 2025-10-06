@@ -260,9 +260,12 @@ func (c *ServerConfig) buildStorageBackend(config StorageBackendConfig) (simplec
 		return memorystorage.New(), nil
 
 	case "fs":
+		presignExpires := getInt(config.Config, "presign_expires_seconds", 3600) // Default: 1 hour
 		fsConfig := fsstorage.Config{
-			BaseDir:   getString(config.Config, "base_dir", "./data/storage"),
-			URLPrefix: getString(config.Config, "url_prefix", ""),
+			BaseDir:            getString(config.Config, "base_dir", "./data/storage"),
+			URLPrefix:          getString(config.Config, "url_prefix", ""),
+			SignatureSecretKey: getString(config.Config, "signature_secret_key", ""),
+			PresignExpires:     time.Duration(presignExpires) * time.Second,
 		}
 		return fsstorage.New(fsConfig)
 

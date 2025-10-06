@@ -9,21 +9,27 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"time"
 
 	"github.com/tendant/simple-content/pkg/simplecontent"
+	"github.com/tendant/simple-content/pkg/simplecontent/presigned"
 )
 
 // Backend is a filesystem implementation of the simplecontent.BlobStore interface
 type Backend struct {
-	mu        sync.RWMutex
-	baseDir   string
-	urlPrefix string
+	mu             sync.RWMutex
+	baseDir        string
+	urlPrefix      string
+	signer         *presigned.Signer // For authenticated presigned URLs
+	presignExpires time.Duration     // Default expiration for presigned URLs
 }
 
 // Config options for the filesystem backend
 type Config struct {
-	BaseDir   string // Base directory for storing files
-	URLPrefix string // Optional URL prefix for download/upload URLs
+	BaseDir            string        // Base directory for storing files
+	URLPrefix          string        // Optional URL prefix for download/upload URLs
+	SignatureSecretKey string        // Secret key for signing presigned URLs (optional, enables auth)
+	PresignExpires     time.Duration // Default expiration for presigned URLs (default: 1 hour)
 }
 
 // New creates a new filesystem storage backend
@@ -37,10 +43,28 @@ func New(config Config) (simplecontent.BlobStore, error) {
 		return nil, fmt.Errorf("failed to create base directory: %w", err)
 	}
 
-	return &Backend{
-		baseDir:   config.BaseDir,
-		urlPrefix: config.URLPrefix,
-	}, nil
+	// Set default presign expiration
+	presignExpires := config.PresignExpires
+	if presignExpires == 0 {
+		presignExpires = 1 * time.Hour // Default: 1 hour
+	}
+
+	backend := &Backend{
+		baseDir:        config.BaseDir,
+		urlPrefix:      config.URLPrefix,
+		presignExpires: presignExpires,
+	}
+
+	// Initialize presigned signer if secret key is provided
+	if config.SignatureSecretKey != "" {
+		backend.signer = presigned.New(
+			presigned.WithSecretKey(config.SignatureSecretKey),
+			presigned.WithDefaultExpiration(presignExpires),
+			presigned.WithURLPattern("/upload/{key}"),
+		)
+	}
+
+	return backend, nil
 }
 
 // GetObjectMeta retrieves metadata for an object in the filesystem
@@ -80,11 +104,23 @@ func (b *Backend) GetObjectMeta(ctx context.Context, objectKey string) (*simplec
 }
 
 // GetUploadURL returns a URL for uploading content
+// When urlPrefix is configured, returns a URL that can be used for presigned-style uploads
+// This allows testing presigned upload workflows locally with filesystem storage
+// If SignatureSecretKey is configured, the URL will be signed with HMAC for security
 func (b *Backend) GetUploadURL(ctx context.Context, objectKey string) (string, error) {
 	if b.urlPrefix == "" {
 		return "", errors.New("direct upload required for filesystem backend")
 	}
-	return fmt.Sprintf("%s/upload/%s", b.urlPrefix, objectKey), nil
+
+	path := "/upload/" + objectKey
+
+	// If signer is configured, generate signed URL
+	if b.signer != nil {
+		return b.signer.SignURLWithBase(b.urlPrefix, "PUT", path, b.presignExpires)
+	}
+
+	// Otherwise, return unsigned URL (for backward compatibility)
+	return b.urlPrefix + path, nil
 }
 
 // Upload uploads content directly to the filesystem
@@ -190,4 +226,28 @@ func (b *Backend) cleanupEmptyDirectories(dir string) {
 			b.cleanupEmptyDirectories(filepath.Dir(dir))
 		}
 	}
+}
+
+// ValidateUploadSignature validates a presigned upload URL signature
+// Returns nil if signature is valid, error otherwise
+func (b *Backend) ValidateUploadSignature(objectKey, signature string, expiresAt int64) error {
+	if b.signer == nil {
+		// No signature validation configured - allow all uploads
+		// This provides backward compatibility
+		return nil
+	}
+
+	path := "/upload/" + objectKey
+	return b.signer.Validate("PUT", path, signature, expiresAt)
+}
+
+// IsSignedURLEnabled returns true if signed URLs are enabled for this backend
+func (b *Backend) IsSignedURLEnabled() bool {
+	return b.signer != nil && b.signer.IsEnabled()
+}
+
+// GetSigner returns the presigned.Signer if configured, nil otherwise
+// This allows external code to use the signer directly
+func (b *Backend) GetSigner() *presigned.Signer {
+	return b.signer
 }
