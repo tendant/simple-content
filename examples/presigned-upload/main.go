@@ -29,22 +29,24 @@ func NewPresignedUploadService() (*PresignedUploadService, error) {
 
 	// Create config with S3 storage backend
 	cfg := &config.ServerConfig{
-		DatabaseType:          "memory",
-		DefaultStorageBackend: "s3",
-		StorageBackends: []config.StorageBackendConfig{
-			{
-				Name: "s3",
-				Type: "s3",
-				Config: map[string]interface{}{
-					"region":                     "us-east-1",
-					"bucket":                     "presigned-upload-demo",
-					"access_key_id":              getEnv("MINIO_ACCESS_KEY", "minioadmin"),
-					"secret_access_key":          getEnv("MINIO_SECRET_KEY", "minioadmin"),
-					"endpoint":                   getEnv("MINIO_ENDPOINT", "http://localhost:9000"),
-					"use_ssl":                    false,
-					"use_path_style":             true, // Required for MinIO
-					"presign_duration":           1800, // 30 minutes
-					"create_bucket_if_not_exist": true,
+		ServiceConfig: config.ServiceConfig{
+			DatabaseType:          "memory",
+			DefaultStorageBackend: "s3",
+			StorageBackends: []config.StorageBackendConfig{
+				{
+					Name: "s3",
+					Type: "s3",
+					Config: map[string]interface{}{
+						"region":                     "us-east-1",
+						"bucket":                     "presigned-upload-demo",
+						"access_key_id":              getEnv("MINIO_ACCESS_KEY", "minioadmin"),
+						"secret_access_key":          getEnv("MINIO_SECRET_KEY", "minioadmin"),
+						"endpoint":                   getEnv("MINIO_ENDPOINT", "http://localhost:9000"),
+						"use_ssl":                    false,
+						"use_path_style":             true, // Required for MinIO
+						"presign_duration":           1800, // 30 minutes
+						"create_bucket_if_not_exist": true,
+					},
 				},
 			},
 		},
