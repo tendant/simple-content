@@ -88,6 +88,8 @@ func applyStorageEnv(prefix string, c *ServerConfig) error {
 			Config: map[string]interface{}{},
 		}
 		c.StorageBackends = upsertStorageBackend(c.StorageBackends, backend)
+		// Memory storage uses content-based URLs (server proxies)
+		c.URLStrategy = "content-based"
 		return nil
 	}
 
@@ -120,6 +122,8 @@ func applyFilesystemStorage(url string, c *ServerConfig) error {
 
 	c.DefaultStorageBackend = "fs"
 	c.StorageBackends = upsertStorageBackend(c.StorageBackends, backend)
+	// Filesystem storage can use storage-delegated for presigned-style URLs
+	c.URLStrategy = "storage-delegated"
 	return nil
 }
 
@@ -170,6 +174,7 @@ func applyS3Storage(url string, prefix string, c *ServerConfig) error {
 
 	c.DefaultStorageBackend = "s3"
 	c.StorageBackends = upsertStorageBackend(c.StorageBackends, backend)
+	c.URLStrategy = "storage-delegated"
 	return nil
 }
 
