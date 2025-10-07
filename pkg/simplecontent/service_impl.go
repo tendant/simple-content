@@ -821,10 +821,12 @@ func (s *service) UploadObjectForContent(ctx context.Context, req UploadObjectFo
 		// Log warning but don't fail - object was uploaded successfully
 	}
 
-	// Step 7: Update content status to uploaded
-	content.Status = string(ContentStatusUploaded)
-	if err := s.repository.UpdateContent(ctx, content); err != nil {
-		// Log warning but don't fail - object was uploaded successfully
+	// Step 7: Update content status to uploaded for original content
+	if content.DerivationType == "" {
+		content.Status = string(ContentStatusUploaded)
+		if err := s.repository.UpdateContent(ctx, content); err != nil {
+			// Log warning but don't fail - object was uploaded successfully
+		}
 	}
 
 	// Step 8: Update content metadata
