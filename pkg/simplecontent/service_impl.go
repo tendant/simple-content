@@ -483,6 +483,7 @@ func (s *service) UploadContent(ctx context.Context, req UploadContentRequest) (
 		ContentID:          content.ID,
 		ObjectKey:          objectKey,
 		StorageBackendName: storageBackend,
+		FileName:           req.FileName,
 		Version:            1,
 		Status:             string(ObjectStatusCreated),
 		CreatedAt:          now,
@@ -643,6 +644,7 @@ func (s *service) UploadDerivedContent(ctx context.Context, req UploadDerivedCon
 		ContentID:          content.ID,
 		ObjectKey:          objectKey,
 		StorageBackendName: storageBackend,
+		FileName:           req.FileName,
 		Version:            1,
 		Status:             string(ObjectStatusCreated),
 		CreatedAt:          now,
@@ -765,6 +767,7 @@ func (s *service) UploadObjectForContent(ctx context.Context, req UploadObjectFo
 		ContentID:          req.ContentID,
 		ObjectKey:          objectKey,
 		StorageBackendName: storageBackend,
+		FileName:           req.FileName,
 		Version:            1,
 		Status:             string(ObjectStatusCreated),
 		CreatedAt:          now,
@@ -981,16 +984,17 @@ func (s *service) CreateObject(ctx context.Context, req CreateObjectRequest) (*O
 		objectKey = s.generateObjectKey(req.ContentID, objectID, contentMetadata)
 	}
 
-    object := &Object{
-        ID:                 objectID,
-        ContentID:          req.ContentID,
-        StorageBackendName: req.StorageBackendName,
-        ObjectKey:          objectKey,
-        Version:            req.Version,
-        Status:             string(ObjectStatusCreated),
-        CreatedAt:          now,
-        UpdatedAt:          now,
-    }
+	object := &Object{
+		ID:                 objectID,
+		ContentID:          req.ContentID,
+		StorageBackendName: req.StorageBackendName,
+		ObjectKey:          objectKey,
+		Version:            req.Version,
+		Status:             string(ObjectStatusCreated),
+		FileName:           req.FileName,
+		CreatedAt:          now,
+		UpdatedAt:          now,
+	}
 
 	// Add metadata-derived fields if available
 	if contentMetadata != nil {
