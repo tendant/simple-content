@@ -14,12 +14,13 @@ import (
 
 // service implements both the Service and StorageService interfaces
 type service struct {
-	repository Repository
-	blobStores map[string]BlobStore
-	eventSink  EventSink
-	previewer  Previewer
-	keyGenerator objectkey.Generator
-	urlStrategy urlstrategy.URLStrategy // Pluggable URL generation strategy
+	repository          Repository
+	blobStores          map[string]BlobStore
+	eventSink           EventSink
+	previewer           Previewer
+	keyGenerator        objectkey.Generator
+	urlStrategy         urlstrategy.URLStrategy         // Pluggable URL generation strategy
+	enhancedURLStrategy urlstrategy.EnhancedURLStrategy // Pluggable enhanced URL generation strategy
 }
 
 // Option represents a functional option for configuring the service
@@ -67,6 +68,10 @@ func WithObjectKeyGenerator(generator objectkey.Generator) Option {
 func WithURLStrategy(strategy urlstrategy.URLStrategy) Option {
 	return func(s *service) {
 		s.urlStrategy = strategy
+		// If the strategy also implements EnhancedURLStrategy, set it
+		if enhanced, ok := strategy.(urlstrategy.EnhancedURLStrategy); ok {
+			s.enhancedURLStrategy = enhanced
+		}
 	}
 }
 
