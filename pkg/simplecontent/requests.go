@@ -72,6 +72,7 @@ type CreateObjectRequest struct {
 	StorageBackendName string
 	Version            int
 	ObjectKey          string
+	FileName           string
 }
 
 // UploadObjectRequest contains parameters for uploading an object
