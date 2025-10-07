@@ -1259,9 +1259,20 @@ func (s *service) GetContentDetails(ctx context.Context, contentID uuid.UUID, op
 	if len(objects) > 0 && s.urlStrategy != nil {
 		primaryObject := objects[0] // Use first object as primary
 
-		// Generate download URL using URL strategy
-		if downloadURL, err := s.urlStrategy.GenerateDownloadURL(ctx, contentID, primaryObject.ObjectKey, primaryObject.StorageBackendName); err == nil {
-			result.Download = downloadURL
+		// Generate download URL using enhanced URL strategy if available
+		if s.enhancedURLStrategy != nil {
+			if downloadURL, err := s.enhancedURLStrategy.GenerateDownloadURLWithMetadata(ctx, contentID, primaryObject.ObjectKey, primaryObject.StorageBackendName, &urlstrategy.URLMetadata{
+				FileName:    primaryObject.FileName,
+				Version:     primaryObject.Version,
+				ContentType: primaryObject.ObjectType,
+			}); err == nil {
+				result.Download = downloadURL
+			}
+		} else {
+			// Fallback to basic URL strategy
+			if downloadURL, err := s.urlStrategy.GenerateDownloadURL(ctx, contentID, primaryObject.ObjectKey, primaryObject.StorageBackendName); err == nil {
+				result.Download = downloadURL
+			}
 		}
 
 		// Generate preview URL using URL strategy
