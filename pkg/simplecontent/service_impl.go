@@ -208,6 +208,7 @@ func (s *service) CreateDerivedContent(ctx context.Context, req CreateDerivedCon
 		DerivationType: NormalizeDerivationType(req.DerivationType),
 		CreatedAt:      now,
 		UpdatedAt:      now,
+		Name:           req.Name,
 	}
 
 	if err := s.repository.CreateContent(ctx, content); err != nil {
@@ -225,6 +226,7 @@ func (s *service) CreateDerivedContent(ctx context.Context, req CreateDerivedCon
 			Metadata:  req.Metadata,
 			CreatedAt: now,
 			UpdatedAt: now,
+			FileName:  req.FileName,
 		}
 		if err := s.repository.SetContentMetadata(ctx, metadata); err != nil {
 			return nil, fmt.Errorf("failed to create derived content metadata: %w", err)
