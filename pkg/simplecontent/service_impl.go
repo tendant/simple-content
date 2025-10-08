@@ -266,7 +266,7 @@ func (s *service) GetContent(ctx context.Context, id uuid.UUID) (*Content, error
 
 func (s *service) UpdateContent(ctx context.Context, req UpdateContentRequest) error {
 	req.Content.UpdatedAt = time.Now().UTC()
-	
+
 	if err := s.repository.UpdateContent(ctx, req.Content); err != nil {
 		return &ContentError{
 			ContentID: req.Content.ID,
@@ -984,6 +984,12 @@ func (s *service) CreateObject(ctx context.Context, req CreateObjectRequest) (*O
 		objectKey = s.generateObjectKey(req.ContentID, objectID, contentMetadata)
 	}
 
+	// Persist with content metadata if file name exists
+	fileName := req.FileName
+	if contentMetadata != nil && contentMetadata.FileName != "" {
+		fileName = contentMetadata.FileName
+	}
+
 	object := &Object{
 		ID:                 objectID,
 		ContentID:          req.ContentID,
@@ -991,7 +997,7 @@ func (s *service) CreateObject(ctx context.Context, req CreateObjectRequest) (*O
 		ObjectKey:          objectKey,
 		Version:            req.Version,
 		Status:             string(ObjectStatusCreated),
-		FileName:           req.FileName,
+		FileName:           fileName,
 		CreatedAt:          now,
 		UpdatedAt:          now,
 	}
@@ -1048,7 +1054,7 @@ func (s *service) GetObjectsByContentID(ctx context.Context, contentID uuid.UUID
 
 func (s *service) UpdateObject(ctx context.Context, object *Object) error {
 	object.UpdatedAt = time.Now().UTC()
-	
+
 	if err := s.repository.UpdateObject(ctx, object); err != nil {
 		return &ObjectError{
 			ObjectID: object.ID,
