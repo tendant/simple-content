@@ -832,12 +832,14 @@ func (s *service) UploadObjectForContent(ctx context.Context, req UploadObjectFo
 	// Step 8: Update content metadata
 	if err := s.updateContentMetadata(ctx, content.ID, object_metadata); err != nil {
 		// Log warning but don't fail - object was uploaded successfully
+		fmt.Println("Failed to update object metadata from storage:", err)
 	}
 
 	// Fire event
 	if s.eventSink != nil {
 		if err := s.eventSink.ObjectCreated(ctx, object); err != nil {
 			// Log error but don't fail the operation
+			fmt.Println("Failed to emit object created event:", err)
 		}
 	}
 
