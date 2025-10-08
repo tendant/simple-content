@@ -29,8 +29,24 @@ func (s *ContentBasedStrategy) GenerateDownloadURL(ctx context.Context, contentI
 		return "", fmt.Errorf("API base URL not configured")
 	}
 
+	baseURL := fmt.Sprintf("%s/contents/%s/download", s.APIBaseURL, contentID.String())
+	// Can add query parameters for additional metadata
+	var params []string
+	if metadata != nil {
+		if metadata.FileName != "" {
+			params = append(params, fmt.Sprintf("filename=%s", metadata.FileName))
+		}
+		if metadata.Version > 0 {
+			params = append(params, fmt.Sprintf("version=%d", metadata.Version))
+		}
+	}
+
+	if len(params) > 0 {
+		return fmt.Sprintf("%s?%s", baseURL, strings.Join(params, "&")), nil
+	}
+
 	// Content-based URL that routes through the application
-	return fmt.Sprintf("%s/contents/%s/download", s.APIBaseURL, contentID.String()), nil
+	return baseURL, nil
 }
 
 // GeneratePreviewURL creates a content-based preview URL

@@ -42,8 +42,14 @@ func (s *CDNStrategy) GenerateDownloadURL(ctx context.Context, contentID uuid.UU
 		return "", fmt.Errorf("CDN base URL not configured")
 	}
 
+	baseURL := fmt.Sprintf("%s/%s", s.CDNBaseURL, objectKey)
+
+	if metadata != nil && metadata.FileName != "" {
+		return fmt.Sprintf("%s?filename=%s", baseURL, metadata.FileName), nil
+	}
+
 	// Direct CDN URL pointing to the object key
-	return fmt.Sprintf("%s/%s", s.CDNBaseURL, objectKey), nil
+	return baseURL, nil
 }
 
 // GeneratePreviewURL creates a direct CDN URL for previewing content
@@ -71,13 +77,7 @@ func (s *CDNStrategy) GenerateDownloadURLWithMetadata(ctx context.Context, conte
 		return "", err
 	}
 
-	// If we have a filename, we could potentially append it for SEO
-	// e.g., https://cdn.example.com/path/to/file?filename=document.pdf
-	if metadata != nil && metadata.FileName != "" {
-		return fmt.Sprintf("%s?filename=%s", baseURL, metadata.FileName), nil
-	}
-
-	return baseURL, nil
+	return url, nil
 }
 
 // GeneratePreviewURLWithMetadata creates preview URLs with metadata
