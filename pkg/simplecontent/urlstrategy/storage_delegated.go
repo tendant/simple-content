@@ -28,7 +28,7 @@ func NewStorageDelegatedStrategy(blobStores map[string]BlobStore) *StorageDelega
 }
 
 // GenerateDownloadURL delegates to the storage backend's GetDownloadURL method
-func (s *StorageDelegatedStrategy) GenerateDownloadURL(ctx context.Context, contentID uuid.UUID, objectKey string, storageBackend string) (string, error) {
+func (s *StorageDelegatedStrategy) GenerateDownloadURL(ctx context.Context, contentID uuid.UUID, objectKey string, storageBackend string, metadata *URLMetadata) (string, error) {
 	backend, exists := s.BlobStores[storageBackend]
 	if !exists {
 		return "", fmt.Errorf("storage backend %s not found", storageBackend)
