@@ -40,6 +40,8 @@ type CreateDerivedContentRequest struct {
     Metadata       map[string]interface{}
     InitialStatus  ContentStatus // Optional: defaults to "created"
 	OwnerType      string
+	Name           string
+	FileName       string
 }
 
 // UpdateContentRequest contains parameters for updating content
