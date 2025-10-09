@@ -268,7 +268,7 @@ func (s *service) GetContent(ctx context.Context, id uuid.UUID) (*Content, error
 
 func (s *service) UpdateContent(ctx context.Context, req UpdateContentRequest) error {
 	req.Content.UpdatedAt = time.Now().UTC()
-
+	
 	if err := s.repository.UpdateContent(ctx, req.Content); err != nil {
 		return &ContentError{
 			ContentID: req.Content.ID,
@@ -1072,7 +1072,7 @@ func (s *service) GetObjectsByContentID(ctx context.Context, contentID uuid.UUID
 
 func (s *service) UpdateObject(ctx context.Context, object *Object) error {
 	object.UpdatedAt = time.Now().UTC()
-
+	
 	if err := s.repository.UpdateObject(ctx, object); err != nil {
 		return &ObjectError{
 			ObjectID: object.ID,
