@@ -816,14 +816,30 @@ func (s *service) UploadObjectForContent(ctx context.Context, req UploadObjectFo
 	}
 
 	// Step 6: Update object metadata from storage
-	if err := s.updateObjectFromStorage(ctx, objectID); err != nil {
+	object_metadata, err := s.updateObjectFromStorage(ctx, objectID); 
+	if err != nil {
 		// Log warning but don't fail - object was uploaded successfully
+	}
+
+	// Step 7: Update content status to uploaded for original content
+	if content.DerivationType == "" {
+		content.Status = string(ContentStatusUploaded)
+		if err := s.repository.UpdateContent(ctx, content); err != nil {
+			// Log warning but don't fail - object was uploaded successfully
+		}
+	}
+
+	// Step 8: Update content metadata
+	if err := s.updateContentMetadata(ctx, content.ID, object_metadata); err != nil {
+		// Log warning but don't fail - object was uploaded successfully
+		fmt.Println("Failed to update object metadata from storage:", err)
 	}
 
 	// Fire event
 	if s.eventSink != nil {
 		if err := s.eventSink.ObjectCreated(ctx, object); err != nil {
 			// Log error but don't fail the operation
+			fmt.Println("Failed to emit object created event:", err)
 		}
 	}
 
@@ -1118,7 +1134,7 @@ func (s *service) UploadObject(ctx context.Context, req UploadObjectRequest) err
 	}
 
 	// Update object metadata from storage
-	if err := s.updateObjectFromStorage(ctx, req.ObjectID); err != nil {
+	if _, err := s.updateObjectFromStorage(ctx, req.ObjectID); err != nil {
 		return err
 	}
 
@@ -1502,9 +1518,30 @@ func (s *service) generateDerivedObjectKey(contentID, objectID, parentContentID 
 	return s.keyGenerator.GenerateKey(contentID, objectID, keyMetadata)
 }
 
-func (s *service) updateObjectFromStorage(ctx context.Context, objectID uuid.UUID) error {
-    _, err := s.UpdateObjectMetaFromStorage(ctx, objectID)
-    return err
+
+func (s *service) updateObjectFromStorage(ctx context.Context, objectID uuid.UUID) (*ObjectMetadata, error) {
+	objectMetadata, err := s.UpdateObjectMetaFromStorage(ctx, objectID)
+	return objectMetadata, err
+}
+
+func (s *service) updateContentMetadata(ctx context.Context, contentID uuid.UUID, objectMetadata *ObjectMetadata) error {
+
+	content_metadata, err := s.repository.GetContentMetadata(ctx, contentID)
+	if err != nil {
+		return err
+	}
+	content_metadata.FileSize = objectMetadata.SizeBytes
+	content_metadata.MimeType = objectMetadata.MimeType
+
+	// Add file size and mime type to the metadata map
+	if content_metadata.Metadata == nil {
+		content_metadata.Metadata = make(map[string]interface{})
+	}
+	content_metadata.Metadata["file_size"] = objectMetadata.SizeBytes
+	content_metadata.Metadata["mime_type"] = objectMetadata.MimeType
+	content_metadata.UpdatedAt = time.Now().UTC()
+
+	return s.repository.SetContentMetadata(ctx, content_metadata)
 }
 
 // Derived content helpers
