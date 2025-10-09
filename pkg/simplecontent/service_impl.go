@@ -1284,7 +1284,7 @@ func (s *service) GetContentDetails(ctx context.Context, contentID uuid.UUID, op
 		// Get object metadata if available
 		mimeType := contentMetadata.MimeType
 		objectMeta, err := s.repository.GetObjectMetadata(ctx, primaryObject.ID)
-		if err != nil {
+		if err != nil || objectMeta == nil {
 			fmt.Println("Failed to get content metadata: ", err.Error())
 		} else {
 			mimeType = objectMeta.MimeType
