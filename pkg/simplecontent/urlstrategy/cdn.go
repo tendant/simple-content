@@ -37,20 +37,26 @@ func NewCDNStrategyWithUpload(cdnBaseURL, uploadBaseURL string) *CDNStrategy {
 }
 
 // GenerateDownloadURL creates a direct CDN URL for downloading content
-func (s *CDNStrategy) GenerateDownloadURL(ctx context.Context, contentID uuid.UUID, objectKey string, storageBackend string) (string, error) {
+func (s *CDNStrategy) GenerateDownloadURL(ctx context.Context, contentID uuid.UUID, objectKey string, storageBackend string, metadata *URLMetadata) (string, error) {
 	if s.CDNBaseURL == "" {
 		return "", fmt.Errorf("CDN base URL not configured")
 	}
 
+	baseURL := fmt.Sprintf("%s/%s", s.CDNBaseURL, objectKey)
+
+	if metadata != nil && metadata.FileName != "" {
+		return fmt.Sprintf("%s?filename=%s", baseURL, metadata.FileName), nil
+	}
+
 	// Direct CDN URL pointing to the object key
-	return fmt.Sprintf("%s/%s", s.CDNBaseURL, objectKey), nil
+	return baseURL, nil
 }
 
 // GeneratePreviewURL creates a direct CDN URL for previewing content
 func (s *CDNStrategy) GeneratePreviewURL(ctx context.Context, contentID uuid.UUID, objectKey string, storageBackend string) (string, error) {
 	// For CDN strategy, preview and download URLs are the same
 	// The browser will handle the file based on content type
-	return s.GenerateDownloadURL(ctx, contentID, objectKey, storageBackend)
+	return s.GenerateDownloadURL(ctx, contentID, objectKey, storageBackend, nil)
 }
 
 // GenerateUploadURL creates an upload URL using the configured upload base URL
@@ -66,18 +72,12 @@ func (s *CDNStrategy) GenerateUploadURL(ctx context.Context, contentID uuid.UUID
 // Enhanced methods with metadata
 func (s *CDNStrategy) GenerateDownloadURLWithMetadata(ctx context.Context, contentID uuid.UUID, objectKey string, storageBackend string, metadata *URLMetadata) (string, error) {
 	// CDN strategy can optionally append filename for better SEO/UX
-	baseURL, err := s.GenerateDownloadURL(ctx, contentID, objectKey, storageBackend)
+	url, err := s.GenerateDownloadURL(ctx, contentID, objectKey, storageBackend, metadata)
 	if err != nil {
 		return "", err
 	}
 
-	// If we have a filename, we could potentially append it for SEO
-	// e.g., https://cdn.example.com/path/to/file?filename=document.pdf
-	if metadata != nil && metadata.FileName != "" {
-		return fmt.Sprintf("%s?filename=%s", baseURL, metadata.FileName), nil
-	}
-
-	return baseURL, nil
+	return url, nil
 }
 
 // GeneratePreviewURLWithMetadata creates preview URLs with metadata

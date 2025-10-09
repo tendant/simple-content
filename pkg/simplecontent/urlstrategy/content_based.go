@@ -24,13 +24,29 @@ func NewContentBasedStrategy(apiBaseURL string) *ContentBasedStrategy {
 }
 
 // GenerateDownloadURL creates a content-based download URL
-func (s *ContentBasedStrategy) GenerateDownloadURL(ctx context.Context, contentID uuid.UUID, objectKey string, storageBackend string) (string, error) {
+func (s *ContentBasedStrategy) GenerateDownloadURL(ctx context.Context, contentID uuid.UUID, objectKey string, storageBackend string, metadata *URLMetadata) (string, error) {
 	if s.APIBaseURL == "" {
 		return "", fmt.Errorf("API base URL not configured")
 	}
 
+	baseURL := fmt.Sprintf("%s/contents/%s/download", s.APIBaseURL, contentID.String())
+	// Can add query parameters for additional metadata
+	var params []string
+	if metadata != nil {
+		if metadata.FileName != "" {
+			params = append(params, fmt.Sprintf("filename=%s", metadata.FileName))
+		}
+		if metadata.Version > 0 {
+			params = append(params, fmt.Sprintf("version=%d", metadata.Version))
+		}
+	}
+
+	if len(params) > 0 {
+		return fmt.Sprintf("%s?%s", baseURL, strings.Join(params, "&")), nil
+	}
+
 	// Content-based URL that routes through the application
-	return fmt.Sprintf("%s/contents/%s/download", s.APIBaseURL, contentID.String()), nil
+	return baseURL, nil
 }
 
 // GeneratePreviewURL creates a content-based preview URL
@@ -55,7 +71,7 @@ func (s *ContentBasedStrategy) GenerateUploadURL(ctx context.Context, contentID 
 
 // Enhanced methods with metadata
 func (s *ContentBasedStrategy) GenerateDownloadURLWithMetadata(ctx context.Context, contentID uuid.UUID, objectKey string, storageBackend string, metadata *URLMetadata) (string, error) {
-	baseURL, err := s.GenerateDownloadURL(ctx, contentID, objectKey, storageBackend)
+	baseURL, err := s.GenerateDownloadURL(ctx, contentID, objectKey, storageBackend, nil)
 	if err != nil {
 		return "", err
 	}

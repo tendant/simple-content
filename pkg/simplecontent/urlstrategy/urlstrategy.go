@@ -9,7 +9,7 @@ import (
 // URLStrategy defines the interface for URL generation strategies
 type URLStrategy interface {
 	// GenerateDownloadURL creates a download URL for content
-	GenerateDownloadURL(ctx context.Context, contentID uuid.UUID, objectKey string, storageBackend string) (string, error)
+	GenerateDownloadURL(ctx context.Context, contentID uuid.UUID, objectKey string, storageBackend string, metadata *URLMetadata) (string, error)
 
 	// GeneratePreviewURL creates a preview URL for content
 	GeneratePreviewURL(ctx context.Context, contentID uuid.UUID, objectKey string, storageBackend string) (string, error)
