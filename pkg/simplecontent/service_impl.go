@@ -1279,6 +1279,7 @@ func (s *service) GetContentDetails(ctx context.Context, contentID uuid.UUID, op
 		result.FileSize = contentMetadata.FileSize
 		result.Tags = contentMetadata.Tags
 		result.Checksum = contentMetadata.Checksum
+		result.MimeType = contentMetadata.MimeType
 	} else {
 		fmt.Println("Failed to get content metadata: ", err.Error())
 	}
