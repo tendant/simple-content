@@ -1301,6 +1301,7 @@ func (s *service) GetContentDetails(ctx context.Context, contentID uuid.UUID, op
 		} else {
 			mimeType = objectMeta.MimeType
 			result.FileSize = objectMeta.SizeBytes
+			result.MimeType = mimeType
 		}
 
 		// Verify if content is ready
