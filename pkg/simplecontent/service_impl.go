@@ -1260,6 +1260,17 @@ func (s *service) GetContentDetails(ctx context.Context, contentID uuid.UUID, op
 		result.Ready = (content.Status == string(ContentStatusProcessed))
 	}
 
+	// Get content metadata if available
+	contentMetadata, err := s.repository.GetContentMetadata(ctx, contentID)
+	if err == nil {
+		result.FileName = contentMetadata.FileName
+		result.FileSize = contentMetadata.FileSize
+		result.Tags = contentMetadata.Tags
+		result.Checksum = contentMetadata.Checksum
+	} else {
+		fmt.Println("Failed to get content metadata: ", err.Error())
+	}
+
 	// Get primary objects for this content (for download/preview URLs)
 	objects, err := s.repository.GetObjectsByContentID(ctx, contentID)
 	if err != nil {
@@ -1268,14 +1279,24 @@ func (s *service) GetContentDetails(ctx context.Context, contentID uuid.UUID, op
 
 	// Generate download and preview URLs from primary object using URL strategy
 	if len(objects) > 0 && s.urlStrategy != nil {
-		primaryObject := objects[0] // Use first object as primary
+		primaryObject := objects[0] // Use latest version object as primary
+
+		// Get object metadata if available
+		mimeType := contentMetadata.MimeType
+		objectMeta, err := s.repository.GetObjectMetadata(ctx, primaryObject.ID)
+		if err != nil {
+			fmt.Println("Failed to get content metadata: ", err.Error())
+		} else {
+			mimeType = objectMeta.MimeType
+			result.FileSize = objectMeta.SizeBytes
+		}
 
 		// Verify if content is ready
 		if strings.ToLower(content.Status) == string(ContentStatusUploaded) {
 			if downloadURL, err := s.urlStrategy.GenerateDownloadURL(ctx, contentID, primaryObject.ObjectKey, primaryObject.StorageBackendName, &urlstrategy.URLMetadata{
-				FileName:    primaryObject.FileName,
+				FileName:    contentMetadata.FileName,
 				Version:     primaryObject.Version,
-				ContentType: primaryObject.ObjectType,
+				ContentType: mimeType,
 			}); err == nil {
 				result.Download = downloadURL
 			}
@@ -1347,15 +1368,6 @@ func (s *service) GetContentDetails(ctx context.Context, contentID uuid.UUID, op
 	// Add content timestamps
 	result.CreatedAt = content.CreatedAt
 	result.UpdatedAt = content.UpdatedAt
-
-	// Get content metadata if available
-	if metadata, err := s.repository.GetContentMetadata(ctx, contentID); err == nil {
-		result.FileName = metadata.FileName
-		result.FileSize = metadata.FileSize
-		result.MimeType = metadata.MimeType
-		result.Tags = metadata.Tags
-		result.Checksum = metadata.Checksum
-	}
 
 	return result, nil
 }
