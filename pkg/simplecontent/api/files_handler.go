@@ -12,6 +12,8 @@ import (
 	"github.com/tendant/simple-content/pkg/simplecontent"
 )
 
+const DEFAULT_STORAGE_BACKEND = "s3-deafult"
+
 // FilesHandler handles file upload and management API endpoints using pkg/simplecontent
 type FilesHandler struct {
 	service        simplecontent.Service
@@ -37,13 +39,14 @@ func (h *FilesHandler) Routes() chi.Router {
 
 // CreateFileRequest represents the request to create a new file
 type CreateFileRequest struct {
-	OwnerID      string `json:"owner_id"`
-	OwnerType    string `json:"owner_type"`
-	TenantID     string `json:"tenant_id"`
-	FileName     string `json:"file_name"`
-	MimeType     string `json:"mime_type,omitempty"`
-	FileSize     int64  `json:"file_size,omitempty"`
-	DocumentType string `json:"document_type,omitempty"`
+	OwnerID            string `json:"owner_id"`
+	OwnerType          string `json:"owner_type"`
+	TenantID           string `json:"tenant_id"`
+	FileName           string `json:"file_name"`
+	MimeType           string `json:"mime_type,omitempty"`
+	FileSize           int64  `json:"file_size,omitempty"`
+	DocumentType       string `json:"document_type,omitempty"`
+	StorageBackendName string `json:"storage_backend_name,omitempty"`
 }
 
 // CreateFileResponse represents the response after creating a file
@@ -143,11 +146,14 @@ func (h *FilesHandler) CreateFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	storageBackendName := req.StorageBackendName
+	if storageBackendName == "" {
+		storageBackendName = DEFAULT_STORAGE_BACKEND
+	}
 	// Create object
 	object, err := h.storageService.CreateObject(r.Context(), simplecontent.CreateObjectRequest{
-		ContentID: content.ID,
-		// TODO: add storagebackend name to request
-		StorageBackendName: "s3",
+		ContentID:          content.ID,
+		StorageBackendName: storageBackendName,
 		Version:            1,
 	})
 	if err != nil {
