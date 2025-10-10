@@ -14,16 +14,18 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/tendant/chi-demo/app"
 	"github.com/tendant/chi-demo/middleware"
-	"github.com/tendant/simple-content/internal/api"
-	psqlrepo "github.com/tendant/simple-content/pkg/repository/psql"
-	"github.com/tendant/simple-content/pkg/service"
-	"github.com/tendant/simple-content/pkg/storage/s3"
+	"github.com/tendant/simple-content/pkg/simplecontent"
+	scapi "github.com/tendant/simple-content/pkg/simplecontent/api"
+	"github.com/tendant/simple-content/pkg/simplecontent/objectkey"
+	repopg "github.com/tendant/simple-content/pkg/simplecontent/repo/postgres"
+	s3storage "github.com/tendant/simple-content/pkg/simplecontent/storage/s3"
+	"github.com/tendant/simple-content/pkg/simplecontent/urlstrategy"
 )
 
 type Config struct {
 	DB           DbConfig
 	S3           S3Config
-	ApiKeySHA256 string `env:"API_KEY_SHA256" env-default:"ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"`
+	ApiKeySHA256 string `env:"API_KEY_SHA256"`
 	NoticeConfig NoticeConfig
 }
 
@@ -49,6 +51,7 @@ type S3Config struct {
 }
 
 const S3_URL_DURATION = 3600 * 6 // 6 hours
+const DEFAULT_STORAGE_BACKEND = "s3-deafult"
 
 func (c DbConfig) toDatabaseUrl() string {
 	u := url.URL{
@@ -74,8 +77,8 @@ func NewDbPool(ctx context.Context, dbConfig DbConfig) (*pgxpool.Pool, error) {
 	return pool, nil
 }
 
-func initializeS3Backend(config S3Config) (*s3.S3Backend, error) {
-	s3Config := s3.Config{
+func initializeS3Backend(config S3Config) (simplecontent.BlobStore, error) {
+	s3Config := s3storage.Config{
 		Endpoint:               config.Endpoint,
 		AccessKeyID:            config.AccessKeyID,
 		SecretAccessKey:        config.SecretAccessKey,
@@ -86,18 +89,12 @@ func initializeS3Backend(config S3Config) (*s3.S3Backend, error) {
 		PresignDuration:        S3_URL_DURATION, // 6 hours
 	}
 
-	backend, err := s3.NewS3Backend(s3Config)
+	backend, err := s3storage.New(s3Config)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create S3 backend: %w", err)
 	}
 
-	// Type assert to get the concrete S3Backend type
-	s3Backend, ok := backend.(*s3.S3Backend)
-	if !ok {
-		return nil, fmt.Errorf("failed to cast to S3Backend")
-	}
-
-	return s3Backend, nil
+	return backend, nil
 }
 
 func main() {
@@ -121,12 +118,8 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Initialize repositories
-	repoFactory := psqlrepo.NewRepositoryFactory(dbPool)
-	contentRepo := repoFactory.NewContentRepository()
-	contentMetadataRepo := repoFactory.NewContentMetadataRepository()
-	objectRepo := repoFactory.NewObjectRepository()
-	objectMetadataRepo := repoFactory.NewObjectMetadataRepository()
+	// Initialize repository
+	repo := repopg.NewWithPool(dbPool)
 
 	// Initialize S3 storage backend
 	s3Backend, err := initializeS3Backend(config.S3)
@@ -135,30 +128,52 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Initialize services
-	contentService := service.NewContentService(
-		contentRepo,
-		contentMetadataRepo,
-	)
+	// Initialize URL strategy - using storage-delegated strategy for S3 presigned URLs
+	blobStores := map[string]urlstrategy.BlobStore{
+		DEFAULT_STORAGE_BACKEND: s3Backend,
+	}
+	urlStrategy := urlstrategy.NewStorageDelegatedStrategy(blobStores)
 
-	objectService := service.NewObjectService(
-		objectRepo,
-		objectMetadataRepo,
-		contentRepo,
-		contentMetadataRepo,
-	)
+	// Initialize object key generator - using git-like for better performance
+	keyGenerator := objectkey.NewGitLikeGenerator()
 
-	// Register the S3 backend with the object service
-	objectService.RegisterBackend("s3-default", s3Backend)
+	// Initialize service with new pkg/simplecontent API
+	// Note: The service will automatically use the first registered backend as default
+	service, err := simplecontent.New(
+		simplecontent.WithRepository(repo),
+		simplecontent.WithBlobStore(DEFAULT_STORAGE_BACKEND, s3Backend),
+		simplecontent.WithURLStrategy(urlStrategy),
+		simplecontent.WithObjectKeyGenerator(keyGenerator),
+		simplecontent.WithEventSink(simplecontent.NewNoopEventSink()),
+		simplecontent.WithPreviewer(simplecontent.NewBasicImagePreviewer()),
+	)
+	if err != nil {
+		slog.Error("Failed to initialize service", "err", err)
+		os.Exit(1)
+	}
+
+	// Initialize storage service for advanced object operations
+	storageService, err := simplecontent.NewStorageService(
+		simplecontent.WithRepository(repo),
+		simplecontent.WithBlobStore(DEFAULT_STORAGE_BACKEND, s3Backend),
+		simplecontent.WithURLStrategy(urlStrategy),
+		simplecontent.WithObjectKeyGenerator(keyGenerator),
+		simplecontent.WithEventSink(simplecontent.NewNoopEventSink()),
+		simplecontent.WithPreviewer(simplecontent.NewBasicImagePreviewer()),
+	)
+	if err != nil {
+		slog.Error("Failed to initialize storage service", "err", err)
+		os.Exit(1)
+	}
 
 	server := app.DefaultApp()
 
 	app.RoutesHealthz(server.R)
 	app.RoutesHealthzReady(server.R)
 
-	// Initialize API handlers
-	contentHandler := api.NewContentHandler(contentService, objectService)
-	filesHandler := api.NewFilesHandler(contentService, objectService)
+	// Initialize API handlers with new pkg/simplecontent/api
+	contentHandler := scapi.NewContentHandler(service, storageService)
+	filesHandler := scapi.NewFilesHandler(service, storageService)
 
 	apiKeyMiddleware, err := middleware.ApiKeyMiddleware(apiKeyConfig)
 	if err != nil {
