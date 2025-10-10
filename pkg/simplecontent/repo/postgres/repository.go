@@ -166,6 +166,12 @@ func (r *Repository) ListContent(ctx context.Context, ownerID, tenantID uuid.UUI
 // Content metadata operations
 
 func (r *Repository) SetContentMetadata(ctx context.Context, metadata *simplecontent.ContentMetadata) error {
+	// Handle zero-value CreatedAt (same logic as memory repository)
+	createdAt := metadata.CreatedAt
+	if createdAt.IsZero() {
+		createdAt = time.Now().UTC()
+	}
+
 	query := `
 		INSERT INTO content_metadata (
 			content_id, tags, file_size, file_name, mime_type,
@@ -184,7 +190,7 @@ func (r *Repository) SetContentMetadata(ctx context.Context, metadata *simplecon
 	_, err := r.db.Exec(ctx, query,
 		metadata.ContentID, metadata.Tags, metadata.FileSize, metadata.FileName,
 		metadata.MimeType, metadata.Checksum, metadata.ChecksumAlgorithm,
-		metadata.Metadata, metadata.CreatedAt, time.Now().UTC())
+		metadata.Metadata, createdAt, time.Now().UTC())
 
 	return err
 }
