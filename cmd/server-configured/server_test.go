@@ -27,8 +27,8 @@ func newTestServer(t *testing.T) *HTTPServer {
     if err != nil {
         t.Fatalf("service create error: %v", err)
     }
-    cfg := &config.ServerConfig{Environment: "testing", DefaultStorageBackend: "memory"}
     return NewHTTPServer(svc, cfg)
+	cfg := &config.ServerConfig{Environment: "testing"}
 }
 
 func doJSON(t *testing.T, ts *HTTPServer, method, path string, body any) *httptest.ResponseRecorder {
