@@ -15,7 +15,7 @@ import (
     "github.com/tendant/simple-content/pkg/simplecontent/config"
 )
 
-func newTestServer(t *testing.T) *HTTPServer {
+func newTestServer(t *testing.T) (simplecontent.Service, *HTTPServer) {
     t.Helper()
     repo := memoryrepo.New()
     store := memorystorage.New()
@@ -27,8 +27,14 @@ func newTestServer(t *testing.T) *HTTPServer {
     if err != nil {
         t.Fatalf("service create error: %v", err)
     }
-    cfg := &config.ServerConfig{Environment: "testing", DefaultStorageBackend: "memory"}
-    return NewHTTPServer(svc, cfg)
+    cfg := &config.ServerConfig{
+        ServiceConfig: config.ServiceConfig{
+            DatabaseType: "memory",
+            DefaultStorageBackend: "memory",
+        },
+        Environment: "testing",
+    }
+    return svc, NewHTTPServer(svc, cfg)
 }
 
 func doJSON(t *testing.T, ts *HTTPServer, method, path string, body any) *httptest.ResponseRecorder {
@@ -49,7 +55,7 @@ func doJSON(t *testing.T, ts *HTTPServer, method, path string, body any) *httpte
 }
 
 func TestCreateContentAndList(t *testing.T) {
-    ts := newTestServer(t)
+    _, ts := newTestServer(t)
     ownerID := uuid.New().String()
     tenantID := uuid.New().String()
 
@@ -73,7 +79,7 @@ func TestCreateContentAndList(t *testing.T) {
 }
 
 func TestObjectUploadDownload(t *testing.T) {
-    ts := newTestServer(t)
+    _, ts := newTestServer(t)
     ownerID := uuid.New().String()
     tenantID := uuid.New().String()
 
@@ -120,7 +126,7 @@ func TestObjectUploadDownload(t *testing.T) {
 }
 
 func TestCreateDerivedContentEndpoint(t *testing.T) {
-    ts := newTestServer(t)
+    svc, ts := newTestServer(t)
     ownerID := uuid.New().String()
     tenantID := uuid.New().String()
 
@@ -136,13 +142,32 @@ func TestCreateDerivedContentEndpoint(t *testing.T) {
     var parent struct{ ID string `json:"id"` }
     _ = json.Unmarshal(rr.Body.Bytes(), &parent)
 
+    // Create object and upload to make parent content ready
+    rr = doJSON(t, ts, http.MethodPost, "/api/v1/contents/"+parent.ID+"/objects", map[string]any{"version": 1})
+    if rr.Code != http.StatusCreated {
+        t.Fatalf("expected 201 for object creation, got %d: %s", rr.Code, rr.Body.String())
+    }
+    var obj struct{ ID string `json:"id"` }
+    _ = json.Unmarshal(rr.Body.Bytes(), &obj)
+
+    // Upload to the object to mark parent as uploaded
+    rr = doRaw(t, ts, http.MethodPost, "/api/v1/objects/"+obj.ID+"/upload", "text/plain", bytes.NewBufferString("parent data"))
+    if rr.Code != http.StatusNoContent {
+        t.Fatalf("expected 204 for upload, got %d: %s", rr.Code, rr.Body.String())
+    }
+
+    // Update parent content status to "uploaded" using service directly
+    parentUUID, _ := uuid.Parse(parent.ID)
+    if err := svc.UpdateContentStatus(t.Context(), parentUUID, simplecontent.ContentStatusUploaded); err != nil {
+        t.Fatalf("failed to update content status: %v", err)
+    }
+
     // Create derived content
     body := map[string]any{
         "owner_id": ownerID,
         "tenant_id": tenantID,
         "derivation_type": "thumbnail",
         "variant": "thumbnail_256",
-        "metadata": map[string]any{"width": 256},
     }
     rr = doJSON(t, ts, http.MethodPost, "/api/v1/contents/"+parent.ID+"/derived", body)
     if rr.Code != http.StatusCreated {
