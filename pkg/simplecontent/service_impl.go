@@ -744,6 +744,14 @@ func (s *service) UploadObjectForContent(ctx context.Context, req UploadObjectFo
 		return nil, fmt.Errorf("no storage backend available")
 	}
 
+	// Get content metadata for filename
+	var contentMetadata *ContentMetadata
+	contentMetadata, err = s.repository.GetContentMetadata(ctx, req.ContentID)
+	if err != nil {
+		// Log the warning but continue - metadata is optional
+		contentMetadata = nil
+	}
+
 	// Step 3: Create the object
 	now := time.Now().UTC()
 	objectID := uuid.New()
@@ -757,11 +765,11 @@ func (s *service) UploadObjectForContent(ctx context.Context, req UploadObjectFo
 			objectKey = s.generateDerivedObjectKey(req.ContentID, objectID, derivedRel.ParentID, content.DerivationType, derivedRel.Variant, content)
 		} else {
 			// Fallback to simple key generation if relationship not found
-			objectKey = s.generateObjectKey(req.ContentID, objectID, nil)
+			objectKey = s.generateObjectKey(req.ContentID, objectID, contentMetadata)
 		}
 	} else {
-		// For original content, use standard key generation
-		objectKey = s.generateObjectKey(req.ContentID, objectID, nil)
+		// For original content, use standard key generation with metadata
+		objectKey = s.generateObjectKey(req.ContentID, objectID, contentMetadata)
 	}
 
 	object := &Object{
