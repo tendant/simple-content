@@ -1035,9 +1035,11 @@ func TestGetContentDetails(t *testing.T) {
 		assert.NotNil(t, details.Thumbnails)
 		assert.NotNil(t, details.Previews)
 		assert.NotNil(t, details.Transcodes)
-		// Both parent and derived content are still in "created" status (legacy API)
-		// Ready flag is false because content status was never updated to "uploaded"
-		assert.False(t, details.Ready)
+		// Parent was updated to "uploaded" status, so it should be ready
+		// (even though derived content is still in "created" status)
+		assert.True(t, details.Ready, "Parent should be ready when uploaded, even if derived content is not processed")
+		// Thumbnails should be empty since derived content is not processed
+		assert.Empty(t, details.Thumbnails, "Thumbnails should be empty when derived content is not processed")
 	})
 
 	// Test 4: Non-existent content
@@ -1112,13 +1114,15 @@ func TestGetContentDetails(t *testing.T) {
 		_, err = svc.CreateDerivedContent(ctx, derivedReq)
 		require.NoError(t, err)
 
-		// Get parent details - should not be ready because derived content is not uploaded
+		// Get parent details - should be ready because parent is uploaded (derived content readiness doesn't affect parent)
 		details, err := svc.GetContentDetails(ctx, parent.ID)
 		require.NoError(t, err)
-		assert.False(t, details.Ready, "Parent with non-uploaded derived content should not be ready")
+		assert.True(t, details.Ready, "Parent should be ready when uploaded, regardless of derived content status")
+		// Thumbnails should be empty because derived content is not processed yet
+		assert.Empty(t, details.Thumbnails, "Thumbnails should be empty when derived content is not processed")
 	})
 
-	// Test 8: Ready flag - uploaded parent with uploaded derived content (ready)
+	// Test 8: Ready flag - uploaded parent with uploaded derived content (ready + thumbnails available)
 	t.Run("ReadyFlag_UploadedParentWithUploadedDerived", func(t *testing.T) {
 		// Create and upload parent content
 		parentReq := simplecontent.UploadContentRequest{
@@ -1145,9 +1149,10 @@ func TestGetContentDetails(t *testing.T) {
 		_, err = svc.UploadDerivedContent(ctx, derivedReq)
 		require.NoError(t, err)
 
-		// Get parent details - should be ready now
+		// Get parent details - should be ready and thumbnails should be available
 		details, err := svc.GetContentDetails(ctx, parent.ID)
 		require.NoError(t, err)
-		assert.True(t, details.Ready, "Parent with uploaded derived content should be ready")
+		assert.True(t, details.Ready, "Parent should be ready when uploaded")
+		assert.NotEmpty(t, details.Thumbnails, "Thumbnails should be available when derived content is processed")
 	})
 }

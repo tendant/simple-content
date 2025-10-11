@@ -1303,10 +1303,15 @@ func (s *service) GetContentDetails(ctx context.Context, contentID uuid.UUID, op
 		primaryObject := objects[0] // Use latest version object as primary
 
 		// Get object metadata if available
-		mimeType := contentMetadata.MimeType
+		var mimeType, fileName string
+		if contentMetadata != nil {
+			mimeType = contentMetadata.MimeType
+			fileName = contentMetadata.FileName
+		}
+
 		objectMeta, err := s.repository.GetObjectMetadata(ctx, primaryObject.ID)
 		if err != nil || objectMeta == nil {
-			fmt.Println("Failed to get content metadata: ", err.Error())
+			fmt.Println("Failed to get object metadata: ", err.Error())
 		} else {
 			mimeType = objectMeta.MimeType
 			result.FileSize = objectMeta.SizeBytes
@@ -1316,7 +1321,7 @@ func (s *service) GetContentDetails(ctx context.Context, contentID uuid.UUID, op
 		// Verify if content is ready
 		if strings.ToLower(content.Status) == string(ContentStatusUploaded) {
 			if downloadURL, err := s.urlStrategy.GenerateDownloadURL(ctx, contentID, primaryObject.ObjectKey, primaryObject.StorageBackendName, &urlstrategy.URLMetadata{
-				FileName:    contentMetadata.FileName,
+				FileName:    fileName,
 				Version:     primaryObject.Version,
 				ContentType: mimeType,
 			}); err == nil {
@@ -1357,9 +1362,12 @@ func (s *service) GetContentDetails(ctx context.Context, contentID uuid.UUID, op
 		}
 
 		// Organize by derivation type
+		// Only include derived content that is processed (ready)
+		// Non-ready derived content should not affect parent content availability
 		switch derived.DerivationType {
 		case "thumbnail":
-			if derived.DownloadURL != "" {
+			// Only include processed thumbnails (even if URL is empty)
+			if derived.Status == string(ContentStatusProcessed) {
 				result.Thumbnails[variant] = derived.DownloadURL
 				// Set primary thumbnail (prefer first one found)
 				if result.Thumbnail == "" {
@@ -1367,7 +1375,8 @@ func (s *service) GetContentDetails(ctx context.Context, contentID uuid.UUID, op
 				}
 			}
 		case "preview":
-			if derived.DownloadURL != "" {
+			// Only include processed previews (even if URL is empty)
+			if derived.Status == string(ContentStatusProcessed) {
 				result.Previews[variant] = derived.DownloadURL
 				// Set primary preview (prefer first one found, but keep original if exists)
 				if result.Preview == "" {
@@ -1375,16 +1384,15 @@ func (s *service) GetContentDetails(ctx context.Context, contentID uuid.UUID, op
 				}
 			}
 		case "transcode":
-			if derived.DownloadURL != "" {
+			// Only include processed transcodes (even if URL is empty)
+			if derived.Status == string(ContentStatusProcessed) {
 				result.Transcodes[variant] = derived.DownloadURL
 			}
 		}
 
-		// If any derived content is not ready, mark the whole result as not ready
-		// Derived content is ready when status = "processed"
-		if derived.Status != string(ContentStatusProcessed) {
-			result.Ready = false
-		}
+		// NOTE: Derived content readiness does NOT affect parent content readiness.
+		// Parent content is ready when status = "uploaded", regardless of derived content status.
+		// Derived content that is not ready simply won't appear in the thumbnails/previews/transcodes maps.
 	}
 
 	// Add content timestamps
