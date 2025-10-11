@@ -1,25 +1,25 @@
 package simplecontent
 
 import (
-    "context"
-    "fmt"
-    "io"
-    "strings"
-    "time"
+	"context"
+	"fmt"
+	"io"
+	"strings"
+	"time"
 
-    "github.com/google/uuid"
-    "github.com/tendant/simple-content/pkg/simplecontent/objectkey"
-    "github.com/tendant/simple-content/pkg/simplecontent/urlstrategy"
+	"github.com/google/uuid"
+	"github.com/tendant/simple-content/pkg/simplecontent/objectkey"
+	"github.com/tendant/simple-content/pkg/simplecontent/urlstrategy"
 )
 
 // service implements both the Service and StorageService interfaces
 type service struct {
-	repository Repository
-	blobStores map[string]BlobStore
-	eventSink  EventSink
-	previewer  Previewer
+	repository   Repository
+	blobStores   map[string]BlobStore
+	eventSink    EventSink
+	previewer    Previewer
 	keyGenerator objectkey.Generator
-	urlStrategy urlstrategy.URLStrategy // Pluggable URL generation strategy
+	urlStrategy  urlstrategy.URLStrategy // Pluggable URL generation strategy
 }
 
 // Option represents a functional option for configuring the service
@@ -136,8 +136,8 @@ func (s *service) CreateContent(ctx context.Context, req CreateContentRequest) (
 		Name:           req.Name,
 		Description:    req.Description,
 		DocumentType:   req.DocumentType,
-        DerivationType: req.DerivationType,
-        Status:         string(ContentStatusCreated),
+		DerivationType: req.DerivationType,
+		Status:         string(ContentStatusCreated),
 		CreatedAt:      now,
 		UpdatedAt:      now,
 	}
@@ -162,43 +162,43 @@ func (s *service) CreateContent(ctx context.Context, req CreateContentRequest) (
 }
 
 func (s *service) CreateDerivedContent(ctx context.Context, req CreateDerivedContentRequest) (*Content, error) {
-    // Verify parent content exists and validate status
-    parentContent, err := s.repository.GetContent(ctx, req.ParentID)
-    if err != nil {
-        return nil, fmt.Errorf("parent content not found: %w", err)
-    }
+	// Verify parent content exists and validate status
+	parentContent, err := s.repository.GetContent(ctx, req.ParentID)
+	if err != nil {
+		return nil, fmt.Errorf("parent content not found: %w", err)
+	}
 
-    // Validate parent content status for creating derived content
-    parentStatus := ContentStatus(parentContent.Status)
-    if ok, statusErr := canCreateDerived(parentStatus); !ok {
-        return nil, &ContentError{
-            ContentID: req.ParentID,
-            Op:        "create_derived",
-            Err:       statusErr,
-        }
-    }
+	// Validate parent content status for creating derived content
+	parentStatus := ContentStatus(parentContent.Status)
+	if ok, statusErr := canCreateDerived(parentStatus); !ok {
+		return nil, &ContentError{
+			ContentID: req.ParentID,
+			Op:        "create_derived",
+			Err:       statusErr,
+		}
+	}
 
-    // Infer derivation_type from variant if missing
-    if req.DerivationType == "" && req.Variant != "" {
-        req.DerivationType = DerivationTypeFromVariant(req.Variant)
-    }
+	// Infer derivation_type from variant if missing
+	if req.DerivationType == "" && req.Variant != "" {
+		req.DerivationType = DerivationTypeFromVariant(req.Variant)
+	}
 
-    // Determine initial status (defaults to "created")
-    initialStatus := ContentStatusCreated
-    if req.InitialStatus != "" {
-        // Validate the provided status
-        if !req.InitialStatus.IsValid() {
-            return nil, &ContentError{
-                ContentID: uuid.Nil,
-                Op:        "create_derived",
-                Err:       ErrInvalidContentStatus,
-            }
-        }
-        initialStatus = req.InitialStatus
-    }
+	// Determine initial status (defaults to "created")
+	initialStatus := ContentStatusCreated
+	if req.InitialStatus != "" {
+		// Validate the provided status
+		if !req.InitialStatus.IsValid() {
+			return nil, &ContentError{
+				ContentID: uuid.Nil,
+				Op:        "create_derived",
+				Err:       ErrInvalidContentStatus,
+			}
+		}
+		initialStatus = req.InitialStatus
+	}
 
-    // Create derived content
-    now := time.Now().UTC()
+	// Create derived content
+	now := time.Now().UTC()
 	content := &Content{
 		ID:             uuid.New(),
 		TenantID:       req.TenantID,
@@ -233,21 +233,21 @@ func (s *service) CreateDerivedContent(ctx context.Context, req CreateDerivedCon
 		}
 	}
 
-    // Create derived content relationship
-    // Determine variant to persist in relationship
-    variant := req.Variant
-    if variant == "" {
-        variant = req.DerivationType
-    }
+	// Create derived content relationship
+	// Determine variant to persist in relationship
+	variant := req.Variant
+	if variant == "" {
+		variant = req.DerivationType
+	}
 
-    _, err = s.repository.CreateDerivedContentRelationship(ctx, CreateDerivedContentParams{
-        ParentID:           req.ParentID,
-        DerivedContentID:   content.ID,
-        DerivationType:     req.DerivationType,                 // Store the derivation type (e.g., "thumbnail")
-        Variant:            string(NormalizeVariant(variant)),  // Store the specific variant (e.g., "thumbnail_256")
-        DerivationParams:   req.Metadata,
-        ProcessingMetadata: nil,
-    })
+	_, err = s.repository.CreateDerivedContentRelationship(ctx, CreateDerivedContentParams{
+		ParentID:           req.ParentID,
+		DerivedContentID:   content.ID,
+		DerivationType:     req.DerivationType,                // Store the derivation type (e.g., "thumbnail")
+		Variant:            string(NormalizeVariant(variant)), // Store the specific variant (e.g., "thumbnail_256")
+		DerivationParams:   req.Metadata,
+		ProcessingMetadata: nil,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create derived content relationship: %w", err)
 	}
@@ -268,7 +268,7 @@ func (s *service) GetContent(ctx context.Context, id uuid.UUID) (*Content, error
 
 func (s *service) UpdateContent(ctx context.Context, req UpdateContentRequest) error {
 	req.Content.UpdatedAt = time.Now().UTC()
-	
+
 	if err := s.repository.UpdateContent(ctx, req.Content); err != nil {
 		return &ContentError{
 			ContentID: req.Content.ID,
@@ -744,6 +744,14 @@ func (s *service) UploadObjectForContent(ctx context.Context, req UploadObjectFo
 		return nil, fmt.Errorf("no storage backend available")
 	}
 
+	// Get content metadata for filename
+	var contentMetadata *ContentMetadata
+	contentMetadata, err = s.repository.GetContentMetadata(ctx, req.ContentID)
+	if err != nil {
+		// Log the warning but continue - metadata is optional
+		contentMetadata = nil
+	}
+
 	// Step 3: Create the object
 	now := time.Now().UTC()
 	objectID := uuid.New()
@@ -757,11 +765,11 @@ func (s *service) UploadObjectForContent(ctx context.Context, req UploadObjectFo
 			objectKey = s.generateDerivedObjectKey(req.ContentID, objectID, derivedRel.ParentID, content.DerivationType, derivedRel.Variant, content)
 		} else {
 			// Fallback to simple key generation if relationship not found
-			objectKey = s.generateObjectKey(req.ContentID, objectID, nil)
+			objectKey = s.generateObjectKey(req.ContentID, objectID, contentMetadata)
 		}
 	} else {
-		// For original content, use standard key generation
-		objectKey = s.generateObjectKey(req.ContentID, objectID, nil)
+		// For original content, use standard key generation with metadata
+		objectKey = s.generateObjectKey(req.ContentID, objectID, contentMetadata)
 	}
 
 	object := &Object{
@@ -821,7 +829,7 @@ func (s *service) UploadObjectForContent(ctx context.Context, req UploadObjectFo
 	}
 
 	// Step 6: Update object metadata from storage
-	object_metadata, err := s.updateObjectFromStorage(ctx, objectID); 
+	object_metadata, err := s.updateObjectFromStorage(ctx, objectID)
 	if err != nil {
 		// Log warning but don't fail - object was uploaded successfully
 	}
@@ -1072,7 +1080,7 @@ func (s *service) GetObjectsByContentID(ctx context.Context, contentID uuid.UUID
 
 func (s *service) UpdateObject(ctx context.Context, object *Object) error {
 	object.UpdatedAt = time.Now().UTC()
-	
+
 	if err := s.repository.UpdateObject(ctx, object); err != nil {
 		return &ObjectError{
 			ObjectID: object.ID,
@@ -1492,7 +1500,7 @@ func (s *service) UpdateObjectMetaFromStorage(ctx context.Context, objectID uuid
 	}
 
 	// Update object status
-    object.Status = string(ObjectStatusUploaded)
+	object.Status = string(ObjectStatusUploaded)
 	object.UpdatedAt = updatedTime
 	if err := s.repository.UpdateObject(ctx, object); err != nil {
 		return nil, &ObjectError{ObjectID: objectID, Op: "update_meta_from_storage", Err: err}
@@ -1508,11 +1516,11 @@ func (s *service) RegisterBackend(name string, backend BlobStore) {
 }
 
 func (s *service) GetBackend(name string) (BlobStore, error) {
-    backend, exists := s.blobStores[name]
-    if !exists {
-        return nil, fmt.Errorf("%w: %s", ErrStorageBackendNotFound, name)
-    }
-    return backend, nil
+	backend, exists := s.blobStores[name]
+	if !exists {
+		return nil, fmt.Errorf("%w: %s", ErrStorageBackendNotFound, name)
+	}
+	return backend, nil
 }
 
 // Helper methods
@@ -1548,7 +1556,6 @@ func (s *service) generateDerivedObjectKey(contentID, objectID, parentContentID 
 	return s.keyGenerator.GenerateKey(contentID, objectID, keyMetadata)
 }
 
-
 func (s *service) updateObjectFromStorage(ctx context.Context, objectID uuid.UUID) (*ObjectMetadata, error) {
 	objectMetadata, err := s.UpdateObjectMetaFromStorage(ctx, objectID)
 	return objectMetadata, err
@@ -1576,130 +1583,128 @@ func (s *service) updateContentMetadata(ctx context.Context, contentID uuid.UUID
 
 // Derived content helpers
 func (s *service) GetDerivedRelationship(ctx context.Context, contentID uuid.UUID) (*DerivedContent, error) {
-    return s.repository.GetDerivedRelationshipByContentID(ctx, contentID)
+	return s.repository.GetDerivedRelationshipByContentID(ctx, contentID)
 }
 
 func (s *service) ListDerivedContent(ctx context.Context, options ...ListDerivedContentOption) ([]*DerivedContent, error) {
-    // Build params from options
-    params := ListDerivedContentParams{}
-    for _, option := range options {
-        option(&params)
-    }
+	// Build params from options
+	params := ListDerivedContentParams{}
+	for _, option := range options {
+		option(&params)
+	}
 
-    // Get base derived content from repository
-    derived, err := s.repository.ListDerivedContent(ctx, params)
-    if err != nil {
-        return nil, err
-    }
+	// Get base derived content from repository
+	derived, err := s.repository.ListDerivedContent(ctx, params)
+	if err != nil {
+		return nil, err
+	}
 
-    // Enhance with URLs, objects, and metadata if requested
-    if params.IncludeURLs || params.IncludeObjects || params.IncludeMetadata {
-        for _, d := range derived {
-            if err := s.enhanceDerivedContent(ctx, d, params); err != nil {
-                // Log error but don't fail entire operation
-                // Note: In production, you might want to use a proper logger
-                fmt.Printf("Failed to enhance derived content %s: %v\n", d.ContentID, err)
-            }
-        }
-    }
+	// Enhance with URLs, objects, and metadata if requested
+	if params.IncludeURLs || params.IncludeObjects || params.IncludeMetadata {
+		for _, d := range derived {
+			if err := s.enhanceDerivedContent(ctx, d, params); err != nil {
+				// Log error but don't fail entire operation
+				// Note: In production, you might want to use a proper logger
+				fmt.Printf("Failed to enhance derived content %s: %v\n", d.ContentID, err)
+			}
+		}
+	}
 
-    return derived, nil
+	return derived, nil
 }
-
 
 // Helper methods for enhancement
 
 func (s *service) enhanceDerivedContent(ctx context.Context, derived *DerivedContent, params ListDerivedContentParams) error {
-    // Note: Variant is now persisted, no need to extract it
+	// Note: Variant is now persisted, no need to extract it
 
-    // Include objects if requested
-    if params.IncludeObjects {
-        objects, err := s.repository.GetObjectsByContentID(ctx, derived.ContentID)
-        if err == nil {
-            derived.Objects = objects
-        }
-    }
+	// Include objects if requested
+	if params.IncludeObjects {
+		objects, err := s.repository.GetObjectsByContentID(ctx, derived.ContentID)
+		if err == nil {
+			derived.Objects = objects
+		}
+	}
 
-    // Include metadata if requested
-    if params.IncludeMetadata {
-        metadata, err := s.repository.GetContentMetadata(ctx, derived.ContentID)
-        if err == nil {
-            derived.Metadata = metadata
-        }
-    }
+	// Include metadata if requested
+	if params.IncludeMetadata {
+		metadata, err := s.repository.GetContentMetadata(ctx, derived.ContentID)
+		if err == nil {
+			derived.Metadata = metadata
+		}
+	}
 
-    // Include URLs if requested
-    if params.IncludeURLs {
-        if err := s.populateURLs(ctx, derived); err != nil {
-            return err
-        }
-    }
+	// Include URLs if requested
+	if params.IncludeURLs {
+		if err := s.populateURLs(ctx, derived); err != nil {
+			return err
+		}
+	}
 
-    return nil
+	return nil
 }
 
 func (s *service) populateURLs(ctx context.Context, derived *DerivedContent) error {
-    // Get objects for this content (use cached objects if already loaded)
-    var objects []*Object
-    if len(derived.Objects) > 0 {
-        objects = derived.Objects
-    } else {
-        var err error
-        objects, err = s.repository.GetObjectsByContentID(ctx, derived.ContentID)
-        if err != nil || len(objects) == 0 {
-            return err
-        }
-    }
+	// Get objects for this content (use cached objects if already loaded)
+	var objects []*Object
+	if len(derived.Objects) > 0 {
+		objects = derived.Objects
+	} else {
+		var err error
+		objects, err = s.repository.GetObjectsByContentID(ctx, derived.ContentID)
+		if err != nil || len(objects) == 0 {
+			return err
+		}
+	}
 
-    // Use first object (usually there's only one per derived content)
-    obj := objects[0]
+	// Use first object (usually there's only one per derived content)
+	obj := objects[0]
 
-    // Generate URLs
-    if downloadURL, err := s.GetDownloadURL(ctx, obj.ID); err == nil {
-        derived.DownloadURL = downloadURL
-    }
+	// Generate URLs
+	if downloadURL, err := s.GetDownloadURL(ctx, obj.ID); err == nil {
+		derived.DownloadURL = downloadURL
+	}
 
-    if previewURL, err := s.GetPreviewURL(ctx, obj.ID); err == nil {
-        derived.PreviewURL = previewURL
-    }
+	if previewURL, err := s.GetPreviewURL(ctx, obj.ID); err == nil {
+		derived.PreviewURL = previewURL
+	}
 
-    // For thumbnails, use preview URL as thumbnail URL
-    if derived.DerivationType == "thumbnail" {
-        derived.ThumbnailURL = derived.PreviewURL
-    }
+	// For thumbnails, use preview URL as thumbnail URL
+	if derived.DerivationType == "thumbnail" {
+		derived.ThumbnailURL = derived.PreviewURL
+	}
 
-    return nil
+	return nil
 }
 
 func (s *service) extractVariant(derived *DerivedContent) string {
-    // Strategy 1: Use persisted Variant field (NEW - highest priority)
-    if derived.Variant != "" {
-        return derived.Variant
-    }
+	// Strategy 1: Use persisted Variant field (NEW - highest priority)
+	if derived.Variant != "" {
+		return derived.Variant
+	}
 
-    // Strategy 2: ProcessingMetadata (backward compatibility)
-    if variant, exists := derived.ProcessingMetadata["variant"]; exists {
-        if variantStr, ok := variant.(string); ok {
-            return variantStr
-        }
-    }
+	// Strategy 2: ProcessingMetadata (backward compatibility)
+	if variant, exists := derived.ProcessingMetadata["variant"]; exists {
+		if variantStr, ok := variant.(string); ok {
+			return variantStr
+		}
+	}
 
-    // Strategy 3: DerivationParams (backward compatibility)
-    if variant, exists := derived.DerivationParams["variant"]; exists {
-        if variantStr, ok := variant.(string); ok {
-            return variantStr
-        }
-    }
+	// Strategy 3: DerivationParams (backward compatibility)
+	if variant, exists := derived.DerivationParams["variant"]; exists {
+		if variantStr, ok := variant.(string); ok {
+			return variantStr
+		}
+	}
 
-    // Strategy 4: Parse DerivationType (legacy support)
-    if derived.DerivationType != "" {
-        // If derivation type contains underscore, assume it includes variant
-        if derived.DerivationType != "thumbnail" && derived.DerivationType != "preview" && derived.DerivationType != "transcode" {
-            return derived.DerivationType
-        }
-    }
+	// Strategy 4: Parse DerivationType (legacy support)
+	if derived.DerivationType != "" {
+		// If derivation type contains underscore, assume it includes variant
+		if derived.DerivationType != "thumbnail" && derived.DerivationType != "preview" && derived.DerivationType != "transcode" {
+			return derived.DerivationType
+		}
+	}
 
-    // Strategy 5: Fallback to derivation type
-    return derived.DerivationType
+	// Strategy 5: Fallback to derivation type
+	return derived.DerivationType
 }
-
