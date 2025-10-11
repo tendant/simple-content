@@ -800,7 +800,7 @@ func (s *service) UploadObjectForContent(ctx context.Context, req UploadObjectFo
 		}
 	}
 
-	// Step 5: Upload the data
+	// Step 4: Upload the data
 	backend, err := s.GetBackend(storageBackend)
 	if err != nil {
 		return nil, &ObjectError{ObjectID: objectID, Op: "upload_object_get_backend", Err: err}
@@ -822,19 +822,19 @@ func (s *service) UploadObjectForContent(ctx context.Context, req UploadObjectFo
 		}
 	}
 
-	// Step 6: Update object status to uploaded
+	// Step 5: Update object status to uploaded
 	object.Status = string(ObjectStatusUploaded)
 	if err := s.repository.UpdateObject(ctx, object); err != nil {
 		return nil, &ObjectError{ObjectID: objectID, Op: "upload_object_update_status", Err: err}
 	}
 
-	// Step 7: Update object metadata from storage
+	// Step 6: Update object metadata from storage
 	object_metadata, err := s.updateObjectFromStorage(ctx, objectID)
 	if err != nil {
 		// Log warning but don't fail - object was uploaded successfully
 	}
 
-	// Step 8: Update content status to uploaded for original content
+	// Step 7: Update content status to uploaded for original content
 	if content.DerivationType == "" {
 		content.Status = string(ContentStatusUploaded)
 		if err := s.repository.UpdateContent(ctx, content); err != nil {
@@ -842,7 +842,7 @@ func (s *service) UploadObjectForContent(ctx context.Context, req UploadObjectFo
 		}
 	}
 
-	// Step 9: Update content metadata
+	// Step 8: Update content metadata
 	if err := s.updateContentMetadata(ctx, content.ID, object_metadata); err != nil {
 		// Log warning but don't fail - object was uploaded successfully
 		fmt.Println("Failed to update object metadata from storage:", err)
