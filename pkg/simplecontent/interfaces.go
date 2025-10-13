@@ -43,7 +43,7 @@ type Repository interface {
 	UpdateContent(ctx context.Context, content *Content) error
 	DeleteContent(ctx context.Context, id uuid.UUID) error
 	ListContent(ctx context.Context, ownerID, tenantID uuid.UUID) ([]*Content, error)
-	
+
 	// Content metadata operations
 	SetContentMetadata(ctx context.Context, metadata *ContentMetadata) error
 	GetContentMetadata(ctx context.Context, contentID uuid.UUID) (*ContentMetadata, error)
@@ -52,11 +52,11 @@ type Repository interface {
 	GetContentByStatus(ctx context.Context, status string) ([]*Content, error)
 	GetObjectsByStatus(ctx context.Context, status string) ([]*Object, error)
 
-    // Derived content operations
-    CreateDerivedContentRelationship(ctx context.Context, params CreateDerivedContentParams) (*DerivedContent, error)
-    ListDerivedContent(ctx context.Context, params ListDerivedContentParams) ([]*DerivedContent, error)
-    // GetDerivedRelationshipByContentID returns the derived-content relationship for a given derived content ID
-    GetDerivedRelationshipByContentID(ctx context.Context, contentID uuid.UUID) (*DerivedContent, error)
+	// Derived content operations
+	CreateDerivedContentRelationship(ctx context.Context, params CreateDerivedContentParams) (*DerivedContent, error)
+	ListDerivedContent(ctx context.Context, params ListDerivedContentParams) ([]*DerivedContent, error)
+	// GetDerivedRelationshipByContentID returns the derived-content relationship for a given derived content ID
+	GetDerivedRelationshipByContentID(ctx context.Context, contentID uuid.UUID) (*DerivedContent, error)
 
 	// Object operations
 	CreateObject(ctx context.Context, object *Object) error
@@ -65,7 +65,7 @@ type Repository interface {
 	GetObjectByObjectKeyAndStorageBackendName(ctx context.Context, objectKey, storageBackendName string) (*Object, error)
 	UpdateObject(ctx context.Context, object *Object) error
 	DeleteObject(ctx context.Context, id uuid.UUID) error
-	
+
 	// Object metadata operations
 	SetObjectMetadata(ctx context.Context, metadata *ObjectMetadata) error
 	GetObjectMetadata(ctx context.Context, objectID uuid.UUID) (*ObjectMetadata, error)
@@ -80,19 +80,19 @@ type Repository interface {
 type EventSink interface {
 	// ContentCreated is fired when content is created
 	ContentCreated(ctx context.Context, content *Content) error
-	
+
 	// ContentUpdated is fired when content is updated
 	ContentUpdated(ctx context.Context, content *Content) error
-	
+
 	// ContentDeleted is fired when content is deleted
 	ContentDeleted(ctx context.Context, contentID uuid.UUID) error
-	
+
 	// ObjectCreated is fired when an object is created
 	ObjectCreated(ctx context.Context, object *Object) error
-	
+
 	// ObjectUploaded is fired when an object is uploaded
 	ObjectUploaded(ctx context.Context, object *Object) error
-	
+
 	// ObjectDeleted is fired when an object is deleted
 	ObjectDeleted(ctx context.Context, objectID uuid.UUID) error
 
@@ -107,7 +107,7 @@ type EventSink interface {
 type Previewer interface {
 	// GeneratePreview generates a preview for the given object
 	GeneratePreview(ctx context.Context, object *Object, blobStore BlobStore) (*ObjectPreview, error)
-	
+
 	// SupportsContent returns true if the previewer supports the given content type
 	SupportsContent(mimeType string) bool
 }
@@ -133,7 +133,7 @@ type CreateDerivedContentParams struct {
 	ParentID           uuid.UUID
 	DerivedContentID   uuid.UUID
 	DerivationType     string
-	Variant            string                     // NEW: Specific variant (e.g., "thumbnail_256")
+	Variant            string // NEW: Specific variant (e.g., "thumbnail_256")
 	DerivationParams   map[string]interface{}
 	ProcessingMetadata map[string]interface{}
 }
@@ -147,20 +147,20 @@ type ListDerivedContentParams struct {
 	Offset         *int       `json:"offset,omitempty"`
 
 	// NEW: Advanced filtering fields
-	ParentIDs        []uuid.UUID          `json:"parent_ids,omitempty"`
-	DerivationTypes  []string             `json:"derivation_types,omitempty"`
-	Variant          *string              `json:"variant,omitempty"`
-	Variants         []string             `json:"variants,omitempty"`
-	TypeVariantPairs []TypeVariantPair    `json:"type_variant_pairs,omitempty"`
-	ContentStatus    *string              `json:"content_status,omitempty"`
-	CreatedAfter     *time.Time           `json:"created_after,omitempty"`
-	CreatedBefore    *time.Time           `json:"created_before,omitempty"`
-	SortBy           *string              `json:"sort_by,omitempty"`
+	ParentIDs        []uuid.UUID       `json:"parent_ids,omitempty"`
+	DerivationTypes  []string          `json:"derivation_types,omitempty"`
+	Variant          *string           `json:"variant,omitempty"`
+	Variants         []string          `json:"variants,omitempty"`
+	TypeVariantPairs []TypeVariantPair `json:"type_variant_pairs,omitempty"`
+	ContentStatus    *string           `json:"content_status,omitempty"`
+	CreatedAfter     *time.Time        `json:"created_after,omitempty"`
+	CreatedBefore    *time.Time        `json:"created_before,omitempty"`
+	SortBy           *string           `json:"sort_by,omitempty"`
 
 	// NEW: URL and metadata inclusion options
-	IncludeURLs      bool                 `json:"include_urls"`
-	IncludeObjects   bool                 `json:"include_objects"`
-	IncludeMetadata  bool                 `json:"include_metadata"`
+	IncludeURLs     bool `json:"include_urls"`
+	IncludeObjects  bool `json:"include_objects"`
+	IncludeMetadata bool `json:"include_metadata"`
 }
 
 // ListDerivedContentOption represents a functional option for listing derived content
