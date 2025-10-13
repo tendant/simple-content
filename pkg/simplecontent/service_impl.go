@@ -1719,9 +1719,10 @@ func (s *service) extractVariant(derived *DerivedContent) string {
 
 // GetContentDetailsBatch returns details for multiple contents in a single call.
 // This method uses batch queries to avoid N+1 query problems and significantly improves performance.
-func (s *service) GetContentDetailsBatch(ctx context.Context, contentIDs []uuid.UUID, options ...ContentDetailsOption) (map[uuid.UUID]*ContentDetails, error) {
+// Returns results in the same order as the input contentIDs array.
+func (s *service) GetContentDetailsBatch(ctx context.Context, contentIDs []uuid.UUID, options ...ContentDetailsOption) ([]*ContentDetails, error) {
 	if len(contentIDs) == 0 {
-		return make(map[uuid.UUID]*ContentDetails), nil
+		return []*ContentDetails{}, nil
 	}
 
 	// Apply options
@@ -1730,10 +1731,10 @@ func (s *service) GetContentDetailsBatch(ctx context.Context, contentIDs []uuid.
 		opt(cfg)
 	}
 
-	// Initialize result map
-	result := make(map[uuid.UUID]*ContentDetails, len(contentIDs))
+	// Initialize result map (for building)
+	resultMap := make(map[uuid.UUID]*ContentDetails, len(contentIDs))
 	for _, id := range contentIDs {
-		result[id] = &ContentDetails{
+		resultMap[id] = &ContentDetails{
 			ID:         id.String(),
 			Thumbnails: make(map[string]string),
 			Previews:   make(map[string]string),
@@ -1754,7 +1755,7 @@ func (s *service) GetContentDetailsBatch(ctx context.Context, contentIDs []uuid.
 		contentMap[content.ID] = content
 
 		// Set ready status based on content type
-		if details, ok := result[content.ID]; ok {
+		if details, ok := resultMap[content.ID]; ok {
 			if content.DerivationType == "" {
 				details.Ready = (content.Status == string(ContentStatusUploaded))
 			} else {
@@ -1772,7 +1773,7 @@ func (s *service) GetContentDetailsBatch(ctx context.Context, contentIDs []uuid.
 		fmt.Printf("Failed to get content metadata: %v\n", err)
 	} else {
 		for contentID, metadata := range metadataMap {
-			if details, ok := result[contentID]; ok {
+			if details, ok := resultMap[contentID]; ok {
 				details.FileName = metadata.FileName
 				details.FileSize = metadata.FileSize
 				details.Tags = metadata.Tags
@@ -1819,7 +1820,7 @@ func (s *service) GetContentDetailsBatch(ctx context.Context, contentIDs []uuid.
 			}
 
 			primaryObject := objects[0] // Use first object as primary
-			details := result[contentID]
+			details := resultMap[contentID]
 
 			// Get metadata for URL generation
 			var mimeType, fileName string
@@ -1873,7 +1874,7 @@ func (s *service) GetContentDetailsBatch(ctx context.Context, contentIDs []uuid.
 	} else {
 		// Organize derived content by parent ID
 		for _, derived := range derivedContent {
-			details, ok := result[derived.ParentID]
+			details, ok := resultMap[derived.ParentID]
 			if !ok {
 				continue
 			}
@@ -1905,6 +1906,14 @@ func (s *service) GetContentDetailsBatch(ctx context.Context, contentIDs []uuid.
 					details.Transcodes[variant] = derived.DownloadURL
 				}
 			}
+		}
+	}
+
+	// Build ordered result array based on input contentIDs order
+	result := make([]*ContentDetails, 0, len(contentIDs))
+	for _, id := range contentIDs {
+		if details, ok := resultMap[id]; ok {
+			result = append(result, details)
 		}
 	}
 

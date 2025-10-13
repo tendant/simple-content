@@ -1189,8 +1189,7 @@ func TestGetContentDetailsBatch(t *testing.T) {
 		require.NoError(t, err)
 		assert.Len(t, result, 1)
 
-		details, ok := result[content.ID]
-		require.True(t, ok)
+		details := result[0]
 		assert.Equal(t, content.ID.String(), details.ID)
 		assert.True(t, details.Ready)
 		assert.Equal(t, "single.txt", details.FileName)
@@ -1219,10 +1218,8 @@ func TestGetContentDetailsBatch(t *testing.T) {
 		assert.Len(t, result, 5)
 
 		// Verify all contents are present
-		for i, id := range contentIDs {
-			details, ok := result[id]
-			require.True(t, ok, "Content %d should be in result", i)
-			assert.Equal(t, id.String(), details.ID)
+		for i, details := range result {
+			assert.Equal(t, contentIDs[i].String(), details.ID, "Content %d should match input order", i)
 			assert.True(t, details.Ready)
 			assert.Equal(t, fmt.Sprintf("file%d.txt", i), details.FileName)
 		}
@@ -1255,12 +1252,14 @@ func TestGetContentDetailsBatch(t *testing.T) {
 		require.NoError(t, err)
 		assert.Len(t, result, 2)
 
-		// Verify uploaded is ready
-		uploadedDetails := result[uploaded.ID]
+		// Verify uploaded is ready (first in result array)
+		uploadedDetails := result[0]
+		assert.Equal(t, uploaded.ID.String(), uploadedDetails.ID)
 		assert.True(t, uploadedDetails.Ready)
 
-		// Verify created is not ready
-		createdDetails := result[created.ID]
+		// Verify created is not ready (second in result array)
+		createdDetails := result[1]
+		assert.Equal(t, created.ID.String(), createdDetails.ID)
 		assert.False(t, createdDetails.Ready)
 	})
 
@@ -1309,7 +1308,8 @@ func TestGetContentDetailsBatch(t *testing.T) {
 		assert.Len(t, result, 1)
 
 		// Verify thumbnails are present
-		details := result[parent.ID]
+		details := result[0]
+		assert.Equal(t, parent.ID.String(), details.ID)
 		assert.True(t, details.Ready)
 
 		// Debug: print what we got
@@ -1351,13 +1351,13 @@ func TestGetContentDetailsBatch(t *testing.T) {
 		// Should have entries for all requested IDs (even non-existent)
 		assert.Len(t, result, 2)
 
-		// Real content should have data
-		realDetails := result[content.ID]
+		// Real content should have data (first in array)
+		realDetails := result[0]
 		assert.Equal(t, content.ID.String(), realDetails.ID)
 		assert.True(t, realDetails.Ready)
 
-		// Non-existent should have empty/default values
-		nonExistentDetails := result[nonExistentID]
+		// Non-existent should have empty/default values (second in array)
+		nonExistentDetails := result[1]
 		assert.Equal(t, nonExistentID.String(), nonExistentDetails.ID)
 		assert.True(t, nonExistentDetails.Ready) // Default value
 		assert.Empty(t, nonExistentDetails.FileName)
@@ -1387,11 +1387,59 @@ func TestGetContentDetailsBatch(t *testing.T) {
 		assert.Len(t, result, 3)
 
 		// Verify metadata is populated
-		for i, id := range contentIDs {
-			details := result[id]
+		for i, details := range result {
+			assert.Equal(t, contentIDs[i].String(), details.ID, "Should match input order")
 			assert.Equal(t, fmt.Sprintf("file%d.txt", i), details.FileName)
 			assert.NotEmpty(t, details.Tags)
 			assert.Contains(t, details.Tags, "batch-test")
+		}
+	})
+
+	t.Run("OrderPreservation", func(t *testing.T) {
+		// Create contents with specific order
+		var contentIDs []uuid.UUID
+		var expectedFileNames []string
+		for i := 0; i < 10; i++ {
+			fileName := fmt.Sprintf("order%d.txt", i)
+			uploadReq := simplecontent.UploadContentRequest{
+				OwnerID:      ownerID,
+				TenantID:     tenantID,
+				Name:         fmt.Sprintf("OrderTest-%d", i),
+				DocumentType: "text/plain",
+				Reader:       strings.NewReader(fmt.Sprintf("data %d", i)),
+				FileName:     fileName,
+			}
+			content, err := svc.UploadContent(ctx, uploadReq)
+			require.NoError(t, err)
+			contentIDs = append(contentIDs, content.ID)
+			expectedFileNames = append(expectedFileNames, fileName)
+		}
+
+		// Query in original order
+		result, err := svc.GetContentDetailsBatch(ctx, contentIDs)
+		require.NoError(t, err)
+		assert.Len(t, result, 10)
+
+		// Verify order is preserved
+		for i, details := range result {
+			assert.Equal(t, contentIDs[i].String(), details.ID, "Position %d: ID should match input order", i)
+			assert.Equal(t, expectedFileNames[i], details.FileName, "Position %d: FileName should match input order", i)
+		}
+
+		// Query in reverse order
+		reversedIDs := make([]uuid.UUID, len(contentIDs))
+		copy(reversedIDs, contentIDs)
+		for i, j := 0, len(reversedIDs)-1; i < j; i, j = i+1, j-1 {
+			reversedIDs[i], reversedIDs[j] = reversedIDs[j], reversedIDs[i]
+		}
+
+		reversedResult, err := svc.GetContentDetailsBatch(ctx, reversedIDs)
+		require.NoError(t, err)
+		assert.Len(t, reversedResult, 10)
+
+		// Verify reversed order is preserved
+		for i, details := range reversedResult {
+			assert.Equal(t, reversedIDs[i].String(), details.ID, "Reversed position %d: ID should match reversed input order", i)
 		}
 	})
 }

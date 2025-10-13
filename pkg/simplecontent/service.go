@@ -51,7 +51,7 @@ type Service interface {
 
 	// Content details operations (unified interface for clients)
 	GetContentDetails(ctx context.Context, contentID uuid.UUID, options ...ContentDetailsOption) (*ContentDetails, error)
-	GetContentDetailsBatch(ctx context.Context, contentIDs []uuid.UUID, options ...ContentDetailsOption) (map[uuid.UUID]*ContentDetails, error)
+	GetContentDetailsBatch(ctx context.Context, contentIDs []uuid.UUID, options ...ContentDetailsOption) ([]*ContentDetails, error)
 }
 
 // StorageService defines operations for advanced users who need direct object access.
