@@ -51,3 +51,6 @@ tests/data/
 data/
 
 tmp/
+
+.vscode
+.idea
