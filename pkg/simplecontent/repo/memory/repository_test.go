@@ -25,7 +25,7 @@ func TestMemoryRepository_ContentOperations(t *testing.T) {
 			Name:         "Test Content",
 			Description:  "A test content",
 			DocumentType: "text/plain",
-            Status:       string(simplecontent.ContentStatusCreated),
+			Status:       string(simplecontent.ContentStatusCreated),
 			CreatedAt:    time.Now(),
 			UpdatedAt:    time.Now(),
 		}
@@ -42,7 +42,7 @@ func TestMemoryRepository_ContentOperations(t *testing.T) {
 			OwnerID:     uuid.New(),
 			Name:        "Test Content for Get",
 			Description: "A test content for retrieval",
-            Status:      string(simplecontent.ContentStatusCreated),
+			Status:      string(simplecontent.ContentStatusCreated),
 			CreatedAt:   time.Now(),
 			UpdatedAt:   time.Now(),
 		}
@@ -74,7 +74,7 @@ func TestMemoryRepository_ContentOperations(t *testing.T) {
 			OwnerID:     uuid.New(),
 			Name:        "Original Name",
 			Description: "Original Description",
-            Status:      string(simplecontent.ContentStatusCreated),
+			Status:      string(simplecontent.ContentStatusCreated),
 			CreatedAt:   time.Now(),
 			UpdatedAt:   time.Now(),
 		}
@@ -103,7 +103,7 @@ func TestMemoryRepository_ContentOperations(t *testing.T) {
 			TenantID:  uuid.New(),
 			OwnerID:   uuid.New(),
 			Name:      "Content to Delete",
-            Status:    string(simplecontent.ContentStatusCreated),
+			Status:    string(simplecontent.ContentStatusCreated),
 			CreatedAt: time.Now(),
 			UpdatedAt: time.Now(),
 		}
@@ -129,13 +129,13 @@ func TestMemoryRepository_ContentOperations(t *testing.T) {
 		var createdContents []*simplecontent.Content
 		for i := 0; i < 3; i++ {
 			content := &simplecontent.Content{
-				ID:          uuid.New(),
-				TenantID:    tenantID,
-				OwnerID:     ownerID,
-				Name:        fmt.Sprintf("List Test Content %d", i+1),
-                Status:      string(simplecontent.ContentStatusCreated),
-				CreatedAt:   time.Now().Add(time.Duration(i) * time.Second),
-				UpdatedAt:   time.Now().Add(time.Duration(i) * time.Second),
+				ID:        uuid.New(),
+				TenantID:  tenantID,
+				OwnerID:   ownerID,
+				Name:      fmt.Sprintf("List Test Content %d", i+1),
+				Status:    string(simplecontent.ContentStatusCreated),
+				CreatedAt: time.Now().Add(time.Duration(i) * time.Second),
+				UpdatedAt: time.Now().Add(time.Duration(i) * time.Second),
 			}
 			err := repo.CreateContent(ctx, content)
 			require.NoError(t, err)
@@ -149,7 +149,7 @@ func TestMemoryRepository_ContentOperations(t *testing.T) {
 
 		// Verify they're sorted by creation time (newest first)
 		for i := 0; i < len(contents)-1; i++ {
-			assert.True(t, contents[i].CreatedAt.After(contents[i+1].CreatedAt) || 
+			assert.True(t, contents[i].CreatedAt.After(contents[i+1].CreatedAt) ||
 				contents[i].CreatedAt.Equal(contents[i+1].CreatedAt))
 		}
 	})
@@ -165,7 +165,7 @@ func TestMemoryRepository_ContentMetadataOperations(t *testing.T) {
 		TenantID:  uuid.New(),
 		OwnerID:   uuid.New(),
 		Name:      "Content with Metadata",
-        Status:    string(simplecontent.ContentStatusCreated),
+		Status:    string(simplecontent.ContentStatusCreated),
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 	}
@@ -228,7 +228,7 @@ func TestMemoryRepository_ObjectOperations(t *testing.T) {
 		TenantID:  uuid.New(),
 		OwnerID:   uuid.New(),
 		Name:      "Content for Objects",
-        Status:    string(simplecontent.ContentStatusCreated),
+		Status:    string(simplecontent.ContentStatusCreated),
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 	}
@@ -242,7 +242,7 @@ func TestMemoryRepository_ObjectOperations(t *testing.T) {
 			StorageBackendName: "memory",
 			ObjectKey:          "test/object/key",
 			Version:            1,
-                Status:             string(simplecontent.ObjectStatusCreated),
+			Status:             string(simplecontent.ObjectStatusCreated),
 			CreatedAt:          time.Now(),
 			UpdatedAt:          time.Now(),
 		}
@@ -259,7 +259,7 @@ func TestMemoryRepository_ObjectOperations(t *testing.T) {
 			StorageBackendName: "memory",
 			ObjectKey:          "test/object/get",
 			Version:            1,
-                Status:             string(simplecontent.ObjectStatusCreated),
+			Status:             string(simplecontent.ObjectStatusCreated),
 			CreatedAt:          time.Now(),
 			UpdatedAt:          time.Now(),
 		}
@@ -285,7 +285,7 @@ func TestMemoryRepository_ObjectOperations(t *testing.T) {
 				StorageBackendName: "memory",
 				ObjectKey:          fmt.Sprintf("test/object/list/%d", i),
 				Version:            i + 2,
-                    Status:             string(simplecontent.ObjectStatusCreated),
+				Status:             string(simplecontent.ObjectStatusCreated),
 				CreatedAt:          time.Now(),
 				UpdatedAt:          time.Now(),
 			}
@@ -315,7 +315,7 @@ func TestMemoryRepository_ObjectOperations(t *testing.T) {
 			StorageBackendName: backendName,
 			ObjectKey:          objectKey,
 			Version:            1,
-            Status:             string(simplecontent.ObjectStatusCreated),
+			Status:             string(simplecontent.ObjectStatusCreated),
 			CreatedAt:          time.Now(),
 			UpdatedAt:          time.Now(),
 		}
@@ -339,7 +339,7 @@ func TestMemoryRepository_ObjectOperations(t *testing.T) {
 			StorageBackendName: "memory",
 			ObjectKey:          "test/object/update",
 			Version:            1,
-            Status:             string(simplecontent.ObjectStatusCreated),
+			Status:             string(simplecontent.ObjectStatusCreated),
 			CreatedAt:          time.Now(),
 			UpdatedAt:          time.Now(),
 		}
@@ -347,7 +347,7 @@ func TestMemoryRepository_ObjectOperations(t *testing.T) {
 		require.NoError(t, err)
 
 		// Update object
-        object.Status = string(simplecontent.ObjectStatusUploaded)
+		object.Status = string(simplecontent.ObjectStatusUploaded)
 		object.UpdatedAt = time.Now().Add(time.Hour)
 
 		err = repo.UpdateObject(ctx, object)
@@ -356,7 +356,7 @@ func TestMemoryRepository_ObjectOperations(t *testing.T) {
 		// Verify update
 		updated, err := repo.GetObject(ctx, object.ID)
 		assert.NoError(t, err)
-        assert.Equal(t, string(simplecontent.ObjectStatusUploaded), updated.Status)
+		assert.Equal(t, string(simplecontent.ObjectStatusUploaded), updated.Status)
 	})
 
 	t.Run("DeleteObject", func(t *testing.T) {
@@ -367,7 +367,7 @@ func TestMemoryRepository_ObjectOperations(t *testing.T) {
 			StorageBackendName: "memory",
 			ObjectKey:          "test/object/delete",
 			Version:            1,
-            Status:             string(simplecontent.ObjectStatusCreated),
+			Status:             string(simplecontent.ObjectStatusCreated),
 			CreatedAt:          time.Now(),
 			UpdatedAt:          time.Now(),
 		}
@@ -396,7 +396,7 @@ func TestMemoryRepository_ObjectMetadataOperations(t *testing.T) {
 		TenantID:  uuid.New(),
 		OwnerID:   uuid.New(),
 		Name:      "Content for Object Metadata",
-        Status:    string(simplecontent.ContentStatusCreated),
+		Status:    string(simplecontent.ContentStatusCreated),
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 	}
@@ -409,7 +409,7 @@ func TestMemoryRepository_ObjectMetadataOperations(t *testing.T) {
 		StorageBackendName: "memory",
 		ObjectKey:          "test/object/metadata",
 		Version:            1,
-        Status:             string(simplecontent.ObjectStatusCreated),
+		Status:             string(simplecontent.ObjectStatusCreated),
 		CreatedAt:          time.Now(),
 		UpdatedAt:          time.Now(),
 	}
@@ -468,7 +468,7 @@ func TestMemoryRepository_DerivedContentOperations(t *testing.T) {
 		TenantID:  uuid.New(),
 		OwnerID:   uuid.New(),
 		Name:      "Parent Content",
-        Status:    string(simplecontent.ContentStatusCreated),
+		Status:    string(simplecontent.ContentStatusCreated),
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 	}
@@ -480,7 +480,7 @@ func TestMemoryRepository_DerivedContentOperations(t *testing.T) {
 		TenantID:  parent.TenantID,
 		OwnerID:   parent.OwnerID,
 		Name:      "Derived Content",
-        Status:    string(simplecontent.ContentStatusCreated),
+		Status:    string(simplecontent.ContentStatusCreated),
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 	}
@@ -562,7 +562,7 @@ func TestMemoryRepositoryConcurrency(t *testing.T) {
 					TenantID:  uuid.New(),
 					OwnerID:   uuid.New(),
 					Name:      fmt.Sprintf("Concurrent Content %d-%d", goroutineID, j),
-                        Status:    string(simplecontent.ContentStatusCreated),
+					Status:    string(simplecontent.ContentStatusCreated),
 					CreatedAt: time.Now(),
 					UpdatedAt: time.Now(),
 				}
@@ -576,7 +576,7 @@ func TestMemoryRepositoryConcurrency(t *testing.T) {
 					StorageBackendName: "memory",
 					ObjectKey:          fmt.Sprintf("concurrent/object/%d-%d", goroutineID, j),
 					Version:            1,
-                        Status:             string(simplecontent.ObjectStatusCreated),
+					Status:             string(simplecontent.ObjectStatusCreated),
 					CreatedAt:          time.Now(),
 					UpdatedAt:          time.Now(),
 				}
