@@ -112,6 +112,42 @@ func (r *Repository) GetContent(ctx context.Context, id uuid.UUID) (*simpleconte
 	return &content, nil
 }
 
+func (r *Repository) GetContentsByIDs(ctx context.Context, ids []uuid.UUID) ([]*simplecontent.Content, error) {
+	if len(ids) == 0 {
+		return []*simplecontent.Content{}, nil
+	}
+
+	query := `
+		SELECT id, tenant_id, owner_id, owner_type, name, description,
+		       document_type, status, derivation_type, created_at, updated_at
+		FROM content WHERE id = ANY($1) AND deleted_at IS NULL`
+
+	rows, err := r.db.Query(ctx, query, ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var contents []*simplecontent.Content
+	for rows.Next() {
+		var content simplecontent.Content
+		err := rows.Scan(
+			&content.ID, &content.TenantID, &content.OwnerID, &content.OwnerType,
+			&content.Name, &content.Description, &content.DocumentType,
+			&content.Status, &content.DerivationType, &content.CreatedAt, &content.UpdatedAt)
+		if err != nil {
+			return nil, err
+		}
+		contents = append(contents, &content)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return contents, nil
+}
+
 func (r *Repository) UpdateContent(ctx context.Context, content *simplecontent.Content) error {
 	query := `
 		UPDATE content SET
@@ -216,6 +252,42 @@ func (r *Repository) GetContentMetadata(ctx context.Context, contentID uuid.UUID
 	}
 
 	return &metadata, nil
+}
+
+func (r *Repository) GetContentMetadataByContentIDs(ctx context.Context, contentIDs []uuid.UUID) (map[uuid.UUID]*simplecontent.ContentMetadata, error) {
+	if len(contentIDs) == 0 {
+		return make(map[uuid.UUID]*simplecontent.ContentMetadata), nil
+	}
+
+	query := `
+		SELECT content_id, tags, file_size, file_name, mime_type,
+			   checksum, checksum_algorithm, metadata, created_at, updated_at
+		FROM content_metadata WHERE content_id = ANY($1)`
+
+	rows, err := r.db.Query(ctx, query, contentIDs)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	result := make(map[uuid.UUID]*simplecontent.ContentMetadata)
+	for rows.Next() {
+		var metadata simplecontent.ContentMetadata
+		err := rows.Scan(
+			&metadata.ContentID, &metadata.Tags, &metadata.FileSize, &metadata.FileName,
+			&metadata.MimeType, &metadata.Checksum, &metadata.ChecksumAlgorithm,
+			&metadata.Metadata, &metadata.CreatedAt, &metadata.UpdatedAt)
+		if err != nil {
+			return nil, err
+		}
+		result[metadata.ContentID] = &metadata
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return result, nil
 }
 
 // Status query operations
@@ -355,6 +427,44 @@ func (r *Repository) GetObjectsByContentID(ctx context.Context, contentID uuid.U
 	return objects, nil
 }
 
+func (r *Repository) GetObjectsByContentIDs(ctx context.Context, contentIDs []uuid.UUID) (map[uuid.UUID][]*simplecontent.Object, error) {
+	if len(contentIDs) == 0 {
+		return make(map[uuid.UUID][]*simplecontent.Object), nil
+	}
+
+	query := `
+		SELECT id, content_id, storage_backend_name, storage_class, object_key,
+		       file_name, version, object_type, status, created_at, updated_at
+		FROM object
+		WHERE content_id = ANY($1) AND deleted_at IS NULL
+		ORDER BY content_id, version DESC`
+
+	rows, err := r.db.Query(ctx, query, contentIDs)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	result := make(map[uuid.UUID][]*simplecontent.Object)
+	for rows.Next() {
+		var object simplecontent.Object
+		err := rows.Scan(
+			&object.ID, &object.ContentID, &object.StorageBackendName, &object.StorageClass,
+			&object.ObjectKey, &object.FileName, &object.Version, &object.ObjectType,
+			&object.Status, &object.CreatedAt, &object.UpdatedAt)
+		if err != nil {
+			return nil, err
+		}
+		result[object.ContentID] = append(result[object.ContentID], &object)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return result, nil
+}
+
 func (r *Repository) GetObjectByObjectKeyAndStorageBackendName(ctx context.Context, objectKey, storageBackendName string) (*simplecontent.Object, error) {
 	query := `
 		SELECT id, content_id, storage_backend_name, storage_class, object_key,
@@ -439,6 +549,40 @@ func (r *Repository) GetObjectMetadata(ctx context.Context, objectID uuid.UUID) 
 	}
 
 	return &metadata, nil
+}
+
+func (r *Repository) GetObjectMetadataByObjectIDs(ctx context.Context, objectIDs []uuid.UUID) (map[uuid.UUID]*simplecontent.ObjectMetadata, error) {
+	if len(objectIDs) == 0 {
+		return make(map[uuid.UUID]*simplecontent.ObjectMetadata), nil
+	}
+
+	query := `
+		SELECT object_id, size_bytes, mime_type, etag, metadata, created_at, updated_at
+		FROM object_metadata WHERE object_id = ANY($1)`
+
+	rows, err := r.db.Query(ctx, query, objectIDs)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	result := make(map[uuid.UUID]*simplecontent.ObjectMetadata)
+	for rows.Next() {
+		var metadata simplecontent.ObjectMetadata
+		err := rows.Scan(
+			&metadata.ObjectID, &metadata.SizeBytes, &metadata.MimeType,
+			&metadata.ETag, &metadata.Metadata, &metadata.CreatedAt, &metadata.UpdatedAt)
+		if err != nil {
+			return nil, err
+		}
+		result[metadata.ObjectID] = &metadata
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return result, nil
 }
 
 // Derived content operations (simplified implementations)
