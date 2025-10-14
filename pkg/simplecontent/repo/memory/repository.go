@@ -66,6 +66,23 @@ func (r *Repository) GetContent(ctx context.Context, id uuid.UUID) (*simpleconte
 	return &contentCopy, nil
 }
 
+func (r *Repository) GetContentsByIDs(ctx context.Context, ids []uuid.UUID) ([]*simplecontent.Content, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	var result []*simplecontent.Content
+	for _, id := range ids {
+		if content, exists := r.contents[id]; exists {
+			if content.DeletedAt == nil {
+				contentCopy := *content
+				result = append(result, &contentCopy)
+			}
+		}
+	}
+
+	return result, nil
+}
+
 func (r *Repository) UpdateContent(ctx context.Context, content *simplecontent.Content) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -152,6 +169,21 @@ func (r *Repository) GetContentMetadata(ctx context.Context, contentID uuid.UUID
 	// Return a copy to prevent external modifications
 	metadataCopy := *metadata
 	return &metadataCopy, nil
+}
+
+func (r *Repository) GetContentMetadataByContentIDs(ctx context.Context, contentIDs []uuid.UUID) (map[uuid.UUID]*simplecontent.ContentMetadata, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	result := make(map[uuid.UUID]*simplecontent.ContentMetadata)
+	for _, contentID := range contentIDs {
+		if metadata, exists := r.contentMetadata[contentID]; exists {
+			metadataCopy := *metadata
+			result[contentID] = &metadataCopy
+		}
+	}
+
+	return result, nil
 }
 
 // Status query operations
@@ -263,6 +295,40 @@ func (r *Repository) GetObjectsByContentID(ctx context.Context, contentID uuid.U
 	return result, nil
 }
 
+func (r *Repository) GetObjectsByContentIDs(ctx context.Context, contentIDs []uuid.UUID) (map[uuid.UUID][]*simplecontent.Object, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	result := make(map[uuid.UUID][]*simplecontent.Object)
+	for _, contentID := range contentIDs {
+		objectIDs, exists := r.objectsByContent[contentID]
+		if !exists {
+			continue
+		}
+
+		var objects []*simplecontent.Object
+		for _, objectID := range objectIDs {
+			if object, exists := r.objects[objectID]; exists {
+				if object.DeletedAt == nil {
+					objectCopy := *object
+					objects = append(objects, &objectCopy)
+				}
+			}
+		}
+
+		// Sort by version descending
+		sort.Slice(objects, func(i, j int) bool {
+			return objects[i].Version > objects[j].Version
+		})
+
+		if len(objects) > 0 {
+			result[contentID] = objects
+		}
+	}
+
+	return result, nil
+}
+
 func (r *Repository) GetObjectByObjectKeyAndStorageBackendName(ctx context.Context, objectKey, storageBackendName string) (*simplecontent.Object, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
@@ -355,6 +421,21 @@ func (r *Repository) GetObjectMetadata(ctx context.Context, objectID uuid.UUID) 
 	// Return a copy to prevent external modifications
 	metadataCopy := *metadata
 	return &metadataCopy, nil
+}
+
+func (r *Repository) GetObjectMetadataByObjectIDs(ctx context.Context, objectIDs []uuid.UUID) (map[uuid.UUID]*simplecontent.ObjectMetadata, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	result := make(map[uuid.UUID]*simplecontent.ObjectMetadata)
+	for _, objectID := range objectIDs {
+		if metadata, exists := r.objectMetadata[objectID]; exists {
+			metadataCopy := *metadata
+			result[objectID] = &metadataCopy
+		}
+	}
+
+	return result, nil
 }
 
 // Derived content operations

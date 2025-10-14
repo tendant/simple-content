@@ -40,6 +40,7 @@ type Repository interface {
 	// Content operations
 	CreateContent(ctx context.Context, content *Content) error
 	GetContent(ctx context.Context, id uuid.UUID) (*Content, error)
+	GetContentsByIDs(ctx context.Context, ids []uuid.UUID) ([]*Content, error)
 	UpdateContent(ctx context.Context, content *Content) error
 	DeleteContent(ctx context.Context, id uuid.UUID) error
 	ListContent(ctx context.Context, ownerID, tenantID uuid.UUID) ([]*Content, error)
@@ -47,6 +48,7 @@ type Repository interface {
 	// Content metadata operations
 	SetContentMetadata(ctx context.Context, metadata *ContentMetadata) error
 	GetContentMetadata(ctx context.Context, contentID uuid.UUID) (*ContentMetadata, error)
+	GetContentMetadataByContentIDs(ctx context.Context, contentIDs []uuid.UUID) (map[uuid.UUID]*ContentMetadata, error)
 
 	// Status query operations
 	GetContentByStatus(ctx context.Context, status string) ([]*Content, error)
@@ -62,6 +64,7 @@ type Repository interface {
 	CreateObject(ctx context.Context, object *Object) error
 	GetObject(ctx context.Context, id uuid.UUID) (*Object, error)
 	GetObjectsByContentID(ctx context.Context, contentID uuid.UUID) ([]*Object, error)
+	GetObjectsByContentIDs(ctx context.Context, contentIDs []uuid.UUID) (map[uuid.UUID][]*Object, error)
 	GetObjectByObjectKeyAndStorageBackendName(ctx context.Context, objectKey, storageBackendName string) (*Object, error)
 	UpdateObject(ctx context.Context, object *Object) error
 	DeleteObject(ctx context.Context, id uuid.UUID) error
@@ -69,6 +72,7 @@ type Repository interface {
 	// Object metadata operations
 	SetObjectMetadata(ctx context.Context, metadata *ObjectMetadata) error
 	GetObjectMetadata(ctx context.Context, objectID uuid.UUID) (*ObjectMetadata, error)
+	GetObjectMetadataByObjectIDs(ctx context.Context, objectIDs []uuid.UUID) (map[uuid.UUID]*ObjectMetadata, error)
 
 	// Admin operations - for administrative tasks without owner/tenant restrictions
 	ListContentWithFilters(ctx context.Context, filters ContentListFilters) ([]*Content, error)

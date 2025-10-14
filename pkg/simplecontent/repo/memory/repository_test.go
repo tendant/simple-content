@@ -542,6 +542,258 @@ func TestMemoryRepository_DerivedContentOperations(t *testing.T) {
 	})
 }
 
+func TestMemoryRepository_BatchOperations(t *testing.T) {
+	repo := memory.New()
+	ctx := context.Background()
+
+	t.Run("GetContentsByIDs", func(t *testing.T) {
+		// Create multiple contents
+		var contentIDs []uuid.UUID
+		for i := 0; i < 5; i++ {
+			content := &simplecontent.Content{
+				ID:        uuid.New(),
+				TenantID:  uuid.New(),
+				OwnerID:   uuid.New(),
+				Name:      fmt.Sprintf("Batch Content %d", i),
+				Status:    string(simplecontent.ContentStatusCreated),
+				CreatedAt: time.Now(),
+				UpdatedAt: time.Now(),
+			}
+			err := repo.CreateContent(ctx, content)
+			require.NoError(t, err)
+			contentIDs = append(contentIDs, content.ID)
+		}
+
+		// Get all contents by IDs
+		contents, err := repo.GetContentsByIDs(ctx, contentIDs)
+		assert.NoError(t, err)
+		assert.Len(t, contents, 5)
+
+		// Verify all IDs are present
+		foundIDs := make(map[uuid.UUID]bool)
+		for _, content := range contents {
+			foundIDs[content.ID] = true
+		}
+		for _, id := range contentIDs {
+			assert.True(t, foundIDs[id], "Expected to find content ID %s", id)
+		}
+	})
+
+	t.Run("GetContentsByIDs_EmptyArray", func(t *testing.T) {
+		contents, err := repo.GetContentsByIDs(ctx, []uuid.UUID{})
+		assert.NoError(t, err)
+		assert.Empty(t, contents)
+	})
+
+	t.Run("GetContentsByIDs_PartialMatch", func(t *testing.T) {
+		// Create one content
+		content := &simplecontent.Content{
+			ID:        uuid.New(),
+			TenantID:  uuid.New(),
+			OwnerID:   uuid.New(),
+			Name:      "Partial Match Content",
+			Status:    string(simplecontent.ContentStatusCreated),
+			CreatedAt: time.Now(),
+			UpdatedAt: time.Now(),
+		}
+		err := repo.CreateContent(ctx, content)
+		require.NoError(t, err)
+
+		// Query with one existing and one non-existing ID
+		ids := []uuid.UUID{content.ID, uuid.New()}
+		contents, err := repo.GetContentsByIDs(ctx, ids)
+		assert.NoError(t, err)
+		assert.Len(t, contents, 1)
+		assert.Equal(t, content.ID, contents[0].ID)
+	})
+
+	t.Run("GetContentsByIDs_ExcludesDeleted", func(t *testing.T) {
+		// Create and delete one content
+		deletedContent := &simplecontent.Content{
+			ID:        uuid.New(),
+			TenantID:  uuid.New(),
+			OwnerID:   uuid.New(),
+			Name:      "Deleted Content",
+			Status:    string(simplecontent.ContentStatusCreated),
+			CreatedAt: time.Now(),
+			UpdatedAt: time.Now(),
+		}
+		err := repo.CreateContent(ctx, deletedContent)
+		require.NoError(t, err)
+		err = repo.DeleteContent(ctx, deletedContent.ID)
+		require.NoError(t, err)
+
+		// Create an active content
+		activeContent := &simplecontent.Content{
+			ID:        uuid.New(),
+			TenantID:  uuid.New(),
+			OwnerID:   uuid.New(),
+			Name:      "Active Content",
+			Status:    string(simplecontent.ContentStatusCreated),
+			CreatedAt: time.Now(),
+			UpdatedAt: time.Now(),
+		}
+		err = repo.CreateContent(ctx, activeContent)
+		require.NoError(t, err)
+
+		// Query both
+		ids := []uuid.UUID{deletedContent.ID, activeContent.ID}
+		contents, err := repo.GetContentsByIDs(ctx, ids)
+		assert.NoError(t, err)
+		assert.Len(t, contents, 1)
+		assert.Equal(t, activeContent.ID, contents[0].ID)
+	})
+
+	t.Run("GetContentMetadataByContentIDs", func(t *testing.T) {
+		// Create contents with metadata
+		var contentIDs []uuid.UUID
+		for i := 0; i < 3; i++ {
+			content := &simplecontent.Content{
+				ID:        uuid.New(),
+				TenantID:  uuid.New(),
+				OwnerID:   uuid.New(),
+				Name:      fmt.Sprintf("Content with Metadata %d", i),
+				Status:    string(simplecontent.ContentStatusCreated),
+				CreatedAt: time.Now(),
+				UpdatedAt: time.Now(),
+			}
+			err := repo.CreateContent(ctx, content)
+			require.NoError(t, err)
+
+			metadata := &simplecontent.ContentMetadata{
+				ContentID: content.ID,
+				FileName:  fmt.Sprintf("file%d.txt", i),
+				FileSize:  int64((i + 1) * 1024),
+				MimeType:  "text/plain",
+				CreatedAt: time.Now(),
+				UpdatedAt: time.Now(),
+			}
+			err = repo.SetContentMetadata(ctx, metadata)
+			require.NoError(t, err)
+
+			contentIDs = append(contentIDs, content.ID)
+		}
+
+		// Get all metadata by content IDs
+		metadataMap, err := repo.GetContentMetadataByContentIDs(ctx, contentIDs)
+		assert.NoError(t, err)
+		assert.Len(t, metadataMap, 3)
+
+		// Verify all metadata is present
+		for _, contentID := range contentIDs {
+			assert.Contains(t, metadataMap, contentID)
+			assert.NotNil(t, metadataMap[contentID])
+		}
+	})
+
+	t.Run("GetObjectsByContentIDs", func(t *testing.T) {
+		// Create contents and objects
+		var contentIDs []uuid.UUID
+		for i := 0; i < 3; i++ {
+			content := &simplecontent.Content{
+				ID:        uuid.New(),
+				TenantID:  uuid.New(),
+				OwnerID:   uuid.New(),
+				Name:      fmt.Sprintf("Content for Batch Objects %d", i),
+				Status:    string(simplecontent.ContentStatusCreated),
+				CreatedAt: time.Now(),
+				UpdatedAt: time.Now(),
+			}
+			err := repo.CreateContent(ctx, content)
+			require.NoError(t, err)
+			contentIDs = append(contentIDs, content.ID)
+
+			// Create 2 objects per content
+			for j := 0; j < 2; j++ {
+				object := &simplecontent.Object{
+					ID:                 uuid.New(),
+					ContentID:          content.ID,
+					StorageBackendName: "memory",
+					ObjectKey:          fmt.Sprintf("batch/object/%d/%d", i, j),
+					Version:            j + 1,
+					Status:             string(simplecontent.ObjectStatusCreated),
+					CreatedAt:          time.Now(),
+					UpdatedAt:          time.Now(),
+				}
+				err = repo.CreateObject(ctx, object)
+				require.NoError(t, err)
+			}
+		}
+
+		// Get all objects by content IDs
+		objectsMap, err := repo.GetObjectsByContentIDs(ctx, contentIDs)
+		assert.NoError(t, err)
+		assert.Len(t, objectsMap, 3)
+
+		// Verify each content has 2 objects
+		for _, contentID := range contentIDs {
+			assert.Contains(t, objectsMap, contentID)
+			assert.Len(t, objectsMap[contentID], 2)
+
+			// Verify objects are sorted by version descending
+			objects := objectsMap[contentID]
+			for k := 0; k < len(objects)-1; k++ {
+				assert.GreaterOrEqual(t, objects[k].Version, objects[k+1].Version)
+			}
+		}
+	})
+
+	t.Run("GetObjectMetadataByObjectIDs", func(t *testing.T) {
+		// Create content and objects with metadata
+		content := &simplecontent.Content{
+			ID:        uuid.New(),
+			TenantID:  uuid.New(),
+			OwnerID:   uuid.New(),
+			Name:      "Content for Object Metadata Batch",
+			Status:    string(simplecontent.ContentStatusCreated),
+			CreatedAt: time.Now(),
+			UpdatedAt: time.Now(),
+		}
+		err := repo.CreateContent(ctx, content)
+		require.NoError(t, err)
+
+		var objectIDs []uuid.UUID
+		for i := 0; i < 3; i++ {
+			object := &simplecontent.Object{
+				ID:                 uuid.New(),
+				ContentID:          content.ID,
+				StorageBackendName: "memory",
+				ObjectKey:          fmt.Sprintf("batch/metadata/%d", i),
+				Version:            i + 1,
+				Status:             string(simplecontent.ObjectStatusCreated),
+				CreatedAt:          time.Now(),
+				UpdatedAt:          time.Now(),
+			}
+			err = repo.CreateObject(ctx, object)
+			require.NoError(t, err)
+
+			metadata := &simplecontent.ObjectMetadata{
+				ObjectID:  object.ID,
+				SizeBytes: int64((i + 1) * 2048),
+				MimeType:  "application/octet-stream",
+				ETag:      fmt.Sprintf("etag%d", i),
+				CreatedAt: time.Now(),
+				UpdatedAt: time.Now(),
+			}
+			err = repo.SetObjectMetadata(ctx, metadata)
+			require.NoError(t, err)
+
+			objectIDs = append(objectIDs, object.ID)
+		}
+
+		// Get all object metadata by object IDs
+		metadataMap, err := repo.GetObjectMetadataByObjectIDs(ctx, objectIDs)
+		assert.NoError(t, err)
+		assert.Len(t, metadataMap, 3)
+
+		// Verify all metadata is present
+		for _, objectID := range objectIDs {
+			assert.Contains(t, metadataMap, objectID)
+			assert.NotNil(t, metadataMap[objectID])
+		}
+	})
+}
+
 func TestMemoryRepositoryConcurrency(t *testing.T) {
 	repo := memory.New()
 	ctx := context.Background()

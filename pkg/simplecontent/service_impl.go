@@ -1716,3 +1716,206 @@ func (s *service) extractVariant(derived *DerivedContent) string {
 	// Strategy 5: Fallback to derivation type
 	return derived.DerivationType
 }
+
+// GetContentDetailsBatch returns details for multiple contents in a single call.
+// This method uses batch queries to avoid N+1 query problems and significantly improves performance.
+// Returns results in the same order as the input contentIDs array.
+func (s *service) GetContentDetailsBatch(ctx context.Context, contentIDs []uuid.UUID, options ...ContentDetailsOption) ([]*ContentDetails, error) {
+	if len(contentIDs) == 0 {
+		return []*ContentDetails{}, nil
+	}
+
+	// Apply options
+	cfg := &ContentDetailsConfig{}
+	for _, opt := range options {
+		opt(cfg)
+	}
+
+	// Initialize result map (for building)
+	resultMap := make(map[uuid.UUID]*ContentDetails, len(contentIDs))
+	for _, id := range contentIDs {
+		resultMap[id] = &ContentDetails{
+			ID:         id.String(),
+			Thumbnails: make(map[string]string),
+			Previews:   make(map[string]string),
+			Transcodes: make(map[string]string),
+			Ready:      true,
+		}
+	}
+
+	// Batch query 1: Get all contents
+	contents, err := s.repository.GetContentsByIDs(ctx, contentIDs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get contents: %w", err)
+	}
+
+	// Build content map for quick lookup
+	contentMap := make(map[uuid.UUID]*Content, len(contents))
+	for _, content := range contents {
+		contentMap[content.ID] = content
+
+		// Set ready status based on content type
+		if details, ok := resultMap[content.ID]; ok {
+			if content.DerivationType == "" {
+				details.Ready = (content.Status == string(ContentStatusUploaded))
+			} else {
+				details.Ready = (content.Status == string(ContentStatusProcessed))
+			}
+			details.CreatedAt = content.CreatedAt
+			details.UpdatedAt = content.UpdatedAt
+		}
+	}
+
+	// Batch query 2: Get all content metadata
+	metadataMap, err := s.repository.GetContentMetadataByContentIDs(ctx, contentIDs)
+	if err != nil {
+		// Log warning but continue - metadata is optional
+		fmt.Printf("Failed to get content metadata: %v\n", err)
+	} else {
+		for contentID, metadata := range metadataMap {
+			if details, ok := resultMap[contentID]; ok {
+				details.FileName = metadata.FileName
+				details.FileSize = metadata.FileSize
+				details.Tags = metadata.Tags
+				details.Checksum = metadata.Checksum
+				details.MimeType = metadata.MimeType
+			}
+		}
+	}
+
+	// Batch query 3: Get all objects
+	objectsMap, err := s.repository.GetObjectsByContentIDs(ctx, contentIDs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get objects: %w", err)
+	}
+
+	// Collect all object IDs for batch metadata query
+	var allObjectIDs []uuid.UUID
+	for _, objects := range objectsMap {
+		for _, obj := range objects {
+			allObjectIDs = append(allObjectIDs, obj.ID)
+		}
+	}
+
+	// Batch query 4: Get all object metadata
+	var objectMetadataMap map[uuid.UUID]*ObjectMetadata
+	if len(allObjectIDs) > 0 {
+		objectMetadataMap, err = s.repository.GetObjectMetadataByObjectIDs(ctx, allObjectIDs)
+		if err != nil {
+			// Log warning but continue
+			fmt.Printf("Failed to get object metadata: %v\n", err)
+		}
+	}
+
+	// Generate URLs for primary objects using URL strategy
+	if s.urlStrategy != nil {
+		for contentID, objects := range objectsMap {
+			if len(objects) == 0 {
+				continue
+			}
+
+			content := contentMap[contentID]
+			if content == nil {
+				continue
+			}
+
+			primaryObject := objects[0] // Use first object as primary
+			details := resultMap[contentID]
+
+			// Get metadata for URL generation
+			var mimeType, fileName string
+			if metadata, ok := metadataMap[contentID]; ok {
+				mimeType = metadata.MimeType
+				fileName = metadata.FileName
+			}
+
+			// Get object metadata if available
+			if objectMeta, ok := objectMetadataMap[primaryObject.ID]; ok {
+				mimeType = objectMeta.MimeType
+				details.FileSize = objectMeta.SizeBytes
+				details.MimeType = mimeType
+			}
+
+			// Generate URLs only for uploaded content
+			if strings.ToLower(content.Status) == string(ContentStatusUploaded) {
+				// Generate download URL
+				if downloadURL, err := s.urlStrategy.GenerateDownloadURL(ctx, contentID, primaryObject.ObjectKey, primaryObject.StorageBackendName, &urlstrategy.URLMetadata{
+					FileName:    fileName,
+					Version:     primaryObject.Version,
+					ContentType: mimeType,
+				}); err == nil {
+					details.Download = downloadURL
+				}
+
+				// Generate preview URL
+				if previewURL, err := s.urlStrategy.GeneratePreviewURL(ctx, contentID, primaryObject.ObjectKey, primaryObject.StorageBackendName); err == nil {
+					details.Preview = previewURL
+				}
+			}
+
+			// Generate upload URL if requested
+			if cfg.IncludeUploadURL {
+				if uploadURL, err := s.urlStrategy.GenerateUploadURL(ctx, contentID, primaryObject.ObjectKey, primaryObject.StorageBackendName); err == nil {
+					details.Upload = uploadURL
+					if cfg.URLExpiryTime > 0 {
+						expiryTime := time.Now().Add(time.Duration(cfg.URLExpiryTime) * time.Second)
+						details.ExpiresAt = &expiryTime
+					}
+				}
+			}
+		}
+	}
+
+	// Batch query 5: Get all derived content for all parent IDs
+	derivedContent, err := s.ListDerivedContent(ctx, WithParentIDs(contentIDs...), WithURLs())
+	if err != nil {
+		// Log warning but continue - derived content is optional
+		fmt.Printf("Failed to get derived content: %v\n", err)
+	} else {
+		// Organize derived content by parent ID
+		for _, derived := range derivedContent {
+			details, ok := resultMap[derived.ParentID]
+			if !ok {
+				continue
+			}
+
+			// Extract variant without prefix
+			variant := derived.Variant
+			if idx := strings.LastIndex(variant, "_"); idx >= 0 {
+				variant = variant[idx+1:]
+			}
+
+			// Organize by derivation type (only include processed derived content)
+			switch derived.DerivationType {
+			case "thumbnail":
+				if derived.Status == string(ContentStatusProcessed) {
+					details.Thumbnails[variant] = derived.DownloadURL
+					if details.Thumbnail == "" {
+						details.Thumbnail = derived.DownloadURL
+					}
+				}
+			case "preview":
+				if derived.Status == string(ContentStatusProcessed) {
+					details.Previews[variant] = derived.DownloadURL
+					if details.Preview == "" {
+						details.Preview = derived.DownloadURL
+					}
+				}
+			case "transcode":
+				if derived.Status == string(ContentStatusProcessed) {
+					details.Transcodes[variant] = derived.DownloadURL
+				}
+			}
+		}
+	}
+
+	// Build ordered result array based on input contentIDs order
+	result := make([]*ContentDetails, 0, len(contentIDs))
+	for _, id := range contentIDs {
+		if details, ok := resultMap[id]; ok {
+			result = append(result, details)
+		}
+	}
+
+	return result, nil
+}
