@@ -326,7 +326,7 @@ func (h *ContentHandler) CreateObject(w http.ResponseWriter, r *http.Request) {
 	// Create object
 	object, err := h.storage.CreateObject(r.Context(), simplecontent.CreateObjectRequest{
 		ContentID:          contentID,
-		StorageBackendName: "s3-default",
+		StorageBackendName: DEFAULT_STORAGE_BACKEND,
 		Version:            1,
 		//FileName:           req.FileName,
 	})
