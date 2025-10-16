@@ -12,7 +12,7 @@ import (
 	"github.com/tendant/simple-content/pkg/simplecontent"
 )
 
-const DEFAULT_STORAGE_BACKEND = "s3-deafult"
+const DEFAULT_STORAGE_BACKEND = "s3-default"
 
 // FilesHandler handles file upload and management API endpoints using pkg/simplecontent
 type FilesHandler struct {
