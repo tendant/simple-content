@@ -302,11 +302,10 @@ func TestContentHandler_CreateDerivedContent_Success(t *testing.T) {
 
 	reqBody := CreateDerivedContentRequest{
 		DerivationType: "thumbnail",
-		OwnerID:        parentContent.OwnerID.String(),
-		TenantID:       parentContent.TenantID.String(),
 		DerivationParams: map[string]interface{}{
 			"size": "256x256",
 		},
+		Variant: "thumbnail_256",
 	}
 
 	body, err := json.Marshal(reqBody)
