@@ -264,6 +264,60 @@ func (s *service) CreateDerivedContent(ctx context.Context, req CreateDerivedCon
 	return content, nil
 }
 
+// CreateDerivedContentRelationship creates a derived content relationship for existing content.
+// If DerivedContentID is provided in the request, it uses that existing content.
+// Otherwise, it creates a new content record first (for backward compatibility).
+func (s *service) CreateDerivedContentRelationship(ctx context.Context, req CreateDerivedContentRequest) (*DerivedContent, error) {
+	// Verify parent content exists and validate status
+	parentContent, err := s.repository.GetContent(ctx, req.ParentID)
+	if err != nil {
+		return nil, fmt.Errorf("parent content not found: %w", err)
+	}
+
+	// Validate parent content status for creating derived content
+	parentStatus := ContentStatus(parentContent.Status)
+	if ok, statusErr := canCreateDerived(parentStatus); !ok {
+		return nil, &ContentError{
+			ContentID: req.ParentID,
+			Op:        "create_derived_relationship",
+			Err:       statusErr,
+		}
+	}
+
+	// Infer derivation_type from variant if missing
+	if req.DerivationType == "" && req.Variant != "" {
+		req.DerivationType = DerivationTypeFromVariant(req.Variant)
+	}
+
+	var derivedContentID uuid.UUID
+	// Check if derived content ID is provided (use existing content)
+	if req.DerivedContentID != uuid.Nil {
+		// Verify the derived content exists
+		_, err := s.repository.GetContent(ctx, req.DerivedContentID)
+		if err != nil {
+			return nil, fmt.Errorf("derived content not found: %w", err)
+		}
+		derivedContentID = req.DerivedContentID
+	} else {
+		return nil, fmt.Errorf("derived content ID is required")
+	}
+
+	// Create derived content relationship using repository
+	derivedContent, err := s.repository.CreateDerivedContentRelationship(ctx, CreateDerivedContentParams{
+		ParentID:           req.ParentID,
+		DerivedContentID:   derivedContentID,
+		DerivationType:     req.DerivationType,
+		Variant:            string(NormalizeVariant(req.Variant)),
+		DerivationParams:   req.Metadata,
+		ProcessingMetadata: nil,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create derived content relationship: %w", err)
+	}
+
+	return derivedContent, nil
+}
+
 func (s *service) GetContent(ctx context.Context, id uuid.UUID) (*Content, error) {
 	return s.repository.GetContent(ctx, id)
 }

@@ -42,6 +42,7 @@ type CreateDerivedContentRequest struct {
 	OwnerType      string
 	Name           string
 	FileName       string
+	DerivedContentID uuid.UUID
 }
 
 // UpdateContentRequest contains parameters for updating content
