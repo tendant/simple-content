@@ -323,12 +323,17 @@ func (h *ContentHandler) CreateObject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	storageBackend := req.StorageBackendName
+	if storageBackend == "" {
+		storageBackend = DEFAULT_STORAGE_BACKEND
+	}
+
 	// Create object
 	object, err := h.storage.CreateObject(r.Context(), simplecontent.CreateObjectRequest{
 		ContentID:          contentID,
-		StorageBackendName: DEFAULT_STORAGE_BACKEND,
+		StorageBackendName: storageBackend,
 		Version:            1,
-		//FileName:           req.FileName,
+		FileName:           req.FileName,
 	})
 	if err != nil {
 		slog.Error("Fail to create object", "error", err)
@@ -472,19 +477,24 @@ func (h *ContentHandler) CreateDerivedContent(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	// Parse owner and tenant IDs
-	ownerID, err := uuid.Parse(req.OwnerID)
-	if err != nil {
-		slog.Error("Invalid owner ID", "owner_id", req.OwnerID, "error", err)
-		http.Error(w, "Invalid owner ID", http.StatusBadRequest)
-		return
+	var ownerID uuid.UUID
+	var tenantID uuid.UUID
+	if req.OwnerID != "" {
+		// Parse owner and tenant IDs
+		ownerID, err = uuid.Parse(req.OwnerID)
+		if err != nil {
+			slog.Error("Invalid owner ID", "owner_id", req.OwnerID, "error", err)
+			http.Error(w, "Invalid owner ID", http.StatusBadRequest)
+			return
+		}
 	}
-
-	tenantID, err := uuid.Parse(req.TenantID)
-	if err != nil {
-		slog.Error("Invalid tenant ID", "tenant_id", req.TenantID, "error", err)
-		http.Error(w, "Invalid tenant ID", http.StatusBadRequest)
-		return
+	if req.TenantID != "" {
+		tenantID, err = uuid.Parse(req.TenantID)
+		if err != nil {
+			slog.Error("Invalid tenant ID", "tenant_id", req.TenantID, "error", err)
+			http.Error(w, "Invalid tenant ID", http.StatusBadRequest)
+			return
+		}
 	}
 
 	// Merge derivation params and processing metadata into a single metadata map
