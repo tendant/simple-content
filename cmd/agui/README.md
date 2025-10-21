@@ -17,15 +17,138 @@ go build -o agui ./cmd/agui
 
 ### Upload Content
 
+The CLI supports multiple upload methods and file types.
+
+#### Basic Upload
+
 ```bash
-# Upload a file
-./agui upload myfile.pdf
+# Upload a single file
+./agui upload document.pdf
 
-# Upload with metadata
-./agui upload myfile.pdf --metadata '{"author":"John","tags":["document"]}'
+# Upload an image
+./agui upload photo.jpg
 
-# Verbose output
+# Upload a text file
+./agui upload notes.txt
+
+# Verbose output (shows upload progress and details)
 ./agui upload myfile.pdf -v
+```
+
+#### Upload with Metadata
+
+```bash
+# Upload with custom metadata
+./agui upload report.pdf --metadata '{"author":"John Doe","department":"Finance"}'
+
+# Upload with tags
+./agui upload presentation.pptx --metadata '{"tags":["Q4","sales","2024"]}'
+
+# Upload with multiple metadata fields
+./agui upload contract.pdf --metadata '{
+  "title": "Service Agreement",
+  "author": "Legal Team",
+  "confidential": true,
+  "expiry_date": "2025-12-31"
+}'
+```
+
+#### Upload Different File Types
+
+```bash
+# Documents
+./agui upload document.pdf
+./agui upload spreadsheet.xlsx
+./agui upload presentation.pptx
+
+# Images
+./agui upload photo.jpg
+./agui upload diagram.png
+./agui upload logo.svg
+
+# Videos (large files will get upload URL)
+./agui upload video.mp4
+./agui upload recording.mov
+
+# Archives
+./agui upload backup.zip
+./agui upload data.tar.gz
+
+# Code files
+./agui upload script.py
+./agui upload config.json
+```
+
+#### Use Cases
+
+**1. Document Management**
+```bash
+# Upload company documents with metadata
+./agui upload policy.pdf --metadata '{
+  "type": "policy",
+  "department": "HR",
+  "effective_date": "2024-01-01"
+}'
+
+# List all uploaded documents
+./agui list
+
+# Get document details
+./agui metadata dd0a368a-de27-48bd-b8a6-100f4ff3e714
+```
+
+**2. Image Gallery**
+```bash
+# Upload multiple images
+./agui upload photo1.jpg -v
+./agui upload photo2.jpg -v
+./agui upload photo3.jpg -v
+
+# Upload with photographer metadata
+./agui upload landscape.jpg --metadata '{
+  "photographer": "Jane Smith",
+  "location": "Yosemite",
+  "date": "2024-10-15"
+}'
+```
+
+**3. Backup and Archive**
+```bash
+# Upload backup files
+./agui upload database-backup.sql -v
+./agui upload config-backup.tar.gz -v
+
+# Upload with backup metadata
+./agui upload backup.zip --metadata '{
+  "backup_date": "2024-10-21",
+  "source": "production-db",
+  "retention_days": 90
+}'
+```
+
+**4. Large File Upload (with Upload URL)**
+```bash
+# For very large files, the service may return an upload URL
+# The CLI will show the upload URL for manual upload
+./agui upload large-video.mp4 -v
+
+# Output example:
+# Upload URL: https://s3.amazonaws.com/bucket/presigned-url
+# You can upload directly to this URL using curl or other tools
+```
+
+**5. Development Workflow**
+```bash
+# Upload test files during development
+./agui upload test-data.json -v
+./agui upload sample.csv -v
+
+# Upload with environment metadata
+./agui upload build.zip --metadata '{
+  "environment": "staging",
+  "version": "1.2.3",
+  "build_number": "456"
+}'
 ```
 
 ### Download Content
