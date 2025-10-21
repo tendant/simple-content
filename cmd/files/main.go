@@ -18,7 +18,7 @@ import (
 	scapi "github.com/tendant/simple-content/pkg/simplecontent/api"
 	"github.com/tendant/simple-content/pkg/simplecontent/objectkey"
 	repopg "github.com/tendant/simple-content/pkg/simplecontent/repo/postgres"
-	s3storage "github.com/tendant/simple-content/pkg/simplecontent/storage/s3"
+	s3store "github.com/tendant/simple-content/pkg/simplecontent/storage/s3"
 	"github.com/tendant/simple-content/pkg/simplecontent/urlstrategy"
 )
 
@@ -78,7 +78,7 @@ func NewDbPool(ctx context.Context, dbConfig DbConfig) (*pgxpool.Pool, error) {
 }
 
 func initializeS3Backend(config S3Config) (simplecontent.BlobStore, error) {
-	s3Config := s3storage.Config{
+	s3Config := s3store.Config{
 		Endpoint:               config.Endpoint,
 		AccessKeyID:            config.AccessKeyID,
 		SecretAccessKey:        config.SecretAccessKey,
@@ -89,7 +89,7 @@ func initializeS3Backend(config S3Config) (simplecontent.BlobStore, error) {
 		PresignDuration:        S3_URL_DURATION, // 6 hours
 	}
 
-	backend, err := s3storage.New(s3Config)
+	backend, err := s3store.New(s3Config)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create S3 backend: %w", err)
 	}

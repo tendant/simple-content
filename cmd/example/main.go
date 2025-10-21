@@ -12,8 +12,8 @@ import (
 	"github.com/ilyakaznacheev/cleanenv"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/tendant/simple-content/pkg/simplecontent"
-	postgresrepo "github.com/tendant/simple-content/pkg/simplecontent/repo/postgres"
-	s3storage "github.com/tendant/simple-content/pkg/simplecontent/storage/s3"
+	repopg "github.com/tendant/simple-content/pkg/simplecontent/repo/postgres"
+	s3store "github.com/tendant/simple-content/pkg/simplecontent/storage/s3"
 )
 
 type DbConfig struct {
@@ -52,7 +52,7 @@ func main() {
 	}
 
 	// 2. Initialize repository
-	repo := postgresrepo.New(dbconn)
+	repo := repopg.New(dbconn)
 
 	// 3. Initialize S3 storage backend
 	s3Backend, err := initializeS3Backend()
@@ -101,7 +101,7 @@ func initializeS3Backend() (simplecontent.BlobStore, error) {
 	createBucket := getEnvOrDefaultBool("S3_CREATE_BUCKET", true)
 
 	// Create S3 backend configuration
-	config := s3storage.Config{
+	config := s3store.Config{
 		Region:                 region,
 		Bucket:                 bucket,
 		AccessKeyID:            accessKey,
@@ -115,7 +115,7 @@ func initializeS3Backend() (simplecontent.BlobStore, error) {
 
 	// Initialize the S3 backend
 	slog.Info("Initializing S3 backend with bucket '%s'...", "bucket", bucket)
-	backend, err := s3storage.New(config)
+	backend, err := s3store.New(config)
 	if err != nil {
 		return nil, err
 	}

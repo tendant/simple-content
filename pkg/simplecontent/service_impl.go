@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -154,7 +155,7 @@ func (s *service) CreateContent(ctx context.Context, req CreateContentRequest) (
 	if s.eventSink != nil {
 		if err := s.eventSink.ContentCreated(ctx, content); err != nil {
 			// Log error but don't fail the operation
-			// TODO: Add proper logging
+			slog.Error("Failed to emit ContentCreated event", "content_id", content.ID, "error", err)
 		}
 	}
 
@@ -256,6 +257,7 @@ func (s *service) CreateDerivedContent(ctx context.Context, req CreateDerivedCon
 	if s.eventSink != nil {
 		if err := s.eventSink.ContentCreated(ctx, content); err != nil {
 			// Log error but don't fail the operation
+			slog.Error("Failed to emit ContentCreated event", "content_id", content.ID, "error", err)
 		}
 	}
 
@@ -281,6 +283,7 @@ func (s *service) UpdateContent(ctx context.Context, req UpdateContentRequest) e
 	if s.eventSink != nil {
 		if err := s.eventSink.ContentUpdated(ctx, req.Content); err != nil {
 			// Log error but don't fail the operation
+			slog.Error("Failed to emit ContentUpdated event", "content_id", req.Content.ID, "error", err)
 		}
 	}
 
@@ -320,6 +323,7 @@ func (s *service) DeleteContent(ctx context.Context, id uuid.UUID) error {
 	if s.eventSink != nil {
 		if err := s.eventSink.ContentDeleted(ctx, id); err != nil {
 			// Log error but don't fail the operation
+			slog.Error("Failed to emit ContentDeleted event", "content_id", id, "error", err)
 		}
 	}
 
@@ -370,6 +374,7 @@ func (s *service) UpdateContentStatus(ctx context.Context, id uuid.UUID, newStat
 	if s.eventSink != nil {
 		if err := s.eventSink.ContentStatusChanged(ctx, id, oldStatus, string(newStatus)); err != nil {
 			// Log error but don't fail the operation
+			slog.Error("Failed to emit ContentStatusChanged event", "content_id", id, "old_status", oldStatus, "new_status", newStatus, "error", err)
 		}
 	}
 
@@ -414,6 +419,7 @@ func (s *service) UpdateObjectStatus(ctx context.Context, id uuid.UUID, newStatu
 	if s.eventSink != nil {
 		if err := s.eventSink.ObjectStatusChanged(ctx, id, oldStatus, string(newStatus)); err != nil {
 			// Log error but don't fail the operation
+			slog.Error("Failed to emit ObjectStatusChanged event", "object_id", id, "old_status", oldStatus, "new_status", newStatus, "error", err)
 		}
 	}
 
@@ -554,12 +560,14 @@ func (s *service) UploadContent(ctx context.Context, req UploadContentRequest) (
 	content.UpdatedAt = time.Now().UTC()
 	if err := s.repository.UpdateContent(ctx, content); err != nil {
 		// Log warning but don't fail - content was uploaded successfully
+		slog.Warn("Failed to update content status to uploaded", "content_id", content.ID, "error", err)
 	}
 
 	// Fire event
 	if s.eventSink != nil {
 		if err := s.eventSink.ContentCreated(ctx, content); err != nil {
 			// Log error but don't fail the operation
+			slog.Error("Failed to emit ContentCreated event", "content_id", content.ID, "error", err)
 		}
 	}
 
@@ -706,6 +714,7 @@ func (s *service) UploadDerivedContent(ctx context.Context, req UploadDerivedCon
 	content.UpdatedAt = time.Now().UTC()
 	if err := s.repository.UpdateContent(ctx, content); err != nil {
 		// Log warning but don't fail - content was uploaded successfully
+		slog.Warn("Failed to update content status to uploaded", "content_id", content.ID, "error", err)
 	}
 
 	// Note: Derived content status is tracked in content.status (no separate status in content_derived table)
@@ -714,6 +723,7 @@ func (s *service) UploadDerivedContent(ctx context.Context, req UploadDerivedCon
 	if s.eventSink != nil {
 		if err := s.eventSink.ContentCreated(ctx, content); err != nil {
 			// Log error but don't fail the operation
+			slog.Error("Failed to emit ContentCreated event", "content_id", content.ID, "error", err)
 		}
 	}
 
@@ -845,14 +855,14 @@ func (s *service) UploadObjectForContent(ctx context.Context, req UploadObjectFo
 	// Step 8: Update content metadata
 	if err := s.updateContentMetadata(ctx, content.ID, object_metadata); err != nil {
 		// Log warning but don't fail - object was uploaded successfully
-		fmt.Println("Failed to update object metadata from storage:", err)
+		slog.Warn("Failed to update object metadata from storage", "content_id", content.ID, "error", err)
 	}
 
 	// Fire event
 	if s.eventSink != nil {
 		if err := s.eventSink.ObjectCreated(ctx, object); err != nil {
 			// Log error but don't fail the operation
-			fmt.Println("Failed to emit object created event:", err)
+			slog.Error("Failed to emit ObjectCreated event", "object_id", object.ID, "error", err)
 		}
 	}
 
@@ -1064,6 +1074,7 @@ func (s *service) CreateObject(ctx context.Context, req CreateObjectRequest) (*O
 	if s.eventSink != nil {
 		if err := s.eventSink.ObjectCreated(ctx, object); err != nil {
 			// Log error but don't fail the operation
+			slog.Error("Failed to emit ObjectCreated event", "object_id", object.ID, "error", err)
 		}
 	}
 
@@ -1105,6 +1116,7 @@ func (s *service) DeleteObject(ctx context.Context, id uuid.UUID) error {
 	if s.eventSink != nil {
 		if err := s.eventSink.ObjectDeleted(ctx, id); err != nil {
 			// Log error but don't fail the operation
+			slog.Error("Failed to emit ObjectDeleted event", "object_id", id, "error", err)
 		}
 	}
 
@@ -1162,6 +1174,7 @@ func (s *service) UploadObject(ctx context.Context, req UploadObjectRequest) err
 	if s.eventSink != nil {
 		if err := s.eventSink.ObjectUploaded(ctx, object); err != nil {
 			// Log error but don't fail the operation
+			slog.Error("Failed to emit ObjectUploaded event", "object_id", object.ID, "error", err)
 		}
 	}
 
