@@ -1,0 +1,301 @@
+openapi: 3.0.3
+info:
+  title: AG-UI Content API
+  description: |
+    Content management API for uploading, managing, and downloading files.
+    Supports presigned URL-based uploads for efficient large file handling.
+  version: 1.0.0
+  contact:
+    name: API Support
+
+servers:
+  - url: http://localhost:8080/api/v5
+    description: Local development server
+  - url: https://api.example.com/api/v5
+    description: Production server
+
+tags:
+  - name: Content
+    description: Content upload and management operations
+
+paths:
+  /content/upload:
+    post:
+      tags:
+        - Content
+      summary: Request upload URL
+      description: |
+        Creates a content record and returns a presigned upload URL.
+        Client should upload the file directly to the returned URL, then call /upload/done.
+      operationId: uploadContent
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - mime_type
+                - filename
+              properties:
+                mime_type:
+                  type: string
+                  description: MIME type of the file
+                  example: image/jpeg
+                filename:
+                  type: string
+                  description: Name of the file
+                  example: photo.jpg
+                size:
+                  type: integer
+                  format: int64
+                  description: File size in bytes
+                  example: 123456
+      responses:
+        '200':
+          description: Upload URL generated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  content_id:
+                    type: string
+                    format: uuid
+                    description: Unique identifier for the content
+                    example: 550e8400-e29b-41d4-a716-446655440000
+                  upload_url:
+                    type: string
+                    format: uri
+                    description: Presigned URL for uploading the file
+                    example: https://s3.amazonaws.com/bucket/path?signature=...
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /content/upload/done:
+    post:
+      tags:
+        - Content
+      summary: Mark upload as complete
+      description: |
+        Marks a content upload as complete after the file has been uploaded to the presigned URL.
+        Updates the content status to 'processed'.
+      operationId: uploadContentDone
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - content_id
+              properties:
+                content_id:
+                  type: string
+                  format: uuid
+                  description: Content ID from the upload response
+                  example: 550e8400-e29b-41d4-a716-446655440000
+      responses:
+        '200':
+          description: Upload marked as complete
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  content_id:
+                    type: string
+                    format: uuid
+                    example: 550e8400-e29b-41d4-a716-446655440000
+                  status:
+                    type: string
+                    example: processed
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /content/contents/{contentId}:
+    get:
+      tags:
+        - Content
+      summary: Get content details
+      description: Retrieves metadata and download URL for a specific content
+      operationId: getContent
+      parameters:
+        - name: contentId
+          in: path
+          required: true
+          description: Content ID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Content details retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContentDetails'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    delete:
+      tags:
+        - Content
+      summary: Delete content
+      description: Deletes a content and its associated files
+      operationId: deleteContent
+      parameters:
+        - name: contentId
+          in: path
+          required: true
+          description: Content ID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Content deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Content deleted
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /content/contents:
+    get:
+      tags:
+        - Content
+      summary: List all contents
+      description: Retrieves a list of all contents with their metadata and download URLs
+      operationId: listContents
+      parameters:
+        - name: limit
+          in: query
+          description: Maximum number of items to return
+          schema:
+            type: integer
+            default: 100
+            minimum: 1
+            maximum: 1000
+        - name: offset
+          in: query
+          description: Number of items to skip
+          schema:
+            type: integer
+            default: 0
+            minimum: 0
+      responses:
+        '200':
+          description: Contents retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  contents:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ContentDetails'
+                  total:
+                    type: integer
+                    description: Total number of contents
+                    example: 42
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /health:
+    get:
+      tags:
+        - Health
+      summary: Health check
+      description: Returns the health status of the API
+      operationId: healthCheck
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+
+components:
+  schemas:
+    Content:
+      type: object
+      properties:
+        content_id:
+          type: string
+          format: uuid
+          description: Unique identifier for the content
+          example: 550e8400-e29b-41d4-a716-446655440000
+        file_name:
+          type: string
+          description: Name of the file
+          example: photo.jpg
+        file_size:
+          type: integer
+          format: int64
+          description: File size in bytes
+          example: 123456
+        download_url:
+          type: string
+          format: uri
+          description: Presigned URL for downloading the file
+          example: https://s3.amazonaws.com/bucket/path?signature=...
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Error message
+          example: Invalid content ID
+
+  responses:
+    BadRequest:
+      description: Bad request - invalid input
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: Invalid JSON
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: Content not found
+
+    InternalServerError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: Failed to process request
