@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"log"
 	"net/http"
 	"os"
@@ -185,21 +184,109 @@ func NewHandler(service simplecontent.Service) *Handler {
 	return &Handler{service: service}
 }
 
-// UploadContent handles file upload with multiple formats
-// POST /api/v5/contents/upload
+// UploadContent returns a presigned upload URL
+// POST /api/v5/content/upload
 func (h *Handler) UploadContent(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	// Check content type
-	contentType := r.Header.Get("Content-Type")
-
-	if contentType == "application/json" || contentType == "application/json; charset=utf-8" {
-		// JSON upload (base64, URL, or metadata-only)
-		h.uploadJSON(w, r, ctx)
-	} else {
-		// Multipart upload
-		h.uploadMultipart(w, r, ctx)
+	var req struct {
+		MimeType  string `json:"mime_type"`
+		Filename  string `json:"filename"`
+		FileSize  int64  `json:"file_size"`
+		OwnerID   string `json:"owner_id"`
+		TenantID  string `json:"tenant_id"`
+		OwnerType string `json:"owner_type"`
 	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respondError(w, http.StatusBadRequest, "Invalid JSON")
+		return
+	}
+
+	if req.Filename == "" || req.MimeType == "" {
+		respondError(w, http.StatusBadRequest, "filename and mime_type are required")
+		return
+	}
+
+	var ownerID uuid.UUID
+	var tenantID uuid.UUID
+	var err error
+	if req.OwnerID != "" {
+		ownerID, err = uuid.Parse(req.OwnerID)
+		if err != nil {
+			respondError(w, http.StatusBadRequest, "Invalid owner ID")
+			return
+		}
+	}
+	if req.TenantID != "" {
+		tenantID, err = uuid.Parse(req.TenantID)
+		if err != nil {
+			respondError(w, http.StatusBadRequest, "Invalid tenant ID")
+			return
+		}
+	}
+
+	// 1. Create content
+	content, err := h.service.CreateContent(ctx, simplecontent.CreateContentRequest{
+		OwnerID:      ownerID,
+		TenantID:     tenantID,
+		OwnerType:    req.OwnerType,
+		Name:         req.Filename,
+		DocumentType: req.MimeType,
+	})
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to create content: %v", err))
+		return
+	}
+
+	// 2. Set content metadata
+	if err := h.service.SetContentMetadata(ctx, simplecontent.SetContentMetadataRequest{
+		ContentID:   content.ID,
+		FileName:    req.Filename,
+		ContentType: req.MimeType,
+		FileSize:    req.FileSize,
+	}); err != nil {
+		respondError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to set content metadata: %v", err))
+		return
+	}
+
+	// 3. Create object for the content
+	objectID := uuid.New()
+	object, err := h.service.(simplecontent.StorageService).CreateObject(ctx, simplecontent.CreateObjectRequest{
+		ContentID:          content.ID,
+		StorageBackendName: "s3-default", // TODO: Make configurable
+		Version:            1,
+		ObjectKey:          fmt.Sprintf("%s/%s", content.ID.String(), objectID.String()),
+		FileName:           req.Filename,
+	})
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to create object: %v", err))
+		return
+	}
+
+	// 4. Set object metadata
+	if err := h.service.(simplecontent.StorageService).SetObjectMetadata(ctx, object.ID, map[string]interface{}{
+		"filename":  req.Filename,
+		"mime_type": req.MimeType,
+		"size":      req.FileSize,
+	}); err != nil {
+		respondError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to set object metadata: %v", err))
+		return
+	}
+
+	// 5. Get upload URL
+	uploadURL, err := h.service.(simplecontent.StorageService).GetUploadURL(ctx, object.ID)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to get upload URL: %v", err))
+		return
+	}
+
+	respondJSON(w, http.StatusOK, map[string]interface{}{
+		"content_id": content.ID.String(),
+		"upload_url": uploadURL,
+	})
+}
+
 // UploadContentDone marks a content as uploaded
 // POST /api/v5/content/upload/done
 func (h *Handler) UploadContentDone(w http.ResponseWriter, r *http.Request) {
@@ -349,9 +436,9 @@ func (h *Handler) ListAnalyses(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// GetContentMetadata returns metadata for a content
+// GetContent returns metadata for a content
 // GET /api/v5/contents/{contentId}/metadata
-func (h *Handler) GetContentMetadata(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) GetContent(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	contentIDStr := chi.URLParam(r, "contentId")
 
@@ -361,84 +448,19 @@ func (h *Handler) GetContentMetadata(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	metadata, err := h.service.GetContentMetadata(ctx, contentID)
+	// Get content details for download URL
+	details, err := h.service.GetContentDetails(ctx, contentID)
 	if err != nil {
-		respondError(w, http.StatusNotFound, "Content not found")
-		return
-	}
-
-	content, err := h.service.GetContent(ctx, contentID)
-	if err != nil {
-		respondError(w, http.StatusNotFound, "Content not found")
+		respondError(w, http.StatusInternalServerError, "Failed to get content details")
 		return
 	}
 
 	respondJSON(w, http.StatusOK, map[string]interface{}{
-		"id":         contentID.String(),
-		"filename":   metadata.FileName,
-		"mime_type":  metadata.MimeType,
-		"size":       metadata.FileSize,
-		"created_at": content.CreatedAt,
+		"content_id":   contentID.String(),
+		"file_name":    details.FileName,
+		"file_size":    details.FileSize,
+		"download_url": details.Download,
 	})
-}
-
-// DownloadContent downloads one or more contents
-// POST /api/v5/contents/download
-func (h *Handler) DownloadContent(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-
-	var req struct {
-		ContentIDs []string `json:"content_ids"`
-	}
-
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		respondError(w, http.StatusBadRequest, "Invalid JSON")
-		return
-	}
-
-	if len(req.ContentIDs) == 0 {
-		respondError(w, http.StatusBadRequest, "No content IDs provided")
-		return
-	}
-
-	// Single file download
-	if len(req.ContentIDs) == 1 {
-		contentID, err := uuid.Parse(req.ContentIDs[0])
-		if err != nil {
-			respondError(w, http.StatusBadRequest, "Invalid content ID")
-			return
-		}
-
-		reader, err := h.service.DownloadContent(ctx, contentID)
-		if err != nil {
-			respondError(w, http.StatusNotFound, "Content not found")
-			return
-		}
-		defer reader.Close()
-
-		// Get metadata for filename
-		metadata, _ := h.service.GetContentMetadata(ctx, contentID)
-		filename := "download"
-		mimeType := "application/octet-stream"
-		if metadata != nil {
-			filename = metadata.FileName
-			if metadata.MimeType != "" {
-				mimeType = metadata.MimeType
-			}
-		}
-
-		w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", filename))
-		w.Header().Set("Content-Type", mimeType)
-
-		// Copy the file content to response
-		if _, err := io.Copy(w, reader); err != nil {
-			log.Printf("Failed to write response: %v", err)
-		}
-		return
-	}
-
-	// TODO: Multiple files as zip
-	respondError(w, http.StatusNotImplemented, "Multiple file download not yet implemented")
 }
 
 // ListContents lists all contents
@@ -466,8 +488,10 @@ func (h *Handler) ListContents(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		response = append(response, map[string]interface{}{
-			"id":  content.ID.String(),
-			"url": details.Download,
+			"content_id":   content.ID.String(),
+			"file_name":    details.FileName,
+			"file_size":    details.FileSize,
+			"download_url": details.Download,
 		})
 	}
 
