@@ -1,46 +1,49 @@
 package testutil
 
 import (
+	"log"
 	"net/http/httptest"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/tendant/simple-content/internal/api"
-	repoMemory "github.com/tendant/simple-content/pkg/repository/memory"
-	"github.com/tendant/simple-content/pkg/service"
-	storageMemory "github.com/tendant/simple-content/pkg/storage/memory"
+	"github.com/tendant/simple-content/pkg/simplecontent"
+	"github.com/tendant/simple-content/pkg/simplecontent/api"
+	memoryrepo "github.com/tendant/simple-content/pkg/simplecontent/repo/memory"
+	memorystorage "github.com/tendant/simple-content/pkg/simplecontent/storage/memory"
 )
 
 // SetupTestServer creates a test server with all routes configured
 func SetupTestServer() *httptest.Server {
-	// Create repositories
-	contentRepo := repoMemory.NewContentRepository()
-	metadataRepo := repoMemory.NewContentMetadataRepository()
-	objectRepo := repoMemory.NewObjectRepository()
-	objectMetadataRepo := repoMemory.NewObjectMetadataRepository()
-	storageBackendRepo := repoMemory.NewStorageBackendRepository()
+	// Create repository and storage backend
+	repo := memoryrepo.New()
+	memBackend := memorystorage.New()
 
-	// Create storage backend
-	storageBackend := storageMemory.NewMemoryBackend()
+	// Create unified service
+	svc, err := simplecontent.New(
+		simplecontent.WithRepository(repo),
+		simplecontent.WithBlobStore("memory", memBackend),
+	)
+	if err != nil {
+		log.Fatal(err)
+	}
 
-	// Create services
-	contentService := service.NewContentService(contentRepo, metadataRepo)
-	objectService := service.NewObjectService(objectRepo, objectMetadataRepo, contentRepo, metadataRepo)
-	storageBackendService := service.NewStorageBackendService(storageBackendRepo)
-
-	// Register the memory backend
-	objectService.RegisterBackend("memory", storageBackend)
+	// Create storage service for advanced operations
+	storageSvc, err := simplecontent.NewStorageService(
+		simplecontent.WithRepository(repo),
+		simplecontent.WithBlobStore("memory", memBackend),
+	)
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	// Create handlers
-	contentHandler := api.NewContentHandler(contentService, objectService)
-	objectHandler := api.NewObjectHandler(objectService)
-	storageBackendHandler := api.NewStorageBackendHandler(storageBackendService)
+	contentHandler := api.NewContentHandler(svc, storageSvc)
+	filesHandler := api.NewFilesHandler(svc, storageSvc)
 
 	// Create router
 	r := chi.NewRouter()
 
 	r.Mount("/content", contentHandler.Routes())
-	r.Mount("/object", objectHandler.Routes())
-	r.Mount("/storage-backend", storageBackendHandler.Routes())
+	r.Mount("/files", filesHandler.Routes())
 
 	// Create test server
 	return httptest.NewServer(r)

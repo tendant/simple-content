@@ -12,24 +12,23 @@ import (
 	"github.com/google/uuid"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
-	"github.com/tendant/simple-content/pkg/model"
-	"github.com/tendant/simple-content/pkg/service"
+	"github.com/tendant/simple-content/pkg/simplecontent"
 )
 
 // Handler implements a simple hello content MCP tool
 type Handler struct {
-	objectService  *service.ObjectService
-	contentService *service.ContentService
+	service        simplecontent.Service
+	storageService simplecontent.StorageService
 }
 
 // NewHandler creates a new instance of HelloContentHandler
 func NewHandler(
-	contentService *service.ContentService,
-	objectService *service.ObjectService,
+	service simplecontent.Service,
+	storageService simplecontent.StorageService,
 ) *Handler {
 	return &Handler{
-		contentService: contentService,
-		objectService:  objectService,
+		service:        service,
+		storageService: storageService,
 	}
 }
 
@@ -127,31 +126,20 @@ func (h *Handler) handleUploadContent(ctx context.Context, request mcp.CallToolR
 	slog.Info("Successfully wrote decoded data", slog.String("path", outputFilePath))
 
 	// Create content
-	contentParams := service.CreateContentParams{
+	content, err := h.service.CreateContent(ctx, simplecontent.CreateContentRequest{
 		OwnerID:      ownerID,
 		TenantID:     tenantId,
-		Title:        tempFileName,
+		OwnerType:    ownerTypeStr,
+		Name:         tempFileName,
 		Description:  "Content uploaded via MCP tool",
 		DocumentType: "text/plain",
-	}
-
-	content, err := h.contentService.CreateContent(ctx, contentParams)
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create content: %v", err)
 	}
 
-	// Update Content for missing fields
-	content.OwnerType = ownerTypeStr
-	updateParams := service.UpdateContentParams{
-		Content: content,
-	}
-	err = h.contentService.UpdateContent(ctx, updateParams)
-	if err != nil {
-		slog.Warn("Failed to update content", "err", err)
-	}
-
 	// Set content metadata
-	metadataParams := service.SetContentMetadataParams{
+	err = h.service.SetContentMetadata(ctx, simplecontent.SetContentMetadataRequest{
 		ContentID:   content.ID,
 		ContentType: "text/plain",
 		Title:       tempFileName,
@@ -164,51 +152,47 @@ func (h *Handler) handleUploadContent(ctx context.Context, request mcp.CallToolR
 			"source": "mcp-upload",
 			"format": "text",
 		},
-	}
-
-	err = h.contentService.SetContentMetadata(ctx, metadataParams)
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to set content metadata: %v", err)
 	}
 
 	// Create a new object for the content
-	objectParams := service.CreateObjectParams{
+	object, err := h.storageService.CreateObject(ctx, simplecontent.CreateObjectRequest{
 		ContentID:          content.ID,
-		StorageBackendName: "s3-default", // Assuming "default" is a registered backend
+		StorageBackendName: "s3-default",
 		Version:            1,
-	}
-
-	object, err := h.objectService.CreateObject(ctx, objectParams)
+		FileName:           tempFileName,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create object: %v", err)
 	}
 
 	// Upload the object to storage
 	reader := bytes.NewReader(decodedData)
-	err = h.objectService.UploadObject(ctx, object.ID, reader)
+	err = h.storageService.UploadObject(ctx, simplecontent.UploadObjectRequest{
+		ObjectID: object.ID,
+		Reader:   reader,
+		MimeType: "text/plain",
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to upload object: %v", err)
 	}
 
 	// Get object metadata from storage
-	_, err = h.objectService.UpdateObjectMetaFromStorage(ctx, object.ID)
+	_, err = h.storageService.UpdateObjectMetaFromStorage(ctx, object.ID)
 	if err != nil {
 		slog.Warn("Failed to update object metadata from storage", "err", err)
 	}
 
 	// Update content status to uploaded
-	content.Status = model.ContentStatusUploaded
-	updateParams = service.UpdateContentParams{
-		Content: content,
-	}
-
-	err = h.contentService.UpdateContent(ctx, updateParams)
+	err = h.service.UpdateContentStatus(ctx, content.ID, simplecontent.ContentStatusUploaded)
 	if err != nil {
 		return nil, fmt.Errorf("failed to update content status: %v", err)
 	}
 
 	// Get a download URL for the object
-	downloadURL, err := h.objectService.GetDownloadURL(ctx, object.ID)
+	downloadURL, err := h.storageService.GetDownloadURL(ctx, object.ID)
 	if err != nil {
 		slog.Error("Failed to get download URL", "err", err)
 		return nil, fmt.Errorf("failed to get download URL: %v", err)

@@ -13,9 +13,9 @@ import (
 	"github.com/joho/godotenv"
 	"github.com/mark3labs/mcp-go/server"
 	"github.com/tendant/simple-content/internal/mcp"
-	psqlrepo "github.com/tendant/simple-content/pkg/repository/psql"
-	"github.com/tendant/simple-content/pkg/service"
-	"github.com/tendant/simple-content/pkg/storage/s3"
+	"github.com/tendant/simple-content/pkg/simplecontent"
+	postgresrepo "github.com/tendant/simple-content/pkg/simplecontent/repo/postgres"
+	s3storage "github.com/tendant/simple-content/pkg/simplecontent/storage/s3"
 )
 
 type Config struct {
@@ -69,8 +69,8 @@ func NewDbPool(ctx context.Context, dbConfig DbConfig) (*pgxpool.Pool, error) {
 
 const S3_URL_DURATION = 3600 * 6 // 6 hours
 
-func initializeS3Backend(config S3Config) (*s3.S3Backend, error) {
-	s3Config := s3.Config{
+func initializeS3Backend(config S3Config) (simplecontent.BlobStore, error) {
+	s3Config := s3storage.Config{
 		Endpoint:               config.Endpoint,
 		AccessKeyID:            config.AccessKeyID,
 		SecretAccessKey:        config.SecretAccessKey,
@@ -81,18 +81,12 @@ func initializeS3Backend(config S3Config) (*s3.S3Backend, error) {
 		PresignDuration:        S3_URL_DURATION, // 6 hours
 	}
 
-	backend, err := s3.NewS3Backend(s3Config)
+	backend, err := s3storage.New(s3Config)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create S3 backend: %w", err)
 	}
 
-	// Type assert to get the concrete S3Backend type
-	s3Backend, ok := backend.(*s3.S3Backend)
-	if !ok {
-		return nil, fmt.Errorf("failed to cast to S3Backend")
-	}
-
-	return s3Backend, nil
+	return backend, nil
 }
 
 func main() {
@@ -128,12 +122,8 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Initialize repositories
-	repoFactory := psqlrepo.NewRepositoryFactory(dbPool)
-	contentRepo := repoFactory.NewContentRepository()
-	contentMetadataRepo := repoFactory.NewContentMetadataRepository()
-	objectRepo := repoFactory.NewObjectRepository()
-	objectMetadataRepo := repoFactory.NewObjectMetadataRepository()
+	// Initialize repository
+	repo := postgresrepo.New(dbPool)
 
 	// Initialize S3 storage backend
 	s3Backend, err := initializeS3Backend(cfg.S3)
@@ -142,24 +132,28 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Initialize services
-	contentService := service.NewContentService(
-		contentRepo,
-		contentMetadataRepo,
+	// Initialize unified service
+	svc, err := simplecontent.New(
+		simplecontent.WithRepository(repo),
+		simplecontent.WithBlobStore("s3-default", s3Backend),
 	)
+	if err != nil {
+		slog.Error("Failed to create service", "err", err)
+		os.Exit(1)
+	}
 
-	objectService := service.NewObjectService(
-		objectRepo,
-		objectMetadataRepo,
-		contentRepo,
-		contentMetadataRepo,
+	// Create storage service for advanced object operations
+	storageSvc, err := simplecontent.NewStorageService(
+		simplecontent.WithRepository(repo),
+		simplecontent.WithBlobStore("s3-default", s3Backend),
 	)
-
-	// Register the S3 backend with the object service
-	objectService.RegisterBackend("s3-default", s3Backend)
+	if err != nil {
+		slog.Error("Failed to create storage service", "err", err)
+		os.Exit(1)
+	}
 
 	// Register hello content tools
-	handler := mcp.NewHandler(contentService, objectService)
+	handler := mcp.NewHandler(svc, storageSvc)
 	handler.RegisterTools(s)
 
 	// Start the server based on the selected mode
