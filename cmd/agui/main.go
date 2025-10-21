@@ -203,6 +203,36 @@ func (h *Handler) UploadContent(w http.ResponseWriter, r *http.Request) {
 		// Multipart upload
 		h.uploadMultipart(w, r, ctx)
 	}
+// UploadContentDone marks a content as uploaded
+// POST /api/v5/content/upload/done
+func (h *Handler) UploadContentDone(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	var req struct {
+		ContentID string `json:"content_id"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respondError(w, http.StatusBadRequest, "Invalid JSON")
+		return
+	}
+
+	contentID, err := uuid.Parse(req.ContentID)
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "Invalid content ID")
+		return
+	}
+
+	// Update content status to processed
+	if err := h.service.UpdateContentStatus(ctx, contentID, simplecontent.ContentStatusUploaded); err != nil {
+		respondError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to update status: %v", err))
+		return
+	}
+
+	respondJSON(w, http.StatusOK, map[string]interface{}{
+		"content_id": contentID.String(),
+		"status":     simplecontent.ContentStatusUploaded,
+	})
 }
 
 // uploadMultipart handles multipart/form-data uploads
