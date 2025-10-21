@@ -14,8 +14,8 @@ import (
 	"github.com/mark3labs/mcp-go/server"
 	"github.com/tendant/simple-content/internal/mcp"
 	"github.com/tendant/simple-content/pkg/simplecontent"
-	postgresrepo "github.com/tendant/simple-content/pkg/simplecontent/repo/postgres"
-	s3storage "github.com/tendant/simple-content/pkg/simplecontent/storage/s3"
+	repopg "github.com/tendant/simple-content/pkg/simplecontent/repo/postgres"
+	s3store "github.com/tendant/simple-content/pkg/simplecontent/storage/s3"
 )
 
 type Config struct {
@@ -70,7 +70,7 @@ func NewDbPool(ctx context.Context, dbConfig DbConfig) (*pgxpool.Pool, error) {
 const S3_URL_DURATION = 3600 * 6 // 6 hours
 
 func initializeS3Backend(config S3Config) (simplecontent.BlobStore, error) {
-	s3Config := s3storage.Config{
+	s3Config := s3store.Config{
 		Endpoint:               config.Endpoint,
 		AccessKeyID:            config.AccessKeyID,
 		SecretAccessKey:        config.SecretAccessKey,
@@ -81,7 +81,7 @@ func initializeS3Backend(config S3Config) (simplecontent.BlobStore, error) {
 		PresignDuration:        S3_URL_DURATION, // 6 hours
 	}
 
-	backend, err := s3storage.New(s3Config)
+	backend, err := s3store.New(s3Config)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create S3 backend: %w", err)
 	}
@@ -123,7 +123,7 @@ func main() {
 	}
 
 	// Initialize repository
-	repo := postgresrepo.New(dbPool)
+	repo := repopg.New(dbPool)
 
 	// Initialize S3 storage backend
 	s3Backend, err := initializeS3Backend(cfg.S3)

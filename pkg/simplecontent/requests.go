@@ -84,12 +84,6 @@ type UploadObjectRequest struct {
 	MimeType string // Optional - for metadata
 }
 
-// UploadObjectWithMetadataRequest is deprecated - use UploadObjectRequest instead
-type UploadObjectWithMetadataRequest struct {
-	ObjectID uuid.UUID
-	MimeType string
-}
-
 // UploadContentRequest contains parameters for uploading content with data.
 // This replaces the multi-step workflow of CreateContent + CreateObject + UploadObject.
 type UploadContentRequest struct {

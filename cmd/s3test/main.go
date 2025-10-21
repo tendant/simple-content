@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/tendant/simple-content/pkg/simplecontent"
-	s3storage "github.com/tendant/simple-content/pkg/simplecontent/storage/s3"
+	s3store "github.com/tendant/simple-content/pkg/simplecontent/storage/s3"
 )
 
 // Helper functions to get environment variables with fallbacks to command-line flags
@@ -100,7 +100,7 @@ func main() {
 	}
 
 	// Initialize S3 backend
-	config := s3storage.Config{
+	config := s3store.Config{
 		Region:                 region,
 		Bucket:                 bucket,
 		AccessKeyID:            accessKey,
@@ -134,7 +134,7 @@ func main() {
 		fmt.Println()
 
 		var err error
-		backend, err = s3storage.New(config)
+		backend, err = s3store.New(config)
 		if err != nil {
 			log.Fatalf("Failed to initialize S3 backend: %v", err)
 		}
