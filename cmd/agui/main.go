@@ -153,8 +153,8 @@ func main() {
 	// AG-UI Protocol endpoints
 	r.Post("/api/v5/content/upload", handler.UploadContent)
 	r.Post("/api/v5/content/upload/done", handler.UploadContentDone)
-	r.Get("/api/v5/content/contents/{contentId}", handler.GetContent) // get content details
-	r.Get("/api/v5/content/contents", handler.ListContents) //
+	r.Get("/api/v5/content/contents/{contentId}", handler.GetContent)
+	r.Get("/api/v5/content/contents", handler.ListContents)
 	r.Delete("/api/v5/content/contents/{contentId}", handler.DeleteContent)
 
 	// Health check
@@ -317,78 +317,6 @@ func (h *Handler) UploadContentDone(w http.ResponseWriter, r *http.Request) {
 		"content_id": contentID.String(),
 		"status":     simplecontent.ContentStatusUploaded,
 	})
-}
-
-// uploadMultipart handles multipart/form-data uploads
-func (h *Handler) uploadMultipart(w http.ResponseWriter, r *http.Request, ctx context.Context) {
-	if err := r.ParseMultipartForm(100 << 20); err != nil { // 100MB max
-		respondError(w, http.StatusBadRequest, "Failed to parse multipart form")
-		return
-	}
-
-	file, header, err := r.FormFile("file")
-	if err != nil {
-		respondError(w, http.StatusBadRequest, "No file provided")
-		return
-	}
-	defer file.Close()
-
-	// Get metadata if provided
-	var metadata map[string]interface{}
-	if metadataStr := r.FormValue("metadata"); metadataStr != "" {
-		if err := json.Unmarshal([]byte(metadataStr), &metadata); err != nil {
-			respondError(w, http.StatusBadRequest, "Invalid metadata JSON")
-			return
-		}
-	}
-
-	// Upload content
-	content, err := h.service.UploadContent(ctx, simplecontent.UploadContentRequest{
-		OwnerID:        uuid.New(), // TODO: Get from auth context
-		TenantID:       uuid.New(), // TODO: Get from auth context
-		Name:           header.Filename,
-		FileName:       header.Filename,
-		FileSize:       header.Size,
-		DocumentType:   header.Header.Get("Content-Type"),
-		Reader:         file,
-		CustomMetadata: metadata,
-	})
-	if err != nil {
-		respondError(w, http.StatusInternalServerError, fmt.Sprintf("Upload failed: %v", err))
-		return
-	}
-
-	// Get download URL
-	details, err := h.service.GetContentDetails(ctx, content.ID)
-	if err != nil {
-		respondError(w, http.StatusInternalServerError, "Failed to get content details")
-		return
-	}
-
-	respondJSON(w, http.StatusOK, map[string]interface{}{
-		"id":  content.ID.String(),
-		"url": details.Download,
-	})
-}
-
-// uploadJSON handles JSON uploads (base64, URL, or metadata-only)
-func (h *Handler) uploadJSON(w http.ResponseWriter, r *http.Request, ctx context.Context) {
-	var req struct {
-		MimeType *string                `json:"mime_type"`
-		Filename *string                `json:"filename"`
-		Size     *int64                 `json:"size"`
-		Data     *string                `json:"data"`
-		URL      *string                `json:"url"`
-		Metadata map[string]interface{} `json:"metadata"`
-	}
-
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		respondError(w, http.StatusBadRequest, "Invalid JSON")
-		return
-	}
-
-	// TODO: Implement base64, URL, and metadata-only upload
-	respondError(w, http.StatusNotImplemented, "JSON upload not yet implemented")
 }
 
 // AnalyzeContent handles multimodal content analysis
