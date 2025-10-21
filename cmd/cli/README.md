@@ -1,4 +1,4 @@
-# AGUI CLI - Simple Content Management
+# Simple Content CLI - Content Management Tool
 
 A command-line interface for content management using the `simplecontent` service directly.
 
@@ -10,7 +10,7 @@ This CLI uses `pkg/simplecontent/service_impl.go` directly for all operations. B
 
 ```bash
 cd /Users/txgao/Desktop/simple-content
-go build -o agui ./cmd/agui
+go build -o cli ./cmd/cli
 ```
 
 ## Usage
@@ -23,29 +23,29 @@ The CLI supports multiple upload methods and file types.
 
 ```bash
 # Upload a single file
-./agui upload document.pdf
+./cli upload document.pdf
 
 # Upload an image
-./agui upload photo.jpg
+./cli upload photo.jpg
 
 # Upload a text file
-./agui upload notes.txt
+./cli upload notes.txt
 
 # Verbose output (shows upload progress and details)
-./agui upload myfile.pdf -v
+./cli upload myfile.pdf -v
 ```
 
 #### Upload with Metadata
 
 ```bash
 # Upload with custom metadata
-./agui upload report.pdf --metadata '{"author":"John Doe","department":"Finance"}'
+./cli upload report.pdf --metadata '{"author":"John Doe","department":"Finance"}'
 
 # Upload with tags
-./agui upload presentation.pptx --metadata '{"tags":["Q4","sales","2024"]}'
+./cli upload presentation.pptx --metadata '{"tags":["Q4","sales","2024"]}'
 
 # Upload with multiple metadata fields
-./agui upload contract.pdf --metadata '{
+./cli upload contract.pdf --metadata '{
   "title": "Service Agreement",
   "author": "Legal Team",
   "confidential": true,
@@ -57,26 +57,26 @@ The CLI supports multiple upload methods and file types.
 
 ```bash
 # Documents
-./agui upload document.pdf
-./agui upload spreadsheet.xlsx
-./agui upload presentation.pptx
+./cli upload document.pdf
+./cli upload spreadsheet.xlsx
+./cli upload presentation.pptx
 
 # Images
-./agui upload photo.jpg
-./agui upload diagram.png
-./agui upload logo.svg
+./cli upload photo.jpg
+./cli upload diagram.png
+./cli upload logo.svg
 
 # Videos (large files will get upload URL)
-./agui upload video.mp4
-./agui upload recording.mov
+./cli upload video.mp4
+./cli upload recording.mov
 
 # Archives
-./agui upload backup.zip
-./agui upload data.tar.gz
+./cli upload backup.zip
+./cli upload data.tar.gz
 
 # Code files
-./agui upload script.py
-./agui upload config.json
+./cli upload script.py
+./cli upload config.json
 ```
 
 #### Use Cases
@@ -84,28 +84,28 @@ The CLI supports multiple upload methods and file types.
 **1. Document Management**
 ```bash
 # Upload company documents with metadata
-./agui upload policy.pdf --metadata '{
+./cli upload policy.pdf --metadata '{
   "type": "policy",
   "department": "HR",
   "effective_date": "2024-01-01"
 }'
 
 # List all uploaded documents
-./agui list
+./cli list
 
 # Get document details
-./agui metadata dd0a368a-de27-48bd-b8a6-100f4ff3e714
+./cli metadata dd0a368a-de27-48bd-b8a6-100f4ff3e714
 ```
 
 **2. Image Gallery**
 ```bash
 # Upload multiple images
-./agui upload photo1.jpg -v
-./agui upload photo2.jpg -v
-./agui upload photo3.jpg -v
+./cli upload photo1.jpg -v
+./cli upload photo2.jpg -v
+./cli upload photo3.jpg -v
 
 # Upload with photographer metadata
-./agui upload landscape.jpg --metadata '{
+./cli upload landscape.jpg --metadata '{
   "photographer": "Jane Smith",
   "location": "Yosemite",
   "date": "2024-10-15"
@@ -115,11 +115,11 @@ The CLI supports multiple upload methods and file types.
 **3. Backup and Archive**
 ```bash
 # Upload backup files
-./agui upload database-backup.sql -v
-./agui upload config-backup.tar.gz -v
+./cli upload database-backup.sql -v
+./cli upload config-backup.tar.gz -v
 
 # Upload with backup metadata
-./agui upload backup.zip --metadata '{
+./cli upload backup.zip --metadata '{
   "backup_date": "2024-10-21",
   "source": "production-db",
   "retention_days": 90
@@ -130,7 +130,7 @@ The CLI supports multiple upload methods and file types.
 ```bash
 # For very large files, the service may return an upload URL
 # The CLI will show the upload URL for manual upload
-./agui upload large-video.mp4 -v
+./cli upload large-video.mp4 -v
 
 # Output example:
 # Upload URL: https://s3.amazonaws.com/bucket/presigned-url
@@ -140,11 +140,11 @@ The CLI supports multiple upload methods and file types.
 **5. Development Workflow**
 ```bash
 # Upload test files during development
-./agui upload test-data.json -v
-./agui upload sample.csv -v
+./cli upload test-data.json -v
+./cli upload sample.csv -v
 
 # Upload with environment metadata
-./agui upload build.zip --metadata '{
+./cli upload build.zip --metadata '{
   "environment": "staging",
   "version": "1.2.3",
   "build_number": "456"
@@ -155,36 +155,36 @@ The CLI supports multiple upload methods and file types.
 
 ```bash
 # Download content by ID
-./agui download <content-id>
+./cli download <content-id>
 
 # Download with custom output name
-./agui download <content-id> -o myfile.pdf
+./cli download <content-id> -o myfile.pdf
 ```
 
 ### Content Management
 
 ```bash
 # List all contents
-./agui list
+./cli list
 
 # List with pagination
-./agui list --limit 50 --offset 100
+./cli list --limit 50 --offset 100
 
 # Get content metadata
-./agui metadata <content-id>
+./cli metadata <content-id>
 
 # Delete content
-./agui delete <content-id>
+./cli delete <content-id>
 ```
 
 ### Global Options
 
 ```bash
 # Verbose output (shows service initialization)
-./agui -v upload file.pdf
+./cli -v upload file.pdf
 
 # Use config file (optional)
-./agui --config config.yaml list
+./cli --config config.yaml list
 ```
 
 ## How It Works
@@ -194,7 +194,7 @@ The CLI supports multiple upload methods and file types.
 The CLI uses the simplecontent service directly:
 
 ```
-User → agui CLI → ServiceClient → service_impl.go → Repository/BlobStore
+User → cli → ServiceClient → service_impl.go → Repository/BlobStore
 ```
 
 **No HTTP server required!** All operations are direct function calls.
@@ -233,7 +233,7 @@ default_storage_backend: s3
 
 Then use it:
 ```bash
-./agui --config config.yaml upload file.pdf
+./cli --config config.yaml upload file.pdf
 ```
 
 ## Examples
@@ -242,33 +242,33 @@ Then use it:
 
 ```bash
 # 1. Upload a file
-./agui upload photo.jpg
+./cli upload photo.jpg
 # Output: Content ID: 123e4567-e89b-12d3-a456-426614174000
 
 # 2. List contents
-./agui list
+./cli list
 # Output: Total: 1
 #         - ID: 123e4567-e89b-12d3-a456-426614174000
 
 # 3. Download the file
-./agui download 123e4567-e89b-12d3-a456-426614174000 -o downloaded.jpg
+./cli download 123e4567-e89b-12d3-a456-426614174000 -o downloaded.jpg
 
 # 4. Delete when done
-./agui delete 123e4567-e89b-12d3-a456-426614174000
+./cli delete 123e4567-e89b-12d3-a456-426614174000
 ```
 
 ### With Metadata
 
 ```bash
 # Upload with custom metadata
-./agui upload document.pdf --metadata '{
+./cli upload document.pdf --metadata '{
   "title": "Q4 Report",
   "author": "Jane Doe",
   "department": "Finance"
 }'
 
 # View metadata
-./agui metadata <content-id>
+./cli metadata <content-id>
 ```
 
 ## Architecture

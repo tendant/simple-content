@@ -1,4 +1,4 @@
-# AGUI CLI - Implementation Status
+# Simple Content CLI - Implementation Status
 
 This document tracks the implementation status of features defined in the [FILE_API_BACKEND.md](../../../nova-server/docs/FILE_API_BACKEND.md) specification.
 
@@ -7,7 +7,7 @@ This document tracks the implementation status of features defined in the [FILE_
 ### Upload Methods
 - ✅ **Multipart file upload (single file)**
   - Method: `UploadFile()`
-  - Command: `./agui upload myfile.pdf`
+  - Command: `./cli upload myfile.pdf`
   - Status: Fully implemented
 
 - ✅ **JSON with metadata only (returns upload URL for large files)**
@@ -19,22 +19,22 @@ This document tracks the implementation status of features defined in the [FILE_
 ### Content Management
 - ✅ **Get file metadata**
   - Method: `GetContentMetadata(contentID)`
-  - Command: `./agui metadata <content-id>`
+  - Command: `./cli metadata <content-id>`
   - Status: Fully implemented
 
 - ✅ **Download file (single)**
   - Method: `DownloadContent(params)`
-  - Command: `./agui download <content-id> -o output.pdf`
+  - Command: `./cli download <content-id> -o output.pdf`
   - Status: Fully implemented
 
 - ✅ **List files**
   - Method: `ListContents(params)`
-  - Command: `./agui list --limit 10 --offset 0`
+  - Command: `./cli list --limit 10 --offset 0`
   - Status: Fully implemented with pagination
 
 - ✅ **Delete file**
   - Method: `DeleteContent(contentID)`
-  - Command: `./agui delete <content-id>`
+  - Command: `./cli delete <content-id>`
   - Status: Fully implemented
 
 ---
