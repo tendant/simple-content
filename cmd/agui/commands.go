@@ -35,7 +35,11 @@ func NewUploadCommand() *cobra.Command {
 				fmt.Printf("Uploading file: %s\n", filePath)
 			}
 
-			resp, err := client.UploadFile(filePath, analysisType, metadata)
+			resp, err := client.UploadFile(UploadFileParams{
+				FilePath:     filePath,
+				AnalysisType: analysisType,
+				Metadata:     metadata,
+			})
 			if err != nil {
 				return fmt.Errorf("upload failed: %w", err)
 			}
@@ -84,7 +88,10 @@ func NewDownloadCommand() *cobra.Command {
 				fmt.Printf("Downloading content: %s\n", contentID)
 			}
 
-			err = client.DownloadContent([]string{contentID}, outputPath)
+			err = client.DownloadContent(DownloadContentParams{
+				ContentIDs: []string{contentID},
+				OutputPath: outputPath,
+			})
 			if err != nil {
 				return fmt.Errorf("download failed: %w", err)
 			}
@@ -121,7 +128,10 @@ func NewListCommand() *cobra.Command {
 				fmt.Printf("Listing contents (limit: %d, offset: %d)\n", limit, offset)
 			}
 
-			resp, err := client.ListContents(limit, offset)
+			resp, err := client.ListContents(ListContentsParams{
+				Limit:  limit,
+				Offset: offset,
+			})
 			if err != nil {
 				return fmt.Errorf("list failed: %w", err)
 			}

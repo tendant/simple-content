@@ -6,29 +6,46 @@ import "time"
 // Request/Response Types (snake_case)
 // ============================================
 
+// ContentUploadRequest supports four upload methods:
+// 1. Multipart file upload (Content-Type: multipart/form-data)
+// 2. JSON with base64 data (Content-Type: application/json)
+//    - Single: { "mime_type": "...", "filename": "...", "data": "..." }
+//    - Multiple: { "contents": [{ "mime_type": "...", "filename": "...", "data": "..." }, ...] }
+// 3. JSON with URL reference (Content-Type: application/json)
+//    - Single: { "mime_type": "...", "filename": "...", "url": "..." }
+//    - Multiple: { "contents": [{ "mime_type": "...", "filename": "...", "url": "..." }, ...] }
+// 4. JSON with metadata only - returns upload URL for large files (Content-Type: application/json)
+//    - Single: { "mime_type": "...", "filename": "...", "size": 123456 }
+//    - Multiple: { "contents": [{ "mime_type": "...", "filename": "...", "size": 123456 }, ...] }
 type ContentUploadRequest struct {
-	MimeType     string                 `json:"mime_type,omitempty"`
-	Filename     string                 `json:"filename,omitempty"`
-	Size         *int64                 `json:"size,omitempty"`
-	Data         string                 `json:"data,omitempty"`
-	URL          string                 `json:"url,omitempty"`
+	// For single JSON upload with base64, URL, or metadata-only
+	MimeType     *string                `json:"mime_type,omitempty"`
+	Filename     *string                `json:"filename,omitempty"`
+	Size         *int64                 `json:"size,omitempty"` // File size in bytes (for upload URL request)
+	Data         *string                `json:"data,omitempty"` // Base64-encoded file data
+	URL          *string                `json:"url,omitempty"`  // URL to publicly accessible content
+	
+	// For multiple JSON uploads
 	Contents     []ContentUploadItem    `json:"contents,omitempty"`
-	AnalysisType string                 `json:"analysis_type,omitempty"`
+	
+	// Optional metadata
+	AnalysisType *string                `json:"analysis_type,omitempty"`
 	Metadata     map[string]interface{} `json:"metadata,omitempty"`
 }
 
 type ContentUploadItem struct {
-	MimeType string `json:"mime_type"`
-	Filename string `json:"filename"`
-	Size     *int64 `json:"size,omitempty"`
-	Data     string `json:"data,omitempty"`
-	URL      string `json:"url,omitempty"`
+	MimeType string  `json:"mime_type"`
+	Filename string  `json:"filename"`
+	Size     *int64  `json:"size,omitempty"` // File size in bytes (for upload URL request)
+	Data     *string `json:"data,omitempty"` // Base64-encoded file data
+	URL      *string `json:"url,omitempty"`  // URL to publicly accessible content
 }
 
 type ContentUploadResponse struct {
-	ID        string `json:"id"`
-	URL       string `json:"url"`
-	UploadURL string `json:"upload_url,omitempty"`
+	ID                 string `json:"id"`
+	URL                string `json:"url"`
+	UploadURL          string `json:"upload_url,omitempty"`
+	StorageBackendName string `json:"storage_backend_name,omitempty"`
 }
 
 type InputContent struct {
@@ -92,4 +109,24 @@ type ContentListResponse struct {
 
 type BatchDownloadRequest struct {
 	ContentIDs []string `json:"content_ids"`
+}
+
+// ============================================
+// Service Client Parameter Structs
+// ============================================
+
+type UploadFileParams struct {
+	FilePath     string
+	AnalysisType string
+	Metadata     map[string]interface{}
+}
+
+type DownloadContentParams struct {
+	ContentIDs []string
+	OutputPath string
+}
+
+type ListContentsParams struct {
+	Limit  int
+	Offset int
 }

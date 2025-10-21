@@ -183,7 +183,11 @@ func TestUploadFile_Success(t *testing.T) {
 
 	// Test upload
 	metadata := map[string]interface{}{"key": "value"}
-	resp, err := client.UploadFile(testFile, "test-analysis", metadata)
+	resp, err := client.UploadFile(UploadFileParams{
+		FilePath:     testFile,
+		AnalysisType: "test-analysis",
+		Metadata:     metadata,
+	})
 
 	// Verify results
 	if err != nil {
@@ -205,7 +209,9 @@ func TestUploadFile_FileNotFound(t *testing.T) {
 	client := NewServiceClient(mock, false)
 
 	// Try to upload non-existent file
-	_, err := client.UploadFile("/nonexistent/file.txt", "", nil)
+	_, err := client.UploadFile(UploadFileParams{
+		FilePath: "/nonexistent/file.txt",
+	})
 
 	if err == nil {
 		t.Fatal("expected error for non-existent file, got nil")
@@ -231,7 +237,9 @@ func TestUploadFile_UploadContentError(t *testing.T) {
 	client := NewServiceClient(mock, false)
 
 	// Test upload
-	_, err := client.UploadFile(testFile, "", nil)
+	_, err := client.UploadFile(UploadFileParams{
+		FilePath: testFile,
+	})
 
 	if err == nil {
 		t.Fatal("expected error, got nil")
@@ -264,7 +272,9 @@ func TestUploadFile_GetContentDetailsError(t *testing.T) {
 	client := NewServiceClient(mock, false)
 
 	// Test upload
-	_, err := client.UploadFile(testFile, "", nil)
+	_, err := client.UploadFile(UploadFileParams{
+		FilePath: testFile,
+	})
 
 	if err == nil {
 		t.Fatal("expected error, got nil")
@@ -299,7 +309,9 @@ func TestUploadFile_WithVerbose(t *testing.T) {
 	client := NewServiceClient(mock, true)
 
 	// Test upload (verbose output will go to stdout, but we just verify it doesn't error)
-	resp, err := client.UploadFile(testFile, "", nil)
+	resp, err := client.UploadFile(UploadFileParams{
+		FilePath: testFile,
+	})
 
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
@@ -345,7 +357,11 @@ func TestUploadFile_WithMetadata(t *testing.T) {
 	client := NewServiceClient(mock, false)
 
 	// Test upload with metadata
-	resp, err := client.UploadFile(testFile, "analysis-type", expectedMetadata)
+	resp, err := client.UploadFile(UploadFileParams{
+		FilePath:     testFile,
+		AnalysisType: "analysis-type",
+		Metadata:     expectedMetadata,
+	})
 
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)

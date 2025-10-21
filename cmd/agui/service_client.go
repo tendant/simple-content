@@ -26,8 +26,8 @@ func NewServiceClient(service simplecontent.Service, verbose bool) *ServiceClien
 }
 
 // UploadFile uploads a file using the service
-func (c *ServiceClient) UploadFile(filePath string, analysisType string, metadata map[string]interface{}) (*ContentUploadResponse, error) {
-	file, err := os.Open(filePath)
+func (c *ServiceClient) UploadFile(params UploadFileParams) (*ContentUploadResponse, error) {
+	file, err := os.Open(params.FilePath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open file: %w", err)
 	}
@@ -39,7 +39,7 @@ func (c *ServiceClient) UploadFile(filePath string, analysisType string, metadat
 	}
 
 	if c.verbose {
-		fmt.Printf("Uploading file: %s\n", filePath)
+		fmt.Printf("Uploading file: %s\n", params.FilePath)
 	}
 
 	// Use UploadContent from service
@@ -49,8 +49,8 @@ func (c *ServiceClient) UploadFile(filePath string, analysisType string, metadat
 		Name:               fileInfo.Name(),
 		FileName:           fileInfo.Name(),
 		FileSize:           fileInfo.Size(),
-		DocumentType:       detectMimeType(filePath),
-		CustomMetadata:     metadata,
+		DocumentType:       detectMimeType(params.FilePath),
+		CustomMetadata:     params.Metadata,
 		StorageBackendName: "", // Use default backend
 	})
 	if err != nil {
@@ -74,11 +74,20 @@ func (c *ServiceClient) UploadJSON(req ContentUploadRequest) (*ContentUploadResp
 	ctx := context.Background()
 
 	// Handle request URL mode (metadata-only for pre-signed upload)
-	if req.Size != nil && req.Data == "" && req.URL == "" {
+	if req.Size != nil && req.Data == nil && req.URL == nil {
 		// Create content first
+		filename := ""
+		if req.Filename != nil {
+			filename = *req.Filename
+		}
+		mimeType := ""
+		if req.MimeType != nil {
+			mimeType = *req.MimeType
+		}
+
 		content, err := c.service.CreateContent(ctx, simplecontent.CreateContentRequest{
-			Name:         req.Filename,
-			DocumentType: req.MimeType,
+			Name:         filename,
+			DocumentType: mimeType,
 		})
 		if err != nil {
 			return nil, fmt.Errorf("failed to create content: %w", err)
@@ -93,7 +102,7 @@ func (c *ServiceClient) UploadJSON(req ContentUploadRequest) (*ContentUploadResp
 		object, err := storageService.CreateObject(ctx, simplecontent.CreateObjectRequest{
 			ContentID:          content.ID,
 			StorageBackendName: "", // Use default
-			FileName:           req.Filename,
+			FileName:           filename,
 		})
 		if err != nil {
 			return nil, fmt.Errorf("failed to create object: %w", err)
@@ -119,14 +128,14 @@ func (c *ServiceClient) UploadJSON(req ContentUploadRequest) (*ContentUploadResp
 	}
 
 	// Handle URL reference mode
-	if req.URL != "" {
+	if req.URL != nil && *req.URL != "" {
 		// For URL reference, we'd need to implement URL fetching
 		// For now, return an error as this requires additional implementation
 		return nil, fmt.Errorf("URL reference upload not yet implemented in service client")
 	}
 
 	// Handle base64 mode
-	if req.Data != "" {
+	if req.Data != nil && *req.Data != "" {
 		// For base64, we'd need to decode and upload
 		// For now, return an error as this requires additional implementation
 		return nil, fmt.Errorf("base64 upload not yet implemented in service client")
@@ -136,13 +145,13 @@ func (c *ServiceClient) UploadJSON(req ContentUploadRequest) (*ContentUploadResp
 }
 
 // DownloadContent downloads content by ID
-func (c *ServiceClient) DownloadContent(contentIDs []string, outputPath string) error {
-	if len(contentIDs) == 0 {
+func (c *ServiceClient) DownloadContent(params DownloadContentParams) error {
+	if len(params.ContentIDs) == 0 {
 		return fmt.Errorf("no content IDs provided")
 	}
 
 	ctx := context.Background()
-	contentID, err := uuid.Parse(contentIDs[0])
+	contentID, err := uuid.Parse(params.ContentIDs[0])
 	if err != nil {
 		return fmt.Errorf("invalid content ID: %w", err)
 	}
@@ -157,7 +166,7 @@ func (c *ServiceClient) DownloadContent(contentIDs []string, outputPath string) 
 	}
 	defer reader.Close()
 
-	out, err := os.Create(outputPath)
+	out, err := os.Create(params.OutputPath)
 	if err != nil {
 		return fmt.Errorf("failed to create output file: %w", err)
 	}
@@ -168,14 +177,14 @@ func (c *ServiceClient) DownloadContent(contentIDs []string, outputPath string) 
 	}
 
 	if c.verbose {
-		fmt.Printf("Downloaded to: %s\n", outputPath)
+		fmt.Printf("Downloaded to: %s\n", params.OutputPath)
 	}
 
 	return nil
 }
 
 // ListContents lists all uploaded contents
-func (c *ServiceClient) ListContents(limit, offset int) (*ContentListResponse, error) {
+func (c *ServiceClient) ListContents(params ListContentsParams) (*ContentListResponse, error) {
 	ctx := context.Background()
 
 	// List all content (note: the service doesn't have pagination yet)
@@ -201,9 +210,9 @@ func (c *ServiceClient) ListContents(limit, offset int) (*ContentListResponse, e
 	}
 
 	// Apply pagination manually
-	start := offset
-	end := offset + limit
-	if limit <= 0 || end > len(responses) {
+	start := params.Offset
+	end := params.Offset + params.Limit
+	if params.Limit <= 0 || end > len(responses) {
 		end = len(responses)
 	}
 	if start > len(responses) {
