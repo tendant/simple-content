@@ -307,11 +307,43 @@ func (h *Handler) UploadContentDone(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Update content status to processed
+	// Get objects for this content
+	objects, err := h.service.GetObjectsByContentID(ctx, contentID)
+	if err != nil || len(objects) == 0 {
+		respondError(w, http.StatusNotFound, "No objects found for content")
+		return
+	}
+
+	// Get the latest object (highest version or most recent)
+	latestObject := objects[0]
+	for _, obj := range objects {
+		if obj.Version > latestObject.Version {
+			latestObject = obj
+		}
+	}
+
+	// Update object metadata from storage (gets actual file size, etc.)
+	obj_meta, err := h.service.(simplecontent.StorageService).UpdateObjectMetaFromStorage(ctx, latestObject.ID)
+	if err != nil {
+		log.Printf("Failed to update object metadata for %s: %v", latestObject.ID, err)
+	}
+
+	// Update content status to uploaded
 	if err := h.service.UpdateContentStatus(ctx, contentID, simplecontent.ContentStatusUploaded); err != nil {
 		respondError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to update status: %v", err))
 		return
 	}
+
+	// Update content metadata
+	if err := h.service.SetContentMetadata(ctx, simplecontent.SetContentMetadataRequest{
+		ContentID:   contentID,
+		ContentType: obj_meta.MimeType,
+		FileSize:    obj_meta.SizeBytes,
+	}); err != nil {
+		log.Printf("Failed to update content metadata for %s: %v", contentID, err)
+	}
+
+	log.Printf("Content %s uploaded successfully", contentID)
 
 	respondJSON(w, http.StatusOK, map[string]interface{}{
 		"content_id": contentID.String(),
