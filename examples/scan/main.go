@@ -16,7 +16,7 @@ import (
 func main() {
 	ctx := context.Background()
 
-	fmt.Println("=== Simple Content Library - Scanner Example ===\n")
+	fmt.Println("=== Simple Content Library - Scanner Example ===")
 
 	// Create in-memory repository
 	repo := memory.New()

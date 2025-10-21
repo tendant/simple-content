@@ -10,7 +10,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/tendant/simple-content/pkg/storage/s3"
+	s3storage "github.com/tendant/simple-content/pkg/simplecontent/storage/s3"
 )
 
 // TestS3BackendWithMinIO tests the S3 backend with a MinIO server
@@ -24,7 +24,7 @@ func TestS3BackendWithMinIO(t *testing.T) {
 	}
 
 	// MinIO configuration
-	config := s3.Config{
+	config := s3storage.Config{
 		Region:                 "us-east-1",
 		Bucket:                 "test-bucket-" + time.Now().Format("20060102150405"),
 		AccessKeyID:            "minioadmin",
@@ -37,7 +37,7 @@ func TestS3BackendWithMinIO(t *testing.T) {
 	}
 
 	// Create S3 backend
-	backend, err := s3.NewS3Backend(config)
+	backend, err := s3storage.New(config)
 	require.NoError(t, err)
 
 	ctx := context.Background()
@@ -88,7 +88,7 @@ func TestS3BackendWithMinIOAndSSE(t *testing.T) {
 	}
 
 	// MinIO configuration with SSE
-	config := s3.Config{
+	config := s3storage.Config{
 		Region:                 "us-east-1",
 		Bucket:                 "test-bucket-sse-" + time.Now().Format("20060102150405"),
 		AccessKeyID:            "minioadmin",
@@ -103,7 +103,7 @@ func TestS3BackendWithMinIOAndSSE(t *testing.T) {
 	}
 
 	// Create S3 backend
-	backend, err := s3.NewS3Backend(config)
+	backend, err := s3storage.New(config)
 	require.NoError(t, err)
 
 	ctx := context.Background()

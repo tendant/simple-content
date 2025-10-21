@@ -12,62 +12,55 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
-	"github.com/tendant/simple-content/internal/api"
-	"github.com/tendant/simple-content/pkg/repository/memory"
-	"github.com/tendant/simple-content/pkg/service"
-	fsStorage "github.com/tendant/simple-content/pkg/storage/fs"
-	memoryStorage "github.com/tendant/simple-content/pkg/storage/memory"
+	"github.com/tendant/simple-content/pkg/simplecontent"
+	"github.com/tendant/simple-content/pkg/simplecontent/api"
+	memoryrepo "github.com/tendant/simple-content/pkg/simplecontent/repo/memory"
+	fsstorage "github.com/tendant/simple-content/pkg/simplecontent/storage/fs"
+	memorystorage "github.com/tendant/simple-content/pkg/simplecontent/storage/memory"
 )
 
 func main() {
-	// Initialize in-memory repositories
-	contentRepo := memory.NewContentRepository()
-	contentMetadataRepo := memory.NewContentMetadataRepository()
-	objectRepo := memory.NewObjectRepository()
-	objectMetadataRepo := memory.NewObjectMetadataRepository()
-	storageBackendRepo := memory.NewStorageBackendRepository()
+	// Initialize repository
+	repo := memoryrepo.New()
 
 	// Initialize storage backends
-	memBackend := memoryStorage.NewMemoryBackend()
+	memBackend := memorystorage.New()
 
 	// Initialize file system backend
-	fsConfig := fsStorage.Config{
+	fsConfig := fsstorage.Config{
 		BaseDir:   "./data/storage", // Default base directory
 		URLPrefix: "",               // No URL prefix by default (direct access)
 	}
-	fsBackend, err := fsStorage.NewFSBackend(fsConfig)
+	fsBackend, err := fsstorage.New(fsConfig)
 	if err != nil {
 		log.Fatalf("Failed to initialize file system storage: %v", err)
 	}
 
-	// Initialize services
-	contentService := service.NewContentService(contentRepo, contentMetadataRepo)
-	objectService := service.NewObjectService(objectRepo, objectMetadataRepo, contentRepo, contentMetadataRepo)
-	storageBackendService := service.NewStorageBackendService(storageBackendRepo)
-
-	// Register the storage backends with the object service
-	objectService.RegisterBackend("memory", memBackend)
-	objectService.RegisterBackend("fs", fsBackend)
-	objectService.RegisterBackend("fs-test", fsBackend)
-
-	// Create a default file system storage backend
-	ctx := context.Background()
-	_, err = storageBackendService.CreateStorageBackend(
-		ctx,
-		"fs-default",
-		"fs",
-		map[string]interface{}{
-			"base_dir": fsConfig.BaseDir,
-		},
+	// Create unified service
+	svc, err := simplecontent.New(
+		simplecontent.WithRepository(repo),
+		simplecontent.WithBlobStore("memory", memBackend),
+		simplecontent.WithBlobStore("fs", fsBackend),
+		simplecontent.WithBlobStore("fs-test", fsBackend),
 	)
 	if err != nil {
-		log.Printf("Warning: Failed to create default file system storage backend: %v", err)
+		log.Fatalf("Failed to create service: %v", err)
+	}
+
+	// Create storage service for advanced operations
+	storageSvc, err := simplecontent.NewStorageService(
+		simplecontent.WithRepository(repo),
+		simplecontent.WithBlobStore("memory", memBackend),
+		simplecontent.WithBlobStore("fs", fsBackend),
+		simplecontent.WithBlobStore("fs-test", fsBackend),
+	)
+	if err != nil {
+		log.Fatalf("Failed to create storage service: %v", err)
 	}
 
 	// Initialize API handlers
-	contentHandler := api.NewContentHandler(contentService, objectService)
-	objectHandler := api.NewObjectHandler(objectService)
-	storageBackendHandler := api.NewStorageBackendHandler(storageBackendService)
+	contentHandler := api.NewContentHandler(svc, storageSvc)
+	filesHandler := api.NewFilesHandler(svc, storageSvc)
 
 	// Set up router
 	r := chi.NewRouter()
@@ -81,8 +74,7 @@ func main() {
 
 	// Mount routes
 	r.Mount("/content", contentHandler.Routes())
-	r.Mount("/object", objectHandler.Routes())
-	r.Mount("/storage-backend", storageBackendHandler.Routes())
+	r.Mount("/files", filesHandler.Routes())
 
 	// Add a simple health check endpoint
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {

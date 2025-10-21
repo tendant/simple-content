@@ -18,7 +18,7 @@ import (
 // Notice: We don't use Port or Environment from config - those are for cmd/server-configured only
 
 func main() {
-	fmt.Println("=== Library Usage Example ===\n")
+	fmt.Println("=== Library Usage Example ===")
 
 	// Option 1: Direct service creation (most control)
 	fmt.Println("Option 1: Direct Service Creation")

@@ -14,7 +14,7 @@ import (
 )
 
 func main() {
-	fmt.Println("=== Admin Operations Example ===\n")
+	fmt.Println("=== Admin Operations Example ===")
 
 	// Setup: Create repository and service
 	repo := repomemory.New()

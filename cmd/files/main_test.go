@@ -1,6 +1,7 @@
 package main
 
 import (
+	"log"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -8,37 +9,34 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
-	"github.com/tendant/simple-content/internal/api"
-	memoryrepo "github.com/tendant/simple-content/pkg/repository/memory"
-	"github.com/tendant/simple-content/pkg/service"
-	memorystorage "github.com/tendant/simple-content/pkg/storage/memory"
+	"github.com/tendant/simple-content/pkg/simplecontent"
+	"github.com/tendant/simple-content/pkg/simplecontent/api"
+	memoryrepo "github.com/tendant/simple-content/pkg/simplecontent/repo/memory"
+	memorystorage "github.com/tendant/simple-content/pkg/simplecontent/storage/memory"
 )
 
 func TestServerSetup(t *testing.T) {
-	// Initialize in-memory repositories
-	contentRepo := memoryrepo.NewContentRepository()
-	contentMetadataRepo := memoryrepo.NewContentMetadataRepository()
-	objectRepo := memoryrepo.NewObjectRepository()
-	objectMetadataRepo := memoryrepo.NewObjectMetadataRepository()
+	// Initialize repository and storage backend
+	repo := memoryrepo.New()
+	memBackend := memorystorage.New()
 
-	// Initialize in-memory storage backend
-	memoryBackend := memorystorage.NewMemoryBackend()
-
-	// Initialize services
-	contentService := service.NewContentService(
-		contentRepo,
-		contentMetadataRepo,
+	// Initialize unified service
+	svc, err := simplecontent.New(
+		simplecontent.WithRepository(repo),
+		simplecontent.WithBlobStore("memory", memBackend),
 	)
+	if err != nil {
+		log.Fatal(err)
+	}
 
-	objectService := service.NewObjectService(
-		objectRepo,
-		objectMetadataRepo,
-		contentRepo,
-		contentMetadataRepo,
+	// Create storage service for advanced operations
+	storageSvc, err := simplecontent.NewStorageService(
+		simplecontent.WithRepository(repo),
+		simplecontent.WithBlobStore("memory", memBackend),
 	)
-
-	// Register the in-memory backend
-	objectService.RegisterBackend("memory", memoryBackend)
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	// Initialize router
 	r := chi.NewRouter()
@@ -56,7 +54,7 @@ func TestServerSetup(t *testing.T) {
 	})
 
 	// Initialize API handlers
-	contentHandler := api.NewContentHandler(contentService, objectService)
+	contentHandler := api.NewContentHandler(svc, storageSvc)
 
 	// Routes
 	r.Mount("/contents", contentHandler.Routes())
@@ -76,33 +74,30 @@ func TestServerSetup(t *testing.T) {
 }
 
 func TestContentRoutes(t *testing.T) {
-	// Initialize in-memory repositories
-	contentRepo := memoryrepo.NewContentRepository()
-	contentMetadataRepo := memoryrepo.NewContentMetadataRepository()
-	objectRepo := memoryrepo.NewObjectRepository()
-	objectMetadataRepo := memoryrepo.NewObjectMetadataRepository()
+	// Initialize repository and storage backend
+	repo := memoryrepo.New()
+	memBackend := memorystorage.New()
 
-	// Initialize in-memory storage backend
-	memoryBackend := memorystorage.NewMemoryBackend()
-
-	// Initialize services
-	contentService := service.NewContentService(
-		contentRepo,
-		contentMetadataRepo,
+	// Initialize unified service
+	svc, err := simplecontent.New(
+		simplecontent.WithRepository(repo),
+		simplecontent.WithBlobStore("memory", memBackend),
 	)
+	if err != nil {
+		log.Fatal(err)
+	}
 
-	objectService := service.NewObjectService(
-		objectRepo,
-		objectMetadataRepo,
-		contentRepo,
-		contentMetadataRepo,
+	// Create storage service for advanced operations
+	storageSvc, err := simplecontent.NewStorageService(
+		simplecontent.WithRepository(repo),
+		simplecontent.WithBlobStore("memory", memBackend),
 	)
-
-	// Register the in-memory backend
-	objectService.RegisterBackend("memory", memoryBackend)
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	// Initialize API handlers
-	contentHandler := api.NewContentHandler(contentService, objectService)
+	contentHandler := api.NewContentHandler(svc, storageSvc)
 
 	// Initialize router
 	r := chi.NewRouter()

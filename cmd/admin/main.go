@@ -84,7 +84,7 @@ func main() {
 	_ = godotenv.Load()
 
 	if len(os.Args) < 2 {
-		fmt.Println(usage)
+		fmt.Print(usage)
 		os.Exit(1)
 	}
 
@@ -92,7 +92,7 @@ func main() {
 
 	// Check for help
 	if command == "help" || command == "--help" || command == "-h" {
-		fmt.Println(usage)
+		fmt.Print(usage)
 		os.Exit(0)
 	}
 
@@ -117,7 +117,7 @@ func main() {
 		handleStats(ctx, adminSvc, filters, useJSON)
 	default:
 		fmt.Printf("Unknown command: %s\n\n", command)
-		fmt.Println(usage)
+		fmt.Print(usage)
 		os.Exit(1)
 	}
 }

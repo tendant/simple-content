@@ -12,7 +12,7 @@ import (
 )
 
 func main() {
-	fmt.Println("=== Configuration Options Example ===\n")
+	fmt.Println("=== Configuration Options Example ===")
 
 	// Example 1: Development configuration (programmatic)
 	fmt.Println("1. Development Configuration (Programmatic)")
