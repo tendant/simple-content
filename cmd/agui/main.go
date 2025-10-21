@@ -152,14 +152,11 @@ func main() {
 	r.Use(middleware.RequestID)
 
 	// AG-UI Protocol endpoints
-	r.Post("/api/v5/contents/upload", handler.UploadContent)
-	r.Post("/api/v5/contents/analysis", handler.AnalyzeContent)
-	r.Get("/api/v5/contents/analysis/{analysisId}", handler.GetAnalysisStatus)
-	r.Get("/api/v5/contents/analysis", handler.ListAnalyses)
-	r.Get("/api/v5/contents/{contentId}/metadata", handler.GetContentMetadata)
-	r.Post("/api/v5/contents/download", handler.DownloadContent)
-	r.Get("/api/v5/contents", handler.ListContents)
-	r.Delete("/api/v5/contents/{contentId}", handler.DeleteContent)
+	r.Post("/api/v5/content/upload", handler.UploadContent)
+	r.Post("/api/v5/content/upload/done", handler.UploadContentDone)
+	r.Get("/api/v5/content/contents/{contentId}", handler.GetContent) // get content details
+	r.Get("/api/v5/content/contents", handler.ListContents) //
+	r.Delete("/api/v5/content/contents/{contentId}", handler.DeleteContent)
 
 	// Health check
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
