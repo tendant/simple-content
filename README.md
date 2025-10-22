@@ -15,8 +15,16 @@ A flexible content management system with simplified APIs that focus on content 
 >
 > **Migration Guide:** See [MIGRATION_FROM_LEGACY.md](./MIGRATION_FROM_LEGACY.md) for complete migration instructions.
 
+## Quick Links
+
+- **[5-Minute Quickstart](./QUICKSTART.md)** - Get started with working examples
+- **[Photo Gallery Example](./examples/photo-gallery/)** - Complete application demonstrating real-world usage
+- **[Hooks & Extensibility Guide](./HOOKS_GUIDE.md)** - Extend functionality with plugins
+- **[Developer Adoption](./DEVELOPER_ADOPTION.md)** - Implementation summary and roadmap
+
 ## Features
 
+### Core Capabilities
 - **Unified Content Operations**: Single-call upload/download operations
 - **Content-Focused API**: Work with content concepts, not storage objects
 - **Multi-Backend Storage**: Support for memory, filesystem, and S3-compatible storage
@@ -25,7 +33,41 @@ A flexible content management system with simplified APIs that focus on content 
 - **Flexible Metadata**: Rich metadata support with content details API
 - **Clean Architecture**: Library-first design with optional HTTP server
 
+### Developer Experience ✨
+- **5-Minute Quickstart**: Get started immediately with copy-paste examples
+- **Complete Examples**: Real-world photo gallery application included
+- **Hook System**: 14 lifecycle hooks for extensibility without forking
+- **Plugin Architecture**: Build and compose plugins for custom behavior
+- **Good Defaults**: Works out-of-the-box with in-memory storage, customizable for production
+
 ## Getting Started
+
+### Quick Start (Recommended)
+
+**New to Simple Content?** Start with our [5-Minute Quickstart](./QUICKSTART.md) for immediate hands-on experience!
+
+The quickstart includes:
+1. **Basic Setup** (in-memory, < 20 lines of code)
+2. **Filesystem Storage** (persistent local storage)
+3. **Production Setup** (PostgreSQL + S3)
+4. **Derived Content** (automatic thumbnail generation)
+5. **Metadata Management** (rich structured data)
+
+### Complete Example Application
+
+See a real-world application in action with the [Photo Gallery Example](./examples/photo-gallery/):
+
+```bash
+cd examples/photo-gallery
+go run main.go
+```
+
+Features demonstrated:
+- Photo upload with automatic storage
+- Multiple thumbnail sizes (128px, 256px, 512px)
+- Rich EXIF-like metadata
+- Derived content tracking
+- Query and list operations
 
 ### Prerequisites
 
@@ -531,16 +573,94 @@ go test -tags=integration ./...
 
 See the `examples/` directory for complete working examples:
 
+### Featured Examples ⭐
+- **[`examples/photo-gallery/`](./examples/photo-gallery/)**: Complete photo management application
+  - Demonstrates: Upload, thumbnails, metadata, derived content, queries
+  - Run: `cd examples/photo-gallery && go run main.go`
+  - Time to run: < 2 minutes
+
+### Basic Examples
 - **`examples/basic/`**: Simple content upload and download
 - **`examples/thumbnail-generation/`**: Image thumbnails with derived content
 - **`examples/presigned-upload/`**: Client presigned upload to storage
 - **`examples/content-with-derived/`**: Working with derived content
+- **`examples/objectkey/`**: Custom object key generation
+
+## Extensibility
+
+### Hook System
+
+Simple Content provides a powerful hook system that lets you extend functionality without modifying core code. Hooks allow you to inject custom logic at 14 different lifecycle points.
+
+**Quick Example:**
+```go
+hooks := &simplecontent.Hooks{
+    AfterContentUpload: []simplecontent.AfterContentUploadHook{
+        func(hctx *simplecontent.HookContext, contentID uuid.UUID, bytes int64) error {
+            log.Printf("✅ Uploaded %d bytes to content %s", bytes, contentID)
+            return nil
+        },
+    },
+}
+
+svc, err := simplecontent.New(
+    simplecontent.WithRepository(repo),
+    simplecontent.WithBlobStore("fs", backend),
+    simplecontent.WithHooks(hooks),
+)
+```
+
+**Available Hooks:**
+- Content lifecycle: BeforeContentCreate, AfterContentCreate, BeforeContentUpload, AfterContentUpload, etc.
+- Derived content: BeforeDerivedCreate, AfterDerivedCreate
+- Metadata: BeforeMetadataSet, AfterMetadataSet
+- Events: OnStatusChange, OnError
+
+**Common Use Cases:**
+- Audit logging
+- Metrics & analytics (Prometheus)
+- Webhook notifications
+- Virus scanning
+- Access control
+- Custom validation
+
+**Learn More:** See [HOOKS_GUIDE.md](./HOOKS_GUIDE.md) for comprehensive documentation and examples.
+
+### Plugin System
+
+Build composable plugins that provide hooks for specific functionality:
+
+```go
+type Plugin interface {
+    Name() string
+    Version() string
+    Hooks() *simplecontent.Hooks
+    Initialize(config map[string]interface{}) error
+}
+
+// Register multiple plugins
+registry := NewPluginRegistry()
+registry.Register(&ImageProcessingPlugin{})
+registry.Register(&VirusScannerPlugin{})
+registry.Register(&AuditLogPlugin{})
+
+svc, _ := simplecontent.New(
+    simplecontent.WithHooks(registry.Hooks()),
+)
+```
 
 ## Documentation
 
-- **`PROGRAMMATIC_USAGE.md`**: Library usage patterns
-- **`PRESIGNED_CLIENT_UPLOAD.md`**: Presigned upload workflows
-- **`examples/*/README.md`**: Example-specific documentation
+### Getting Started
+- **[Quickstart Guide](./QUICKSTART.md)**: 5-minute getting started with examples
+- **[Photo Gallery Example](./examples/photo-gallery/)**: Complete application walkthrough
+
+### Advanced Topics
+- **[Hooks & Plugins Guide](./HOOKS_GUIDE.md)**: Extensibility and plugin development
+- **[Developer Adoption](./DEVELOPER_ADOPTION.md)**: Implementation summary and roadmap
+- **[Programmatic Usage](./PROGRAMMATIC_USAGE.md)**: Library usage patterns
+- **[Presigned Upload](./PRESIGNED_CLIENT_UPLOAD.md)**: Presigned upload workflows
+- **Example READMEs**: Each example has detailed documentation
 
 ## License
 
