@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"os"
 	"strings"
-	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -348,51 +347,6 @@ func (h *Handler) UploadContentDone(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusOK, map[string]interface{}{
 		"content_id": contentID.String(),
 		"status":     simplecontent.ContentStatusUploaded,
-	})
-}
-
-// AnalyzeContent handles multimodal content analysis
-// POST /api/v5/contents/analysis
-func (h *Handler) AnalyzeContent(w http.ResponseWriter, r *http.Request) {
-
-	var req ContentAnalysisRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		respondError(w, http.StatusBadRequest, "Invalid JSON")
-		return
-	}
-
-	// Create analysis job
-	analysisID := uuid.New()
-
-	// TODO: Store analysis in database
-	// TODO: Queue for processing
-
-	respondJSON(w, http.StatusOK, map[string]interface{}{
-		"id":         analysisID.String(),
-		"status":     "pending",
-		"created_at": time.Now().UTC(),
-	})
-}
-
-// GetAnalysisStatus returns the status of an analysis job
-// GET /api/v5/contents/analysis/{analysisId}
-func (h *Handler) GetAnalysisStatus(w http.ResponseWriter, r *http.Request) {
-	analysisID := chi.URLParam(r, "analysisId")
-
-	// TODO: Get from database
-	respondJSON(w, http.StatusOK, map[string]interface{}{
-		"id":     analysisID,
-		"status": "pending",
-	})
-}
-
-// ListAnalyses lists all analyses
-// GET /api/v5/contents/analysis
-func (h *Handler) ListAnalyses(w http.ResponseWriter, r *http.Request) {
-	// TODO: Get from database with filters
-	respondJSON(w, http.StatusOK, map[string]interface{}{
-		"analyses": []interface{}{},
-		"total":    0,
 	})
 }
 

@@ -1,14 +1,13 @@
-# AG-UI Server - Multimodal Content API
+# AG-UI Server - Content API
 
-A REST API server implementing the AG-UI protocol for multimodal content handling (text + binary files).
+A REST API server for content management with presigned URL-based uploads and downloads.
 
 ## Overview
 
 This server provides endpoints for:
-- **File Upload** - Multiple formats (multipart, base64, URL reference)
-- **Content Analysis** - Multimodal content analysis (text + files)
-- **File Download** - Single or batch downloads
-- **Content Management** - List, metadata, delete operations
+- **File Upload** - Presigned URL-based uploads for efficient large file handling
+- **File Download** - Presigned URL-based downloads
+- **Content Management** - List, get details, and delete operations
 
 ## Quick Start
 
