@@ -19,7 +19,8 @@ import (
 
 func main() {
 	fmt.Println("🔧 Simple Content - Middleware Example")
-	fmt.Println("========================================\n")
+	fmt.Println("========================================")
+	fmt.Println()
 
 	// Create service
 	svc, err := setupService()
@@ -47,7 +48,9 @@ func main() {
 	fmt.Println("    -H 'Authorization: Bearer demo-token' \\")
 	fmt.Println("    -H 'Content-Type: application/json' \\")
 	fmt.Println("    -d '{\"name\": \"test.txt\", \"document_type\": \"text\"}'")
-	fmt.Println("\nPress Ctrl+C to stop\n")
+	fmt.Println()
+	fmt.Println("Press Ctrl+C to stop")
+	fmt.Println()
 
 	if err := http.ListenAndServe(":"+port, server); err != nil {
 		log.Fatal(err)

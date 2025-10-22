@@ -18,6 +18,7 @@ A flexible content management system with simplified APIs that focus on content 
 ## Quick Links
 
 - **[5-Minute Quickstart](./QUICKSTART.md)** - Get started with working examples
+- **[Configuration Guide](./CONFIGURATION_GUIDE.md)** - Three ways to configure (presets, builder, environment)
 - **[Photo Gallery Example](./examples/photo-gallery/)** - Complete application demonstrating real-world usage
 - **[Hooks & Extensibility Guide](./HOOKS_GUIDE.md)** - Extend functionality with plugins (service-level)
 - **[Middleware Guide](./MIDDLEWARE_GUIDE.md)** - HTTP request/response processing (HTTP-level)
@@ -35,8 +36,10 @@ A flexible content management system with simplified APIs that focus on content 
 - **Clean Architecture**: Library-first design with optional HTTP server
 
 ### Developer Experience ✨
+- **One-Line Setup**: `NewDevelopment()` and `NewTesting()` presets for instant setup
 - **5-Minute Quickstart**: Get started immediately with copy-paste examples
 - **Complete Examples**: Real-world photo gallery and middleware applications included
+- **Three Configuration Approaches**: Presets, builder pattern, or environment variables
 - **Hook System**: 14 lifecycle hooks for service-level extensibility
 - **Middleware System**: 14 built-in middleware for HTTP-level extensibility
 - **Plugin Architecture**: Build and compose plugins for custom behavior
@@ -147,6 +150,117 @@ export DATABASE_URL="postgresql://user:password@localhost:5432/dbname?sslmode=di
 # Run migrations
 goose -dir ./migrations/postgres postgres "$DATABASE_URL" up
 ```
+
+## Configuration
+
+Simple Content provides three ways to configure your service, from simplest to most flexible:
+
+### 1. Configuration Presets (Recommended)
+
+**The fastest way to get started.** One-line setup for common scenarios.
+
+#### Development Preset
+
+```go
+import "github.com/tendant/simple-content/pkg/simplecontentpresets"
+
+// One line - creates fully configured service
+svc, cleanup, err := simplecontentpresets.NewDevelopment()
+if err != nil {
+    log.Fatal(err)
+}
+defer cleanup() // Removes ./dev-data/ when done
+
+// Use service immediately
+content, err := svc.UploadContent(ctx, request)
+```
+
+Features:
+- ✅ In-memory database (no PostgreSQL required)
+- ✅ Filesystem storage at `./dev-data/`
+- ✅ Automatic cleanup
+- ✅ Zero configuration
+
+**See:** [examples/preset-development/](./examples/preset-development/)
+
+#### Testing Preset
+
+```go
+func TestMyFeature(t *testing.T) {
+    // One line - creates isolated service
+    svc := simplecontentpresets.NewTesting(t)
+
+    // Use service in tests
+    content, err := svc.UploadContent(ctx, request)
+    require.NoError(t, err)
+
+    // Cleanup automatic via t.Cleanup()
+}
+```
+
+Features:
+- ✅ In-memory database (isolated per test)
+- ✅ In-memory storage (blazingly fast)
+- ✅ Automatic cleanup
+- ✅ Parallel test execution support
+- ✅ No mocking required
+
+**See:** [examples/preset-testing/](./examples/preset-testing/)
+
+### 2. Configuration Builder
+
+**For custom configurations.** Build services programmatically with functional options.
+
+```go
+import (
+    "github.com/tendant/simple-content/pkg/simplecontent"
+    memoryrepo "github.com/tendant/simple-content/pkg/simplecontent/repo/memory"
+    fsstorage "github.com/tendant/simple-content/pkg/simplecontent/storage/fs"
+)
+
+// Create backends
+repo := memoryrepo.New()
+fsBackend, _ := fsstorage.New(fsstorage.Config{
+    BaseDir: "./content-data",
+})
+
+// Build service with options
+svc, err := simplecontent.New(
+    simplecontent.WithRepository(repo),
+    simplecontent.WithBlobStore("fs", fsBackend),
+)
+```
+
+**See:** [examples/config-options/](./examples/config-options/)
+
+### 3. Environment Variables
+
+**For production deployments.** Configure via environment variables.
+
+```go
+import "github.com/tendant/simple-content/pkg/simplecontent/config"
+
+// Load configuration from environment
+cfg, err := config.Load()
+if err != nil {
+    log.Fatal(err)
+}
+
+// Build service from configuration
+svc, err := config.BuildService(cfg)
+if err != nil {
+    log.Fatal(err)
+}
+```
+
+Required environment variables:
+- `DATABASE_TYPE=postgres` (postgres, mysql, sqlite, memory)
+- `DATABASE_URL=postgresql://...`
+- `STORAGE_BACKEND=s3` (s3, fs, memory)
+- `AWS_S3_BUCKET=my-bucket`
+- `AWS_S3_REGION=us-east-1`
+
+**See:** [CONFIGURATION_GUIDE.md](./CONFIGURATION_GUIDE.md) for complete documentation.
 
 ## API Overview
 
