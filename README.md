@@ -19,7 +19,8 @@ A flexible content management system with simplified APIs that focus on content 
 
 - **[5-Minute Quickstart](./QUICKSTART.md)** - Get started with working examples
 - **[Photo Gallery Example](./examples/photo-gallery/)** - Complete application demonstrating real-world usage
-- **[Hooks & Extensibility Guide](./HOOKS_GUIDE.md)** - Extend functionality with plugins
+- **[Hooks & Extensibility Guide](./HOOKS_GUIDE.md)** - Extend functionality with plugins (service-level)
+- **[Middleware Guide](./MIDDLEWARE_GUIDE.md)** - HTTP request/response processing (HTTP-level)
 - **[Developer Adoption](./DEVELOPER_ADOPTION.md)** - Implementation summary and roadmap
 
 ## Features
@@ -35,8 +36,9 @@ A flexible content management system with simplified APIs that focus on content 
 
 ### Developer Experience ✨
 - **5-Minute Quickstart**: Get started immediately with copy-paste examples
-- **Complete Examples**: Real-world photo gallery application included
-- **Hook System**: 14 lifecycle hooks for extensibility without forking
+- **Complete Examples**: Real-world photo gallery and middleware applications included
+- **Hook System**: 14 lifecycle hooks for service-level extensibility
+- **Middleware System**: 14 built-in middleware for HTTP-level extensibility
 - **Plugin Architecture**: Build and compose plugins for custom behavior
 - **Good Defaults**: Works out-of-the-box with in-memory storage, customizable for production
 
@@ -579,6 +581,11 @@ See the `examples/` directory for complete working examples:
   - Run: `cd examples/photo-gallery && go run main.go`
   - Time to run: < 2 minutes
 
+- **[`examples/middleware/`](./examples/middleware/)**: HTTP middleware system demonstration
+  - Demonstrates: Request ID, logging, auth, rate limiting, CORS, metrics
+  - Run: `cd examples/middleware && go run main.go`
+  - Time to run: < 1 minute
+
 ### Basic Examples
 - **`examples/basic/`**: Simple content upload and download
 - **`examples/thumbnail-generation/`**: Image thumbnails with derived content
@@ -654,10 +661,14 @@ svc, _ := simplecontent.New(
 ### Getting Started
 - **[Quickstart Guide](./QUICKSTART.md)**: 5-minute getting started with examples
 - **[Photo Gallery Example](./examples/photo-gallery/)**: Complete application walkthrough
+- **[Middleware Example](./examples/middleware/)**: HTTP middleware demonstration
+
+### Extensibility & Customization
+- **[Hooks & Plugins Guide](./HOOKS_GUIDE.md)**: Service-level extensibility and plugin development
+- **[Middleware Guide](./MIDDLEWARE_GUIDE.md)**: HTTP-level request/response processing
+- **[Developer Adoption](./DEVELOPER_ADOPTION.md)**: Implementation summary and roadmap
 
 ### Advanced Topics
-- **[Hooks & Plugins Guide](./HOOKS_GUIDE.md)**: Extensibility and plugin development
-- **[Developer Adoption](./DEVELOPER_ADOPTION.md)**: Implementation summary and roadmap
 - **[Programmatic Usage](./PROGRAMMATIC_USAGE.md)**: Library usage patterns
 - **[Presigned Upload](./PRESIGNED_CLIENT_UPLOAD.md)**: Presigned upload workflows
 - **Example READMEs**: Each example has detailed documentation
