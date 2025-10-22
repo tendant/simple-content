@@ -323,13 +323,14 @@ func TestContentHandler_CreateDerivedContent_Success(t *testing.T) {
 
 	assert.Equal(t, http.StatusCreated, w.Code)
 
-	var resp CreateDerivedContentResponse
+	var resp ContentResponse
 	err = json.Unmarshal(w.Body.Bytes(), &resp)
 	require.NoError(t, err)
 
-	assert.Equal(t, parentContent.ID.String(), resp.ParentContentID)
-	assert.NotEmpty(t, resp.DerivedContentID)
-	assert.Equal(t, "thumbnail", resp.DerivationType)
+	assert.Equal(t, parentContent.ID.String(), resp.ParentID)
+	assert.NotEmpty(t, resp.ID)
+	assert.Equal(t, "derived", resp.DerivationType)
+	assert.Equal(t, 1, resp.DerivationLevel)
 }
 
 func TestGetLatestVersionObject(t *testing.T) {
