@@ -5,12 +5,10 @@ import (
 	"context"
 	"fmt"
 	"image"
+	"image/color"
 	"image/jpeg"
-	"image/png"
 	"log"
 	"os"
-	"path/filepath"
-	"strings"
 
 	"github.com/google/uuid"
 	"github.com/nfnt/resize"
@@ -136,7 +134,6 @@ func (g *PhotoGallery) uploadSamplePhoto(ctx context.Context) (uuid.UUID, error)
 		DocumentType: "photo",
 		Reader:       bytes.NewReader(buf.Bytes()),
 		FileName:     "sunset.jpg",
-		MimeType:     "image/jpeg",
 	})
 	if err != nil {
 		return uuid.Nil, err
@@ -187,7 +184,6 @@ func (g *PhotoGallery) generateThumbnails(ctx context.Context, photoID uuid.UUID
 			Variant:        fmt.Sprintf("thumbnail_%d", s.size),
 			Reader:         bytes.NewReader(buf.Bytes()),
 			FileName:       fmt.Sprintf("sunset_thumb_%s.jpg", s.name),
-			MimeType:       "image/jpeg",
 		})
 		if err != nil {
 			return err
@@ -242,6 +238,9 @@ func (g *PhotoGallery) displayPhotoDetails(ctx context.Context, photoID uuid.UUI
 	// Display information
 	fmt.Println("\n📷 Photo Details:")
 	fmt.Println("─────────────────────────────────────────")
+	fmt.Printf("ID: %s\n", details.ID)
+	fmt.Printf("File: %s (%d bytes)\n", details.FileName, details.FileSize)
+	fmt.Printf("Ready: %v\n", details.Ready)
 	fmt.Printf("Title: %s\n", metadata.Metadata["title"])
 	fmt.Printf("Description: %s\n", metadata.Metadata["description"])
 	fmt.Printf("Camera: %s\n", metadata.Metadata["camera"])
@@ -323,7 +322,7 @@ func createSampleImage(width, height int) image.Image {
 		b := uint8(50 + ratio*155)   // 50 -> 205
 
 		for x := 0; x < width; x++ {
-			img.Set(x, y, image.RGBA{r, g, b, 255})
+			img.Set(x, y, color.RGBA{R: r, G: g, B: b, A: 255})
 		}
 	}
 
