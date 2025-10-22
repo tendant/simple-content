@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tendant/simple-content/pkg/simplecontent"
-	"github.com/tendant/simple-content/pkg/simplecontentpresets"
+	"github.com/tendant/simple-content/pkg/simplecontent/presets"
 )
 
 // TestUploadAndDownload demonstrates the testing preset for unit tests
@@ -19,7 +19,7 @@ func TestUploadAndDownload(t *testing.T) {
 	// - In-memory database (isolated per test)
 	// - In-memory storage (fast, no disk I/O)
 	// - Automatic cleanup via t.Cleanup()
-	svc := simplecontentpresets.NewTesting(t)
+	svc := presets.NewTesting(t)
 
 	ctx := context.Background()
 
@@ -50,7 +50,7 @@ func TestUploadAndDownload(t *testing.T) {
 
 // TestDerivedContent demonstrates creating and querying derived content
 func TestDerivedContent(t *testing.T) {
-	svc := simplecontentpresets.NewTesting(t)
+	svc := presets.NewTesting(t)
 	ctx := context.Background()
 
 	// Upload original image
@@ -88,7 +88,7 @@ func TestDerivedContent(t *testing.T) {
 
 // TestMetadata demonstrates content metadata operations
 func TestMetadata(t *testing.T) {
-	svc := simplecontentpresets.NewTesting(t)
+	svc := presets.NewTesting(t)
 	ctx := context.Background()
 
 	// Upload content
@@ -125,7 +125,7 @@ func TestMetadata(t *testing.T) {
 func TestParallelExecution(t *testing.T) {
 	t.Run("test1", func(t *testing.T) {
 		t.Parallel()
-		svc := simplecontentpresets.NewTesting(t)
+		svc := presets.NewTesting(t)
 		ctx := context.Background()
 
 		content, err := svc.UploadContent(ctx, simplecontent.UploadContentRequest{
@@ -142,7 +142,7 @@ func TestParallelExecution(t *testing.T) {
 
 	t.Run("test2", func(t *testing.T) {
 		t.Parallel()
-		svc := simplecontentpresets.NewTesting(t)
+		svc := presets.NewTesting(t)
 		ctx := context.Background()
 
 		content, err := svc.UploadContent(ctx, simplecontent.UploadContentRequest{
@@ -161,8 +161,8 @@ func TestParallelExecution(t *testing.T) {
 // TestIsolation demonstrates that each test gets its own isolated service
 func TestIsolation(t *testing.T) {
 	// Create two services in the same test
-	svc1 := simplecontentpresets.NewTesting(t)
-	svc2 := simplecontentpresets.NewTesting(t)
+	svc1 := presets.NewTesting(t)
+	svc2 := presets.NewTesting(t)
 
 	ctx := context.Background()
 
@@ -185,7 +185,7 @@ func TestIsolation(t *testing.T) {
 // TestConvenienceFunction demonstrates the TestService helper
 func TestConvenienceFunction(t *testing.T) {
 	// TestService is an alias for NewTesting with no options
-	svc := simplecontentpresets.TestService(t)
+	svc := presets.TestService(t)
 	ctx := context.Background()
 
 	content, err := svc.UploadContent(ctx, simplecontent.UploadContentRequest{

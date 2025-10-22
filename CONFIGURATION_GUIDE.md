@@ -19,10 +19,10 @@ This guide covers the three ways to configure Simple Content, from simplest to m
 Perfect for local development and prototyping.
 
 ```go
-import "github.com/tendant/simple-content/pkg/simplecontentpresets"
+import "github.com/tendant/simple-content/pkg/simplecontent/presets"
 
 // One line - creates fully configured service
-svc, cleanup, err := simplecontentpresets.NewDevelopment()
+svc, cleanup, err := presets.NewDevelopment()
 if err != nil {
     log.Fatal(err)
 }
@@ -40,9 +40,9 @@ content, err := svc.UploadContent(ctx, request)
 
 **Customization:**
 ```go
-svc, cleanup, err := simplecontentpresets.NewDevelopment(
-    simplecontentpresets.WithDevStorage("./custom-dir"),
-    simplecontentpresets.WithDevPort("3000"),
+svc, cleanup, err := presets.NewDevelopment(
+    presets.WithDevStorage("./custom-dir"),
+    presets.WithDevPort("3000"),
 )
 ```
 
@@ -57,7 +57,7 @@ Perfect for unit and integration tests.
 ```go
 func TestMyFeature(t *testing.T) {
     // One line - creates isolated service
-    svc := simplecontentpresets.NewTesting(t)
+    svc := presets.NewTesting(t)
 
     // Use service in tests
     content, err := svc.UploadContent(ctx, request)
@@ -79,13 +79,13 @@ func TestMyFeature(t *testing.T) {
 func TestParallel(t *testing.T) {
     t.Run("test1", func(t *testing.T) {
         t.Parallel()
-        svc := simplecontentpresets.NewTesting(t)
+        svc := presets.NewTesting(t)
         // Isolated instance
     })
 
     t.Run("test2", func(t *testing.T) {
         t.Parallel()
-        svc := simplecontentpresets.NewTesting(t)
+        svc := presets.NewTesting(t)
         // Completely separate instance
     })
 }
@@ -93,8 +93,8 @@ func TestParallel(t *testing.T) {
 
 **Customization:**
 ```go
-svc := simplecontentpresets.NewTesting(t,
-    simplecontentpresets.WithTestFixtures(), // Load sample data
+svc := presets.NewTesting(t,
+    presets.WithTestFixtures(), // Load sample data
 )
 ```
 
@@ -108,7 +108,7 @@ svc := simplecontentpresets.NewTesting(t,
 
 ```go
 // Future API (not yet implemented)
-svc, err := simplecontentpresets.NewProduction()
+svc, err := presets.NewProduction()
 if err != nil {
     log.Fatal(err)
 }
@@ -401,7 +401,7 @@ PORT=8080
 **Phase 1: Quick Start** (minutes)
 ```go
 // Use development preset
-svc, cleanup, err := simplecontentpresets.NewDevelopment()
+svc, cleanup, err := presets.NewDevelopment()
 defer cleanup()
 ```
 
@@ -428,7 +428,7 @@ svc, _ := config.BuildService(cfg)
 **Unit Tests:**
 ```go
 func TestUpload(t *testing.T) {
-    svc := simplecontentpresets.NewTesting(t)
+    svc := presets.NewTesting(t)
     // Test with real service, in-memory backends
 }
 ```
@@ -484,7 +484,7 @@ svc, _ := simplecontent.New(
 
 **After:**
 ```go
-svc, cleanup, _ := simplecontentpresets.NewDevelopment()
+svc, cleanup, _ := presets.NewDevelopment()
 defer cleanup() // Automatic cleanup
 ```
 
@@ -492,7 +492,7 @@ defer cleanup() // Automatic cleanup
 
 **Development:**
 ```go
-svc, cleanup, _ := simplecontentpresets.NewDevelopment()
+svc, cleanup, _ := presets.NewDevelopment()
 defer cleanup()
 ```
 
@@ -576,8 +576,8 @@ svc, err := simplecontent.New(
 chmod +w ./dev-data
 
 # Or use custom directory
-svc, _, _ := simplecontentpresets.NewDevelopment(
-    simplecontentpresets.WithDevStorage("/tmp/content-data"),
+svc, _, _ := presets.NewDevelopment(
+    presets.WithDevStorage("/tmp/content-data"),
 )
 ```
 

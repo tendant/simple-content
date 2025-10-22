@@ -8,7 +8,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/tendant/simple-content/pkg/simplecontent"
-	"github.com/tendant/simple-content/pkg/simplecontentpresets"
+	"github.com/tendant/simple-content/pkg/simplecontent/presets"
 )
 
 func main() {
@@ -19,7 +19,7 @@ func main() {
 	// - In-memory database (no setup required)
 	// - Filesystem storage at ./dev-data/
 	// - One-line setup!
-	svc, cleanup, err := simplecontentpresets.NewDevelopment()
+	svc, cleanup, err := presets.NewDevelopment()
 	if err != nil {
 		log.Fatal(err)
 	}

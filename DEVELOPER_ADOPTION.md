@@ -195,12 +195,12 @@ go run main.go
 ## 🚀 What's Next
 
 ### Phase 2: Configuration Presets (Week 2) ✅ COMPLETE
-- [x] `simplecontentpresets.NewDevelopment()` - One-line development setup
-- [x] `simplecontentpresets.NewTesting(t)` - Testing with automatic cleanup
+- [x] `presets.NewDevelopment()` - One-line development setup
+- [x] `presets.NewTesting(t)` - Testing with automatic cleanup
 - [x] Functional options pattern for customization
 - [x] Example applications (preset-development, preset-testing)
 - [x] Comprehensive CONFIGURATION_GUIDE.md
-- [ ] `simplecontentpresets.NewProduction()` - Production preset (placeholder)
+- [ ] `presets.NewProduction()` - Production preset (placeholder)
 
 ### Phase 3: Enhanced Examples (Week 3)
 - [ ] Document manager example
@@ -331,7 +331,7 @@ We've created a comprehensive onboarding experience that:
 - ✅ Updated README with developer-focused features
 
 **Phase 2 Key Deliverables:**
-- ✅ Configuration preset package (`pkg/simplecontentpresets/`)
+- ✅ Configuration preset package (`pkg/simplecontent/presets/`)
 - ✅ `NewDevelopment()` preset - one-line development setup
 - ✅ `NewTesting()` preset - testing with automatic cleanup
 - ✅ Functional options for customization

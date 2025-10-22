@@ -162,10 +162,10 @@ Simple Content provides three ways to configure your service, from simplest to m
 #### Development Preset
 
 ```go
-import "github.com/tendant/simple-content/pkg/simplecontentpresets"
+import "github.com/tendant/simple-content/pkg/simplecontent/presets"
 
 // One line - creates fully configured service
-svc, cleanup, err := simplecontentpresets.NewDevelopment()
+svc, cleanup, err := presets.NewDevelopment()
 if err != nil {
     log.Fatal(err)
 }
@@ -188,7 +188,7 @@ Features:
 ```go
 func TestMyFeature(t *testing.T) {
     // One line - creates isolated service
-    svc := simplecontentpresets.NewTesting(t)
+    svc := presets.NewTesting(t)
 
     // Use service in tests
     content, err := svc.UploadContent(ctx, request)

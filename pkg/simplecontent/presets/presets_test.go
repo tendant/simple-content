@@ -1,4 +1,4 @@
-package simplecontentpresets
+package presets
 
 import (
 	"github.com/tendant/simple-content/pkg/simplecontent"

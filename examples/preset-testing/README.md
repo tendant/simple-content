@@ -32,7 +32,7 @@ go test -v
 ```go
 func TestMyFeature(t *testing.T) {
     // One line - creates service, registers cleanup
-    svc := simplecontentpresets.NewTesting(t)
+    svc := presets.NewTesting(t)
 
     // Use service normally
     content, err := svc.UploadContent(ctx, request)
@@ -48,13 +48,13 @@ func TestMyFeature(t *testing.T) {
 func TestParallelExecution(t *testing.T) {
     t.Run("test1", func(t *testing.T) {
         t.Parallel() // Run concurrently
-        svc := simplecontentpresets.NewTesting(t)
+        svc := presets.NewTesting(t)
         // Each gets isolated service
     })
 
     t.Run("test2", func(t *testing.T) {
         t.Parallel()
-        svc := simplecontentpresets.NewTesting(t)
+        svc := presets.NewTesting(t)
         // Completely separate instance
     })
 }
@@ -64,8 +64,8 @@ func TestParallelExecution(t *testing.T) {
 
 ```go
 func TestIsolation(t *testing.T) {
-    svc1 := simplecontentpresets.NewTesting(t)
-    svc2 := simplecontentpresets.NewTesting(t)
+    svc1 := presets.NewTesting(t)
+    svc2 := presets.NewTesting(t)
 
     // Upload to svc1
     content, _ := svc1.UploadContent(ctx, req)
@@ -94,7 +94,7 @@ func TestUploadVariousTypes(t *testing.T) {
 
     for _, tt := range tests {
         t.Run(tt.name, func(t *testing.T) {
-            svc := simplecontentpresets.NewTesting(t)
+            svc := presets.NewTesting(t)
             // Test with tt.fileType and tt.data
         })
     }
@@ -106,7 +106,7 @@ func TestUploadVariousTypes(t *testing.T) {
 ```go
 func BenchmarkUpload(b *testing.B) {
     // Note: Use testing.B for benchmarks
-    svc := simplecontentpresets.NewTesting(b)
+    svc := presets.NewTesting(b)
     ctx := context.Background()
 
     b.ResetTimer()
@@ -136,7 +136,7 @@ mockStorage.On("Put", ...).Return(nil)
 **With Testing Preset** (simple approach):
 ```go
 // One line - real implementation
-svc := simplecontentpresets.NewTesting(t)
+svc := presets.NewTesting(t)
 
 // Real operations, actual behavior
 content, err := svc.UploadContent(ctx, req)
@@ -165,8 +165,8 @@ Use the **Testing Preset** when:
 
 ```go
 // Add custom options (future extension point)
-svc := simplecontentpresets.NewTesting(t,
-    simplecontentpresets.WithTestFixtures(), // Load sample data
+svc := presets.NewTesting(t,
+    presets.WithTestFixtures(), // Load sample data
 )
 ```
 

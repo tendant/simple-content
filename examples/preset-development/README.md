@@ -28,7 +28,7 @@ go run main.go
 ### Create Service
 
 ```go
-svc, cleanup, err := simplecontentpresets.NewDevelopment()
+svc, cleanup, err := presets.NewDevelopment()
 if err != nil {
     log.Fatal(err)
 }
@@ -67,13 +67,13 @@ The development preset supports customization options:
 
 ```go
 // Custom storage directory
-svc, cleanup, err := simplecontentpresets.NewDevelopment(
-    simplecontentpresets.WithDevStorage("./my-custom-dir"),
+svc, cleanup, err := presets.NewDevelopment(
+    presets.WithDevStorage("./my-custom-dir"),
 )
 
 // Custom port (for future server integration)
-svc, cleanup, err := simplecontentpresets.NewDevelopment(
-    simplecontentpresets.WithDevPort("3000"),
+svc, cleanup, err := presets.NewDevelopment(
+    presets.WithDevPort("3000"),
 )
 ```
 
