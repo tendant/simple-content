@@ -162,6 +162,8 @@ func (s *service) CreateContent(ctx context.Context, req CreateContentRequest) (
 	return content, nil
 }
 
+const maxDerivationDepth = 5
+
 func (s *service) CreateDerivedContent(ctx context.Context, req CreateDerivedContentRequest) (*Content, error) {
 	// Verify parent content exists and validate status
 	parentContent, err := s.repository.GetContent(ctx, req.ParentID)
@@ -176,6 +178,16 @@ func (s *service) CreateDerivedContent(ctx context.Context, req CreateDerivedCon
 			ContentID: req.ParentID,
 			Op:        "create_derived",
 			Err:       statusErr,
+		}
+	}
+
+	// Check derivation depth limit
+	depth := s.computeDerivationDepth(ctx, req.ParentID)
+	if depth >= maxDerivationDepth {
+		return nil, &ContentError{
+			ContentID: req.ParentID,
+			Op:        "create_derived",
+			Err:       fmt.Errorf("maximum derivation depth (%d) exceeded", maxDerivationDepth),
 		}
 	}
 
@@ -1931,4 +1943,27 @@ func (s *service) GetContentDetailsBatch(ctx context.Context, contentIDs []uuid.
 	}
 
 	return result, nil
+}
+
+
+// computeDerivationDepth computes the derivation depth by recursively traversing the parent chain
+// Maximum depth is capped at 100 to prevent infinite loops
+func (s *service) computeDerivationDepth(ctx context.Context, contentID uuid.UUID) int {
+	return s.computeDerivationDepthWithLimit(ctx, contentID, 0)
+}
+
+func (s *service) computeDerivationDepthWithLimit(ctx context.Context, contentID uuid.UUID, currentDepth int) int {
+	// Hard limit to prevent infinite loops (should never reach this with max depth of 5)
+	const maxSafetyDepth = 100
+	if currentDepth >= maxSafetyDepth {
+		return maxSafetyDepth
+	}
+
+	derived, err := s.repository.GetDerivedRelationshipByContentID(ctx, contentID)
+	if err != nil {
+		// This is an original content (not derived), so depth is 0
+		return 0
+	}
+	// Recursively compute parent's depth and add 1
+	return 1 + s.computeDerivationDepthWithLimit(ctx, derived.ParentID, currentDepth+1)
 }

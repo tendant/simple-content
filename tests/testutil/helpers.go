@@ -38,6 +38,7 @@ func CreateContent(t *testing.T, serverURL string) ContentResponse {
 	reqBody := map[string]string{
 		"owner_id":  "00000000-0000-0000-0000-000000000001",
 		"tenant_id": "00000000-0000-0000-0000-000000000001",
+		"status":    "uploaded", // Set status to uploaded so derived content can be created
 	}
 	reqJSON, err := json.Marshal(reqBody)
 	require.NoError(t, err)
@@ -62,11 +63,12 @@ func CreateDerivedContent(t *testing.T, serverURL, parentID string) ContentRespo
 	reqBody := map[string]string{
 		"owner_id":  "00000000-0000-0000-0000-000000000001",
 		"tenant_id": "00000000-0000-0000-0000-000000000001",
+		"status":    "processed", // Set status to processed so nested derived content can be created
 	}
 	reqJSON, err := json.Marshal(reqBody)
 	require.NoError(t, err)
 
-	resp, err := http.Post(serverURL+"/content/"+parentID+"/derive", "application/json", bytes.NewBuffer(reqJSON))
+	resp, err := http.Post(serverURL+"/content/"+parentID+"/derived", "application/json", bytes.NewBuffer(reqJSON))
 	require.NoError(t, err)
 	require.Equal(t, http.StatusCreated, resp.StatusCode)
 
@@ -157,7 +159,7 @@ func AttemptCreateDerivedContent(t *testing.T, serverURL, parentID string) *http
 	reqJSON, err := json.Marshal(reqBody)
 	require.NoError(t, err)
 
-	resp, err := http.Post(serverURL+"/content/"+parentID+"/derive", "application/json", bytes.NewBuffer(reqJSON))
+	resp, err := http.Post(serverURL+"/content/"+parentID+"/derived", "application/json", bytes.NewBuffer(reqJSON))
 	require.NoError(t, err)
 
 	return resp

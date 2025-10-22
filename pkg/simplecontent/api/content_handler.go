@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"log/slog"
 	"net/http"
@@ -61,8 +62,14 @@ func (h *ContentHandler) Routes() chi.Router {
 	r.Post("/{id}/objects", h.CreateObject)
 	r.Get("/{id}/objects", h.ListObjects)
 
+	// Routes for metadata
+	r.Put("/{id}/metadata", h.SetContentMetadata)
+	r.Get("/{id}/metadata", h.GetContentMetadataHandler)
+
 	// Routes for derived content
 	r.Post("/{id}/derived", h.CreateDerivedContent)
+	r.Get("/{id}/derived", h.GetDerivedContent)
+	r.Get("/{id}/derived-tree", h.GetDerivedContentTree)
 
 	return r
 }
@@ -76,20 +83,24 @@ type CreateContentRequest struct {
 	OwnerType    string `json:"owner_type"`
 	MimeType     string `json:"mime_type"`
 	FileSize     int64  `json:"file_size"`
+	Status       string `json:"status,omitempty"` // Optional initial status (defaults to "created")
 }
 
 // ContentResponse is the response body for a content
 type ContentResponse struct {
-	ID           string    `json:"id"`
-	CreatedAt    time.Time `json:"created_at"`
-	UpdatedAt    time.Time `json:"updated_at"`
-	OwnerID      string    `json:"owner_id"`
-	TenantID     string    `json:"tenant_id"`
-	Status       string    `json:"status"`
-	MimeType     string    `json:"mime_type"`
-	FileSize     int64     `json:"file_size"`
-	FileName     string    `json:"file_name"`
-	DocumentType string    `json:"document_type"`
+	ID              string    `json:"id"`
+	CreatedAt       time.Time `json:"created_at"`
+	UpdatedAt       time.Time `json:"updated_at"`
+	OwnerID         string    `json:"owner_id"`
+	TenantID        string    `json:"tenant_id"`
+	Status          string    `json:"status"`
+	MimeType        string    `json:"mime_type"`
+	FileSize        int64     `json:"file_size"`
+	FileName        string    `json:"file_name"`
+	DocumentType    string    `json:"document_type"`
+	DerivationType  string    `json:"derivation_type"`
+	DerivationLevel int       `json:"derivation_level"`
+	ParentID        string    `json:"parent_id,omitempty"`
 }
 
 const maxContentsPerRequest = 50
@@ -132,6 +143,23 @@ func (h *ContentHandler) CreateContent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Update status if provided in request
+	if req.Status != "" {
+		statusEnum := simplecontent.ContentStatus(req.Status)
+		if !statusEnum.IsValid() {
+			slog.Error("Invalid status", "status", req.Status)
+			http.Error(w, "Invalid status", http.StatusBadRequest)
+			return
+		}
+		if err := h.service.UpdateContentStatus(r.Context(), content.ID, statusEnum); err != nil {
+			slog.Error("Failed to update content status", "error", err)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		// Update the content object with the new status
+		content.Status = req.Status
+	}
+
 	// Set content metadata
 	if err := h.service.SetContentMetadata(r.Context(), simplecontent.SetContentMetadataRequest{
 		ContentID:   content.ID,
@@ -145,16 +173,27 @@ func (h *ContentHandler) CreateContent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Set derivation type to "original" for newly created content
+	derivationType := content.DerivationType
+	if derivationType == "" {
+		derivationType = "original"
+	}
+
+	// Get derivation level (0 for original content)
+	derivationLevel := 0
+
 	resp := ContentResponse{
-		ID:           content.ID.String(),
-		CreatedAt:    content.CreatedAt,
-		UpdatedAt:    content.UpdatedAt,
-		OwnerID:      content.OwnerID.String(),
-		TenantID:     content.TenantID.String(),
-		Status:       content.Status,
-		DocumentType: content.DocumentType,
-		FileName:     req.FileName,
-		MimeType:     req.MimeType,
+		ID:              content.ID.String(),
+		CreatedAt:       content.CreatedAt,
+		UpdatedAt:       content.UpdatedAt,
+		OwnerID:         content.OwnerID.String(),
+		TenantID:        content.TenantID.String(),
+		Status:          content.Status,
+		DocumentType:    content.DocumentType,
+		FileName:        req.FileName,
+		MimeType:        req.MimeType,
+		DerivationType:  derivationType,
+		DerivationLevel: derivationLevel,
 	}
 
 	slog.Info("Content created", "content_id", content.ID.String())
@@ -453,6 +492,7 @@ type CreateDerivedContentRequest struct {
 	ProcessingMetadata map[string]interface{} `json:"processing_metadata"`
 	OwnerID            string                 `json:"owner_id"`
 	TenantID           string                 `json:"tenant_id"`
+	Status             string                 `json:"status,omitempty"` // Optional initial status (defaults to "created")
 }
 
 // CreateDerivedContentResponse is the response body for derived content creation
@@ -506,6 +546,17 @@ func (h *ContentHandler) CreateDerivedContent(w http.ResponseWriter, r *http.Req
 		metadata[k] = v
 	}
 
+	// Parse initial status if provided
+	var initialStatus simplecontent.ContentStatus
+	if req.Status != "" {
+		initialStatus = simplecontent.ContentStatus(req.Status)
+		if !initialStatus.IsValid() {
+			slog.Error("Invalid status", "status", req.Status)
+			http.Error(w, "Invalid status", http.StatusBadRequest)
+			return
+		}
+	}
+
 	// Create derived content using the new API
 	derivedContent, err := h.service.CreateDerivedContent(r.Context(), simplecontent.CreateDerivedContentRequest{
 		ParentID:       parentID,
@@ -513,6 +564,7 @@ func (h *ContentHandler) CreateDerivedContent(w http.ResponseWriter, r *http.Req
 		TenantID:       tenantID,
 		DerivationType: req.DerivationType,
 		Metadata:       metadata,
+		InitialStatus:  initialStatus,
 	})
 	if err != nil {
 		slog.Error("Failed to create derived content", "error", err)
@@ -520,13 +572,321 @@ func (h *ContentHandler) CreateDerivedContent(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	resp := CreateDerivedContentResponse{
-		ParentContentID:  parentIDStr,
-		DerivedContentID: derivedContent.ID.String(),
-		DerivationType:   req.DerivationType,
+	// Compute derivation level by getting parent's level + 1
+	parentDerivationLevel := 0
+	if parentDerived, err := h.service.GetDerivedRelationship(r.Context(), parentID); err == nil {
+		// Parent is also derived, compute its level recursively
+		parentDerivationLevel = h.computeDerivationLevel(r.Context(), parentDerived.ParentID) + 1
+	}
+	derivationLevel := parentDerivationLevel + 1
+
+	// Create ContentResponse instead of CreateDerivedContentResponse for consistency
+	contentResp := ContentResponse{
+		ID:              derivedContent.ID.String(),
+		ParentID:        parentIDStr,
+		CreatedAt:       derivedContent.CreatedAt,
+		UpdatedAt:       derivedContent.UpdatedAt,
+		OwnerID:         derivedContent.OwnerID.String(),
+		TenantID:        derivedContent.TenantID.String(),
+		Status:          derivedContent.Status,
+		DerivationType:  "derived",
+		DerivationLevel: derivationLevel,
+		DocumentType:    derivedContent.DocumentType,
 	}
 
 	slog.Info("Derived content created", "parent_id", parentIDStr, "derived_id", derivedContent.ID.String())
 	render.Status(r, http.StatusCreated)
+	render.JSON(w, r, contentResp)
+}
+
+// SetContentMetadata sets metadata for a content
+func (h *ContentHandler) SetContentMetadata(w http.ResponseWriter, r *http.Request) {
+	idStr := chi.URLParam(r, "id")
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		slog.Error("Invalid content ID", "content_id", idStr, "error", err)
+		http.Error(w, "Invalid content ID", http.StatusBadRequest)
+		return
+	}
+
+	var metadataReq map[string]interface{}
+	if err := json.NewDecoder(r.Body).Decode(&metadataReq); err != nil {
+		slog.Error("Invalid request body", "error", err)
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// Build SetContentMetadataRequest
+	req := simplecontent.SetContentMetadataRequest{
+		ContentID: id,
+	}
+
+	// Extract known fields
+	if contentType, ok := metadataReq["content_type"].(string); ok {
+		req.ContentType = contentType
+	}
+	if title, ok := metadataReq["title"].(string); ok {
+		req.Title = title
+	}
+	if description, ok := metadataReq["description"].(string); ok {
+		req.Description = description
+	}
+	if fileName, ok := metadataReq["file_name"].(string); ok {
+		req.FileName = fileName
+	}
+	if fileSize, ok := metadataReq["file_size"].(float64); ok {
+		req.FileSize = int64(fileSize)
+	}
+	if createdBy, ok := metadataReq["created_by"].(string); ok {
+		req.CreatedBy = createdBy
+	}
+	if tags, ok := metadataReq["tags"].([]interface{}); ok {
+		tagStrings := make([]string, len(tags))
+		for i, tag := range tags {
+			if tagStr, ok := tag.(string); ok {
+				tagStrings[i] = tagStr
+			}
+		}
+		req.Tags = tagStrings
+	}
+
+	// Store custom metadata in a separate map
+	customMetadata := make(map[string]interface{})
+	knownFields := map[string]bool{
+		"content_type": true, "title": true, "description": true,
+		"tags": true, "file_name": true, "file_size": true, "created_by": true,
+		"metadata": true, // Handle metadata separately
+	}
+	for key, value := range metadataReq {
+		if !knownFields[key] {
+			customMetadata[key] = value
+		}
+	}
+
+	// If there's a nested "metadata" field, merge its contents into customMetadata
+	if nestedMetadata, ok := metadataReq["metadata"].(map[string]interface{}); ok {
+		for k, v := range nestedMetadata {
+			customMetadata[k] = v
+		}
+	}
+
+	req.CustomMetadata = customMetadata
+
+	// Set content metadata
+	if err := h.service.SetContentMetadata(r.Context(), req); err != nil {
+		slog.Error("Failed to set content metadata", "error", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	slog.Info("Content metadata set", "content_id", idStr)
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// GetContentMetadataHandler retrieves metadata for a content
+func (h *ContentHandler) GetContentMetadataHandler(w http.ResponseWriter, r *http.Request) {
+	idStr := chi.URLParam(r, "id")
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		slog.Error("Invalid content ID", "content_id", idStr, "error", err)
+		http.Error(w, "Invalid content ID", http.StatusBadRequest)
+		return
+	}
+
+	metadata, err := h.service.GetContentMetadata(r.Context(), id)
+	if err != nil {
+		slog.Error("Failed to get content metadata", "content_id", idStr, "error", err)
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+
+	// Convert to response format matching ContentMetadataResponse
+	resp := map[string]interface{}{
+		"content_id":   metadata.ContentID.String(),
+		"content_type": metadata.MimeType,
+	}
+	if metadata.FileName != "" {
+		resp["file_name"] = metadata.FileName
+	}
+	if metadata.FileSize > 0 {
+		resp["file_size"] = metadata.FileSize
+	}
+	if len(metadata.Tags) > 0 {
+		resp["tags"] = metadata.Tags
+	}
+
+	// Extract known fields from metadata map
+	if metadata.Metadata != nil {
+		if title, ok := metadata.Metadata["title"].(string); ok {
+			resp["title"] = title
+		}
+		if description, ok := metadata.Metadata["description"].(string); ok {
+			resp["description"] = description
+		}
+		if createdBy, ok := metadata.Metadata["created_by"].(string); ok {
+			resp["created_by"] = createdBy
+		}
+		// Include the remaining custom metadata
+		resp["metadata"] = metadata.Metadata
+	}
+
+	slog.Info("Content metadata retrieved", "content_id", idStr)
 	render.JSON(w, r, resp)
+}
+
+// GetDerivedContent retrieves direct derived content for a parent
+func (h *ContentHandler) GetDerivedContent(w http.ResponseWriter, r *http.Request) {
+	parentIDStr := chi.URLParam(r, "id")
+	parentID, err := uuid.Parse(parentIDStr)
+	if err != nil {
+		slog.Error("Invalid parent content ID", "parent_id", parentIDStr, "error", err)
+		http.Error(w, "Invalid parent content ID", http.StatusBadRequest)
+		return
+	}
+
+	// Get direct derived content (only immediate children)
+	derivedList, err := h.service.ListDerivedContent(r.Context(), simplecontent.WithParentID(parentID))
+	if err != nil {
+		slog.Error("Failed to get derived content", "parent_id", parentIDStr, "error", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Convert to ContentResponse
+	var resp []ContentResponse
+	for _, derived := range derivedList {
+		// Get the actual content to get all fields
+		content, err := h.service.GetContent(r.Context(), derived.ContentID)
+		if err != nil {
+			slog.Warn("Failed to get content for derived", "content_id", derived.ContentID.String())
+			continue
+		}
+
+		// Compute derivation level
+		derivationLevel := 1 + h.computeDerivationLevel(r.Context(), derived.ParentID)
+
+		contentResp := ContentResponse{
+			ID:              content.ID.String(),
+			ParentID:        derived.ParentID.String(),
+			CreatedAt:       content.CreatedAt,
+			UpdatedAt:       content.UpdatedAt,
+			OwnerID:         content.OwnerID.String(),
+			TenantID:        content.TenantID.String(),
+			Status:          content.Status,
+			DerivationType:  "derived",
+			DerivationLevel: derivationLevel,
+			DocumentType:    content.DocumentType,
+		}
+
+		resp = append(resp, contentResp)
+	}
+
+	slog.Info("Derived content retrieved", "parent_id", parentIDStr, "count", len(resp))
+	render.JSON(w, r, resp)
+}
+
+// GetDerivedContentTree retrieves the entire derived content tree (recursive)
+func (h *ContentHandler) GetDerivedContentTree(w http.ResponseWriter, r *http.Request) {
+	rootIDStr := chi.URLParam(r, "id")
+	rootID, err := uuid.Parse(rootIDStr)
+	if err != nil {
+		slog.Error("Invalid root content ID", "root_id", rootIDStr, "error", err)
+		http.Error(w, "Invalid root content ID", http.StatusBadRequest)
+		return
+	}
+
+	// Get the root content
+	rootContent, err := h.service.GetContent(r.Context(), rootID)
+	if err != nil {
+		slog.Error("Failed to get root content", "root_id", rootIDStr, "error", err)
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+
+	// Build the tree recursively
+	var resp []ContentResponse
+
+	// Add root content
+	rootDerivationLevel := h.computeDerivationLevel(r.Context(), rootID)
+	rootResp := ContentResponse{
+		ID:              rootContent.ID.String(),
+		CreatedAt:       rootContent.CreatedAt,
+		UpdatedAt:       rootContent.UpdatedAt,
+		OwnerID:         rootContent.OwnerID.String(),
+		TenantID:        rootContent.TenantID.String(),
+		Status:          rootContent.Status,
+		DerivationType:  "original",
+		DerivationLevel: rootDerivationLevel,
+		DocumentType:    rootContent.DocumentType,
+	}
+	if rootDerivationLevel > 0 {
+		rootResp.DerivationType = "derived"
+		if derived, err := h.service.GetDerivedRelationship(r.Context(), rootID); err == nil {
+			rootResp.ParentID = derived.ParentID.String()
+		}
+	}
+	resp = append(resp, rootResp)
+
+	// Recursively add all descendants
+	h.addDescendants(r.Context(), rootID, &resp)
+
+	slog.Info("Derived content tree retrieved", "root_id", rootIDStr, "count", len(resp))
+	render.JSON(w, r, resp)
+}
+
+// addDescendants recursively adds all descendant content to the response
+func (h *ContentHandler) addDescendants(ctx context.Context, parentID uuid.UUID, resp *[]ContentResponse) {
+	derivedList, err := h.service.ListDerivedContent(ctx, simplecontent.WithParentID(parentID))
+	if err != nil {
+		return
+	}
+
+	for _, derived := range derivedList {
+		content, err := h.service.GetContent(ctx, derived.ContentID)
+		if err != nil {
+			continue
+		}
+
+		derivationLevel := 1 + h.computeDerivationLevel(ctx, derived.ParentID)
+
+		contentResp := ContentResponse{
+			ID:              content.ID.String(),
+			ParentID:        derived.ParentID.String(),
+			CreatedAt:       content.CreatedAt,
+			UpdatedAt:       content.UpdatedAt,
+			OwnerID:         content.OwnerID.String(),
+			TenantID:        content.TenantID.String(),
+			Status:          content.Status,
+			DerivationType:  "derived",
+			DerivationLevel: derivationLevel,
+			DocumentType:    content.DocumentType,
+		}
+
+		*resp = append(*resp, contentResp)
+
+		// Recursively add descendants of this content
+		h.addDescendants(ctx, content.ID, resp)
+	}
+}
+
+// computeDerivationLevel computes the derivation level by recursively traversing parent chain
+// Maximum depth is capped at 100 to prevent infinite loops
+func (h *ContentHandler) computeDerivationLevel(ctx context.Context, contentID uuid.UUID) int {
+	return h.computeDerivationLevelWithDepth(ctx, contentID, 0)
+}
+
+func (h *ContentHandler) computeDerivationLevelWithDepth(ctx context.Context, contentID uuid.UUID, currentDepth int) int {
+	// Hard limit to prevent infinite loops (should never reach this with max depth of 5)
+	const maxSafetyDepth = 100
+	if currentDepth >= maxSafetyDepth {
+		return maxSafetyDepth
+	}
+
+	derived, err := h.service.GetDerivedRelationship(ctx, contentID)
+	if err != nil {
+		// This is an original content (not derived), so level is 0
+		return 0
+	}
+	// Recursively compute parent's level and add 1
+	return 1 + h.computeDerivationLevelWithDepth(ctx, derived.ParentID, currentDepth+1)
 }
