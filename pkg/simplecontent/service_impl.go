@@ -595,12 +595,17 @@ func (s *service) UploadContent(ctx context.Context, req UploadContentRequest) (
 		metadata := &ContentMetadata{
 			ContentID: content.ID,
 			FileName:  req.FileName,
-			FileSize:  storageMetadata.Size,
-			MimeType:  storageMetadata.ContentType,
+			FileSize:  req.FileSize,
 			Tags:      req.Tags,
 			Metadata:  req.CustomMetadata,
 			CreatedAt: now,
 			UpdatedAt: now,
+		}
+		if storageMetadata != nil {
+			metadata.FileSize = storageMetadata.Size
+			metadata.MimeType = storageMetadata.ContentType
+			req.CustomMetadata["mime_type"] = storageMetadata.ContentType
+			req.CustomMetadata["file_size"] = storageMetadata.Size
 		}
 		if metadata.Metadata == nil {
 			metadata.Metadata = make(map[string]interface{})
