@@ -546,13 +546,57 @@ func (s *service) UploadContent(ctx context.Context, req UploadContentRequest) (
 		return nil, &ObjectError{ObjectID: objectID, Op: "upload_update_status", Err: err}
 	}
 
+	// Step 5.5: Get object metadata from storage and save it
+	storageMetadata, err := backend.GetObjectMeta(ctx, objectKey)
+	if err != nil {
+		// Log warning but don't fail - object was uploaded successfully
+		slog.Warn("Failed to get object metadata from storage", "object_id", objectID, "error", err)
+	} else {
+		// Create object metadata from storage metadata
+		metadata := make(map[string]interface{})
+		if storageMetadata.ContentType != "" {
+			metadata["mime_type"] = storageMetadata.ContentType
+		}
+		if storageMetadata.Size > 0 {
+			metadata["file_size"] = storageMetadata.Size
+		}
+		if storageMetadata.ETag != "" {
+			metadata["etag"] = storageMetadata.ETag
+		}
+		if !storageMetadata.UpdatedAt.IsZero() {
+			metadata["last_modified"] = storageMetadata.UpdatedAt
+		}
+		// Add filename from request
+		if req.FileName != "" {
+			metadata["file_name"] = req.FileName
+		}
+		// Add any custom metadata from storage
+		for k, v := range storageMetadata.Metadata {
+			metadata[k] = v
+		}
+
+		objectMetadata := &ObjectMetadata{
+			ObjectID:  objectID,
+			Metadata:  metadata,
+			CreatedAt: now,
+			UpdatedAt: now,
+			ETag:      storageMetadata.ETag,
+			SizeBytes: storageMetadata.Size,
+			MimeType:  storageMetadata.ContentType,
+		}
+		if err := s.repository.SetObjectMetadata(ctx, objectMetadata); err != nil {
+			// Log warning but don't fail - object was uploaded successfully
+			slog.Warn("Failed to set object metadata", "object_id", objectID, "error", err)
+		}
+	}
+
 	// Step 6: Create content metadata if provided
 	if req.FileName != "" || req.FileSize > 0 || len(req.Tags) > 0 || len(req.CustomMetadata) > 0 {
 		metadata := &ContentMetadata{
 			ContentID: content.ID,
 			FileName:  req.FileName,
-			FileSize:  req.FileSize,
-			MimeType:  req.DocumentType,
+			FileSize:  storageMetadata.Size,
+			MimeType:  storageMetadata.ContentType,
 			Tags:      req.Tags,
 			Metadata:  req.CustomMetadata,
 			CreatedAt: now,
@@ -1944,7 +1988,6 @@ func (s *service) GetContentDetailsBatch(ctx context.Context, contentIDs []uuid.
 
 	return result, nil
 }
-
 
 // computeDerivationDepth computes the derivation depth by recursively traversing the parent chain
 // Maximum depth is capped at 100 to prevent infinite loops
