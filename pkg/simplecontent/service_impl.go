@@ -596,6 +596,7 @@ func (s *service) UploadContent(ctx context.Context, req UploadContentRequest) (
 			ContentID: content.ID,
 			FileName:  req.FileName,
 			FileSize:  req.FileSize,
+			MimeType:  req.DocumentType,
 			Tags:      req.Tags,
 			Metadata:  req.CustomMetadata,
 			CreatedAt: now,
