@@ -729,7 +729,21 @@ func (s *service) UploadDerivedContent(ctx context.Context, req UploadDerivedCon
 		}
 	}
 
-	// Step 7: Upload the data
+	// Step 7: Create object metadata
+	objectMetadata := &ObjectMetadata{
+		ObjectID:  objectID,
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
+	if err := s.repository.SetObjectMetadata(ctx, objectMetadata); err != nil {
+		return nil, &ObjectError{
+			ObjectID: objectID,
+			Op:       "upload_object_metadata_create",
+			Err:      err,
+		}
+	}
+
+	// Step 8: Upload the data
 	backend, err := s.GetBackend(storageBackend)
 	if err != nil {
 		return nil, &ObjectError{ObjectID: objectID, Op: "upload_derived_get_backend", Err: err}
@@ -740,14 +754,20 @@ func (s *service) UploadDerivedContent(ctx context.Context, req UploadDerivedCon
 		return nil, &ObjectError{ObjectID: objectID, Op: "upload_derived_data", Err: err}
 	}
 
-	// Step 8: Update object status
+	// Step 9: Update object status
 	object.Status = string(ObjectStatusUploaded)
 	if err := s.repository.UpdateObject(ctx, object); err != nil {
 		return nil, &ObjectError{ObjectID: objectID, Op: "upload_derived_update_status", Err: err}
 	}
 
-	// Step 9: Create content metadata if provided
-	if req.FileName != "" || req.FileSize > 0 || len(req.Tags) > 0 {
+	// Step 10: Update object metadata
+	object_metadata, err := s.updateObjectFromStorage(ctx, objectID)
+	if err != nil {
+		// Log warning but don't fail - object was uploaded successfully
+	}
+
+	// Step 11: Create content metadata if provided
+	if req.FileName != "" || len(req.Tags) > 0 {
 		metadata := &ContentMetadata{
 			ContentID: content.ID,
 			FileName:  req.FileName,
@@ -756,6 +776,10 @@ func (s *service) UploadDerivedContent(ctx context.Context, req UploadDerivedCon
 			Metadata:  req.Metadata,
 			CreatedAt: now,
 			UpdatedAt: now,
+		}
+		if object_metadata != nil {
+			metadata.FileSize = object_metadata.SizeBytes
+			metadata.MimeType = object_metadata.MimeType
 		}
 		if metadata.Metadata == nil {
 			metadata.Metadata = make(map[string]interface{})
@@ -766,7 +790,7 @@ func (s *service) UploadDerivedContent(ctx context.Context, req UploadDerivedCon
 		}
 	}
 
-	// Step 10: Update content status to processed
+	// Step 12: Update content status to processed
 	// Derived content is set to "processed" (not "uploaded") because derived content
 	// IS the output of processing - once uploaded, it's immediately ready to serve.
 	// Original content uses "uploaded" status, derived content uses "processed" status.
@@ -2007,7 +2031,6 @@ func (s *service) GetContentDetailsBatch(ctx context.Context, contentIDs []uuid.
 
 	return result, nil
 }
-
 
 // computeDerivationDepth computes the derivation depth by recursively traversing the parent chain
 // Maximum depth is capped at 100 to prevent infinite loops
