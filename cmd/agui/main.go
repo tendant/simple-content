@@ -333,12 +333,27 @@ func (h *Handler) UploadContentDone(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Update content metadata
-	if err := h.service.SetContentMetadata(ctx, simplecontent.SetContentMetadataRequest{
+	// Get content metadata
+	contentMeta, err := h.service.GetContentMetadata(ctx, contentID)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to get content metadata: %v", err))
+		return
+	}
+	newMeta := simplecontent.SetContentMetadataRequest{
 		ContentID:   contentID,
 		ContentType: obj_meta.MimeType,
 		FileSize:    obj_meta.SizeBytes,
-	}); err != nil {
+	}
+	if contentMeta != nil {
+		newMeta.FileName = contentMeta.FileName
+		newMeta.Tags = contentMeta.Tags
+		if contentMeta.Metadata != nil {
+			newMeta.CustomMetadata = contentMeta.Metadata
+		}
+	}
+
+	// Update content metadata
+	if err := h.service.SetContentMetadata(ctx, newMeta); err != nil {
 		log.Printf("Failed to update content metadata for %s: %v", contentID, err)
 	}
 
