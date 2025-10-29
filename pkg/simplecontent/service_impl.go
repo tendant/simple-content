@@ -2032,6 +2032,7 @@ func (s *service) GetContentDetailsBatch(ctx context.Context, contentIDs []uuid.
 	return result, nil
 }
 
+
 // computeDerivationDepth computes the derivation depth by recursively traversing the parent chain
 // Maximum depth is capped at 100 to prevent infinite loops
 func (s *service) computeDerivationDepth(ctx context.Context, contentID uuid.UUID) int {
