@@ -168,7 +168,11 @@ func (s *service) CreateDerivedContent(ctx context.Context, req CreateDerivedCon
 	// Verify parent content exists and validate status
 	parentContent, err := s.repository.GetContent(ctx, req.ParentID)
 	if err != nil {
-		return nil, fmt.Errorf("parent content not found: %w", err)
+		return nil, &ContentError{
+			ContentID: req.ParentID,
+			Op:        "create_derived",
+			Err:       ErrContentNotFound,
+		}
 	}
 
 	// Validate parent content status for creating derived content
@@ -187,7 +191,7 @@ func (s *service) CreateDerivedContent(ctx context.Context, req CreateDerivedCon
 		return nil, &ContentError{
 			ContentID: req.ParentID,
 			Op:        "create_derived",
-			Err:       fmt.Errorf("maximum derivation depth (%d) exceeded", maxDerivationDepth),
+			Err:       ErrMaxDerivationDepth,
 		}
 	}
 
@@ -242,7 +246,11 @@ func (s *service) CreateDerivedContent(ctx context.Context, req CreateDerivedCon
 			FileName:  req.FileName,
 		}
 		if err := s.repository.SetContentMetadata(ctx, metadata); err != nil {
-			return nil, fmt.Errorf("failed to create derived content metadata: %w", err)
+			return nil, &ContentError{
+				ContentID: content.ID,
+				Op:        "create_derived",
+				Err:       err,
+			}
 		}
 	}
 
@@ -262,7 +270,11 @@ func (s *service) CreateDerivedContent(ctx context.Context, req CreateDerivedCon
 		ProcessingMetadata: nil,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to create derived content relationship: %w", err)
+		return nil, &ContentError{
+			ContentID: content.ID,
+			Op:        "create_derived",
+			Err:       err,
+		}
 	}
 
 	// Fire event
@@ -638,7 +650,11 @@ func (s *service) UploadDerivedContent(ctx context.Context, req UploadDerivedCon
 	// Step 1: Verify parent content exists and validate status
 	parentContent, err := s.repository.GetContent(ctx, req.ParentID)
 	if err != nil {
-		return nil, fmt.Errorf("parent content not found: %w", err)
+		return nil, &ContentError{
+			ContentID: req.ParentID,
+			Op:        "upload_derived",
+			Err:       ErrContentNotFound,
+		}
 	}
 
 	// Validate parent content status for creating derived content
@@ -687,7 +703,11 @@ func (s *service) UploadDerivedContent(ctx context.Context, req UploadDerivedCon
 		ProcessingMetadata: nil,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to create derived content relationship: %w", err)
+		return nil, &ContentError{
+			ContentID: content.ID,
+			Op:        "upload_derived_create",
+			Err:       err,
+		}
 	}
 
 	// Step 5: Determine storage backend
@@ -700,7 +720,11 @@ func (s *service) UploadDerivedContent(ctx context.Context, req UploadDerivedCon
 		}
 	}
 	if storageBackend == "" {
-		return nil, fmt.Errorf("no storage backend available")
+		return nil, &ContentError{
+			ContentID: content.ID,
+			Op:        "upload_derived_create",
+			Err:       ErrNoStorageBackend,
+		}
 	}
 
 	// Step 6: Create the object
@@ -835,7 +859,11 @@ func (s *service) UploadObjectForContent(ctx context.Context, req UploadObjectFo
 		}
 	}
 	if storageBackend == "" {
-		return nil, fmt.Errorf("no storage backend available")
+		return nil, &ContentError{
+			ContentID: req.ContentID,
+			Op:        "upload_object_get_content",
+			Err:       ErrNoStorageBackend,
+		}
 	}
 
 	// Get content metadata for filename
@@ -1003,7 +1031,7 @@ func (s *service) DownloadContent(ctx context.Context, contentID uuid.UUID) (io.
 		return nil, &ContentError{
 			ContentID: contentID,
 			Op:        "download",
-			Err:       fmt.Errorf("no objects found for content"),
+			Err:       ErrNoObjectsFound,
 		}
 	}
 
@@ -1020,7 +1048,7 @@ func (s *service) DownloadContent(ctx context.Context, contentID uuid.UUID) (io.
 		return nil, &ContentError{
 			ContentID: contentID,
 			Op:        "download",
-			Err:       fmt.Errorf("no uploaded objects found for content"),
+			Err:       ErrNoUploadedObjects,
 		}
 	}
 
@@ -1039,7 +1067,11 @@ func (s *service) SetContentMetadata(ctx context.Context, req SetContentMetadata
 	// Verify content exists
 	_, err := s.repository.GetContent(ctx, req.ContentID)
 	if err != nil {
-		return fmt.Errorf("content not found: %w", err)
+		return &ContentError{
+			ContentID: req.ContentID,
+			Op:        "set_metadata",
+			Err:       ErrContentNotFound,
+		}
 	}
 
 	now := time.Now().UTC()
@@ -1858,7 +1890,7 @@ func (s *service) GetContentDetailsBatch(ctx context.Context, contentIDs []uuid.
 	// Batch query 1: Get all contents
 	contents, err := s.repository.GetContentsByIDs(ctx, contentIDs)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get contents: %w", err)
+		return nil, err
 	}
 
 	// Build content map for quick lookup
@@ -1898,7 +1930,7 @@ func (s *service) GetContentDetailsBatch(ctx context.Context, contentIDs []uuid.
 	// Batch query 3: Get all objects
 	objectsMap, err := s.repository.GetObjectsByContentIDs(ctx, contentIDs)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get objects: %w", err)
+		return nil, err
 	}
 
 	// Collect all object IDs for batch metadata query
@@ -2031,7 +2063,6 @@ func (s *service) GetContentDetailsBatch(ctx context.Context, contentIDs []uuid.
 
 	return result, nil
 }
-
 
 // computeDerivationDepth computes the derivation depth by recursively traversing the parent chain
 // Maximum depth is capped at 100 to prevent infinite loops

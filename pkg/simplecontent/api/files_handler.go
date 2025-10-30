@@ -129,7 +129,7 @@ func (h *FilesHandler) CreateFile(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		slog.Error("Failed to create content", "error", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, simplecontent.ToErrorMessage(err), http.StatusInternalServerError)
 		return
 	}
 
@@ -142,7 +142,7 @@ func (h *FilesHandler) CreateFile(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := h.service.SetContentMetadata(r.Context(), metadataParams); err != nil {
 		slog.Error("Failed to set content metadata", "error", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, simplecontent.ToErrorMessage(err), http.StatusInternalServerError)
 		return
 	}
 
@@ -158,7 +158,7 @@ func (h *FilesHandler) CreateFile(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		slog.Error("Failed to create object", "error", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, simplecontent.ToErrorMessage(err), http.StatusInternalServerError)
 		return
 	}
 
@@ -169,7 +169,7 @@ func (h *FilesHandler) CreateFile(w http.ResponseWriter, r *http.Request) {
 		"file_name":  req.FileName,
 	}); err != nil {
 		slog.Error("Failed to set object metadata", "error", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, simplecontent.ToErrorMessage(err), http.StatusInternalServerError)
 		return
 	}
 
@@ -177,7 +177,7 @@ func (h *FilesHandler) CreateFile(w http.ResponseWriter, r *http.Request) {
 	uploadURL, err := h.storageService.GetUploadURL(r.Context(), object.ID)
 	if err != nil {
 		slog.Error("Failed to generate upload URL", "error", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, simplecontent.ToErrorMessage(err), http.StatusInternalServerError)
 		return
 	}
 
@@ -206,7 +206,7 @@ func (h *FilesHandler) CompleteUpload(w http.ResponseWriter, r *http.Request) {
 	// Complete the upload using the unified API
 	if err := h.service.UpdateContentStatus(r.Context(), contentID, simplecontent.ContentStatusUploaded); err != nil {
 		slog.Error("Failed to complete upload", "content_id", contentID.String(), "error", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, simplecontent.ToErrorMessage(err), http.StatusInternalServerError)
 		return
 	}
 

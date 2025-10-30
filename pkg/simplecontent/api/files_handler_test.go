@@ -72,6 +72,7 @@ func TestFilesHandler_CreateFile_Success(t *testing.T) {
 	// Memory backend doesn't support upload URLs, so we expect an error
 	// But we can verify the request was processed
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
+	t.Logf("CreateFile_Success body: %s", w.Body.String())
 }
 
 func TestFilesHandler_CreateFile_InvalidOwnerID(t *testing.T) {
@@ -97,6 +98,7 @@ func TestFilesHandler_CreateFile_InvalidOwnerID(t *testing.T) {
 	router.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
+	t.Logf("CreateFile_InvalidOwnerID body: %s", w.Body.String())
 	assert.Contains(t, w.Body.String(), "Invalid owner ID")
 }
 
@@ -123,6 +125,7 @@ func TestFilesHandler_CreateFile_MissingOwnerType(t *testing.T) {
 	router.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
+	t.Logf("CreateFile_MissingOwnerType body: %s", w.Body.String())
 	assert.Contains(t, w.Body.String(), "Owner type is required")
 }
 
@@ -149,6 +152,7 @@ func TestFilesHandler_CreateFile_MissingDocumentType(t *testing.T) {
 	router.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
+	t.Logf("CreateFile_MissingDocumentType body: %s", w.Body.String())
 	assert.Contains(t, w.Body.String(), "Document type is required")
 }
 
@@ -197,6 +201,7 @@ func TestFilesHandler_CompleteUpload_InvalidContentID(t *testing.T) {
 	router.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
+	t.Logf("CompleteUpload_InvalidContentID body: %s", w.Body.String())
 	assert.Contains(t, w.Body.String(), "Invalid content ID")
 }
 
@@ -257,6 +262,7 @@ func TestFilesHandler_GetFileInfo_NotFound(t *testing.T) {
 
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
+	t.Logf("GetFileInfo_NotFound body: %s", w.Body.String())
 
 	assert.Equal(t, http.StatusNotFound, w.Code)
 }
@@ -328,6 +334,7 @@ func TestFilesHandler_GetFilesByContentIDs_MissingIDParameter(t *testing.T) {
 	router.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
+	t.Logf("GetFilesByContentIDs_MissingIDParameter body: %s", w.Body.String())
 	assert.Contains(t, w.Body.String(), "Missing required 'id' parameter")
 }
 
@@ -351,5 +358,26 @@ func TestFilesHandler_GetFilesByContentIDs_TooManyIDs(t *testing.T) {
 	router.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
+	t.Logf("GetFilesByContentIDs_TooManyIDs body: %s", w.Body.String())
 	assert.Contains(t, w.Body.String(), "Too many IDs requested")
+}
+
+// New test to trigger JSON decode error and print the error message
+func TestFilesHandler_CreateFile_InvalidJSON(t *testing.T) {
+	handler, _, _ := setupFilesHandlerTest(t)
+	router := chi.NewRouter()
+	router.Post("/", handler.CreateFile)
+
+	// Invalid JSON body
+	body := []byte("{ invalid json")
+
+	req := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	// Expect 400 with decode error message
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	t.Logf("CreateFile_InvalidJSON body: %s", w.Body.String())
 }
