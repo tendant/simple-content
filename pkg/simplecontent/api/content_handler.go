@@ -139,7 +139,7 @@ func (h *ContentHandler) CreateContent(w http.ResponseWriter, r *http.Request) {
 	content, err := h.service.CreateContent(r.Context(), createReq)
 	if err != nil {
 		slog.Error("Failed to create content", "error", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, simplecontent.ToErrorMessage(err), http.StatusInternalServerError)
 		return
 	}
 
@@ -153,7 +153,7 @@ func (h *ContentHandler) CreateContent(w http.ResponseWriter, r *http.Request) {
 		}
 		if err := h.service.UpdateContentStatus(r.Context(), content.ID, statusEnum); err != nil {
 			slog.Error("Failed to update content status", "error", err)
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			http.Error(w, simplecontent.ToErrorMessage(err), http.StatusInternalServerError)
 			return
 		}
 		// Update the content object with the new status
@@ -169,7 +169,7 @@ func (h *ContentHandler) CreateContent(w http.ResponseWriter, r *http.Request) {
 		CreatedBy:   ownerID.String(),
 	}); err != nil {
 		slog.Error("Failed to set content metadata", "error", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, simplecontent.ToErrorMessage(err), http.StatusInternalServerError)
 		return
 	}
 
@@ -215,7 +215,7 @@ func (h *ContentHandler) GetContent(w http.ResponseWriter, r *http.Request) {
 	content, err := h.service.GetContent(r.Context(), id)
 	if err != nil {
 		slog.Error("Failed to get content", "content_id", idStr, "error", err)
-		http.Error(w, err.Error(), http.StatusNotFound)
+		http.Error(w, simplecontent.ToErrorMessage(err), http.StatusNotFound)
 		return
 	}
 
@@ -315,7 +315,7 @@ func (h *ContentHandler) DeleteContent(w http.ResponseWriter, r *http.Request) {
 
 	if err := h.service.DeleteContent(r.Context(), id); err != nil {
 		slog.Error("Failed to delete content", "content_id", idStr, "error", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, simplecontent.ToErrorMessage(err), http.StatusInternalServerError)
 		return
 	}
 
@@ -337,7 +337,7 @@ func (h *ContentHandler) GetContentDetails(w http.ResponseWriter, r *http.Reques
 
 	if err != nil {
 		slog.Error("Failed to get content details", "content_id", idStr, "error", err)
-		http.Error(w, err.Error(), http.StatusNotFound)
+		http.Error(w, simplecontent.ToErrorMessage(err), http.StatusNotFound)
 		return
 	}
 
@@ -376,7 +376,7 @@ func (h *ContentHandler) CreateObject(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		slog.Error("Fail to create object", "error", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, simplecontent.ToErrorMessage(err), http.StatusInternalServerError)
 		return
 	}
 
@@ -394,7 +394,7 @@ func (h *ContentHandler) CreateObject(w http.ResponseWriter, r *http.Request) {
 	uploadURL, err := h.storage.GetUploadURL(r.Context(), object.ID)
 	if err != nil {
 		slog.Error("Failed to get upload URL", "err", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, simplecontent.ToErrorMessage(err), http.StatusInternalServerError)
 		return
 	}
 
@@ -430,7 +430,7 @@ func (h *ContentHandler) ListObjects(w http.ResponseWriter, r *http.Request) {
 	objects, err := h.service.GetObjectsByContentID(r.Context(), contentID)
 	if err != nil {
 		slog.Error("Fail to get objects by content ID", "content_id", contentIDStr, "error", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, simplecontent.ToErrorMessage(err), http.StatusInternalServerError)
 		return
 	}
 	if len(objects) == 0 {
@@ -568,7 +568,7 @@ func (h *ContentHandler) CreateDerivedContent(w http.ResponseWriter, r *http.Req
 	})
 	if err != nil {
 		slog.Error("Failed to create derived content", "error", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, simplecontent.ToErrorMessage(err), http.StatusInternalServerError)
 		return
 	}
 
@@ -675,7 +675,7 @@ func (h *ContentHandler) SetContentMetadata(w http.ResponseWriter, r *http.Reque
 	// Set content metadata
 	if err := h.service.SetContentMetadata(r.Context(), req); err != nil {
 		slog.Error("Failed to set content metadata", "error", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, simplecontent.ToErrorMessage(err), http.StatusInternalServerError)
 		return
 	}
 
@@ -696,7 +696,7 @@ func (h *ContentHandler) GetContentMetadataHandler(w http.ResponseWriter, r *htt
 	metadata, err := h.service.GetContentMetadata(r.Context(), id)
 	if err != nil {
 		slog.Error("Failed to get content metadata", "content_id", idStr, "error", err)
-		http.Error(w, err.Error(), http.StatusNotFound)
+		http.Error(w, simplecontent.ToErrorMessage(err), http.StatusNotFound)
 		return
 	}
 
@@ -748,7 +748,7 @@ func (h *ContentHandler) GetDerivedContent(w http.ResponseWriter, r *http.Reques
 	derivedList, err := h.service.ListDerivedContent(r.Context(), simplecontent.WithParentID(parentID))
 	if err != nil {
 		slog.Error("Failed to get derived content", "parent_id", parentIDStr, "error", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, simplecontent.ToErrorMessage(err), http.StatusInternalServerError)
 		return
 	}
 
@@ -799,7 +799,7 @@ func (h *ContentHandler) GetDerivedContentTree(w http.ResponseWriter, r *http.Re
 	rootContent, err := h.service.GetContent(r.Context(), rootID)
 	if err != nil {
 		slog.Error("Failed to get root content", "root_id", rootIDStr, "error", err)
-		http.Error(w, err.Error(), http.StatusNotFound)
+		http.Error(w, simplecontent.ToErrorMessage(err), http.StatusNotFound)
 		return
 	}
 
