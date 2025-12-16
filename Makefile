@@ -12,6 +12,9 @@ dist/%: %/main.go
 	@echo $@: Building $^ to $@
 	GOARCH=$(GOARCH) GOOS=$(GOOS) go build -buildvcs -o $@ $^
 
+dev:
+	arelo -t . -p **/*.go -- go run cmd/server
+
 run: dist/cmd/server
 	@echo "Running dist/cmd/server..."
 	./dist/cmd/server
@@ -38,4 +41,4 @@ migrate-postgres-down:
 migrate-postgres-status:
 	goose -dir ./migrations/postgres postgres "$(DATABASE_URL)" status
 
-.PHONY: clean
+.PHONY: clean dev
