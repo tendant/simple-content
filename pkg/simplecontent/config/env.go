@@ -25,6 +25,16 @@ import (
 //                 - "file:///path/to/data" - Filesystem storage
 //                 - "s3://bucket?region=us-east-1" - S3 storage
 //
+// URL Strategy:
+//
+//	URL_STRATEGY - URL generation strategy (one of):
+//	               - "content-based" - Generate URLs based on content ID (default)
+//	               - "storage-delegated" - Delegate URL generation to storage backend (presigned URLs)
+//	               - "cdn" - Use CDN URLs for downloads
+//	API_BASE_URL - Base URL for content-based strategy (default: "/api/v1")
+//	CDN_BASE_URL - Base URL for CDN strategy downloads
+//	UPLOAD_BASE_URL - Base URL for CDN strategy uploads
+//
 // That's it! Use programmatic config for advanced features.
 func WithEnv(prefix string) Option {
 	return func(c *ServerConfig) error {
@@ -43,6 +53,11 @@ func WithEnv(prefix string) Option {
 
 		// Storage config
 		if err := applyStorageEnv(prefix, c); err != nil {
+			return err
+		}
+
+		// URL Strategy config
+		if err := applyURLStrategyEnv(prefix, c); err != nil {
 			return err
 		}
 
@@ -99,6 +114,37 @@ func applyStorageEnv(prefix string, c *ServerConfig) error {
 	}
 
 	return fmt.Errorf("unsupported STORAGE_URL format: %s (use 'memory://', 'file://...', or 's3://...')", storageURL)
+}
+
+// applyURLStrategyEnv applies URL strategy configuration from environment
+func applyURLStrategyEnv(prefix string, c *ServerConfig) error {
+	// URL_STRATEGY - URL generation strategy
+	if strategy, ok := lookupEnv(prefix, "URL_STRATEGY"); ok && strategy != "" {
+		// Validate strategy
+		switch strategy {
+		case "content-based", "storage-delegated", "cdn":
+			c.URLStrategy = strategy
+		default:
+			return fmt.Errorf("invalid URL_STRATEGY: %s (use 'content-based', 'storage-delegated', or 'cdn')", strategy)
+		}
+	}
+
+	// API_BASE_URL - Base URL for content-based strategy
+	if apiBaseURL, ok := lookupEnv(prefix, "API_BASE_URL"); ok && apiBaseURL != "" {
+		c.APIBaseURL = apiBaseURL
+	}
+
+	// CDN_BASE_URL - Base URL for CDN strategy downloads
+	if cdnBaseURL, ok := lookupEnv(prefix, "CDN_BASE_URL"); ok && cdnBaseURL != "" {
+		c.CDNBaseURL = cdnBaseURL
+	}
+
+	// UPLOAD_BASE_URL - Base URL for CDN strategy uploads
+	if uploadBaseURL, ok := lookupEnv(prefix, "UPLOAD_BASE_URL"); ok && uploadBaseURL != "" {
+		c.UploadBaseURL = uploadBaseURL
+	}
+
+	return nil
 }
 
 // applyFilesystemStorage configures filesystem storage from URL
