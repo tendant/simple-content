@@ -4,6 +4,46 @@ This directory contains executable commands for the simple-content library. Each
 
 ## Server Variants
 
+### standalone-server (Testing) ⭐
+**Fastest way to test - no setup required**
+
+All-in-one server with in-memory repository and filesystem storage.
+
+**Features:**
+- In-memory repository (no database needed)
+- Filesystem storage (persists at ./dev-data)
+- Built-in test endpoint (/api/v1/test)
+- Zero configuration required
+- Perfect for quick testing and development
+- Single process - everything embedded
+
+**Use when:**
+- Quick testing and iteration
+- Learning the API
+- No database available
+- Need fastest setup possible
+
+**Example:**
+```bash
+cd cmd/standalone-server
+go run main.go
+# Server starts on port 4000
+
+# With custom port and data directory:
+go run main.go -port 5000 -data-dir /tmp/content-data
+
+# In another terminal - run quick test:
+curl http://localhost:4000/api/v1/test
+```
+
+**Configuration:**
+- CLI: `-port <port>` - HTTP port (default: `4000`)
+- CLI: `-data-dir <path>` - Storage directory (default: `./dev-data`)
+- ENV: `PORT` - HTTP port (overridden by -port flag)
+- ENV: `STORAGE_DIR` - Storage directory (overridden by -data-dir flag)
+
+**Priority:** CLI args > environment variables > defaults
+
 ### server-configured (Production)
 **Recommended for production use**
 
@@ -164,6 +204,7 @@ go run main.go -use-minio -bucket my-bucket -command upload -key test.txt -file 
 
 | Command | Purpose | Repository | Storage | Production Ready |
 |---------|---------|------------|---------|------------------|
+| standalone-server ⭐ | Quickest testing | Memory | Filesystem | ⚠️ Testing only |
 | server-configured | Production server | Postgres/Memory | S3/FS/Memory | ✅ Yes |
 | server | Development server | Memory | FS/Memory | ⚠️ Dev only |
 | server-simple | Minimal example | Memory | Memory | ❌ No |
@@ -175,6 +216,9 @@ go run main.go -use-minio -bucket my-bucket -command upload -key test.txt -file 
 | s3test | S3 testing | - | S3 | ⚠️ Testing |
 
 ## Getting Started
+
+### For Quick Testing ⚡
+Start with `standalone-server` - fastest way to test with zero setup required.
 
 ### For Development
 Start with `server-simple` to understand the basics, then try `server` for multiple storage backends.
