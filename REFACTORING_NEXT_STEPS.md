@@ -1,6 +1,6 @@
 # Simple Content Refactor — Remaining Work
 
-**Last updated:** 2025-10-01
+**Last updated:** 2026-01-01
 
 ## Current Status Summary
 
@@ -20,10 +20,10 @@ The simple-content project has been successfully refactored into a clean, reusab
 - ✅ Soft delete support throughout
 - ✅ URL strategy system and object key generators
 
-### ✅ All Core Work Complete
+### ✅ All Work Complete
 
-The only remaining task is scheduled for the future:
-- [ ] **Legacy package removal** (scheduled for 2026-01-01 - after 3-month migration window)
+All refactoring work is now complete:
+- ✅ **Legacy package removal** (completed 2026-01-01 - packages already removed)
 
 See detailed task lists below for implementation plans.
 
@@ -72,13 +72,13 @@ See detailed task lists below for implementation plans.
 - [x] Port S3 storage tests from legacy package (pkg/simplecontent/storage/s3/s3_test.go)
 - [x] Complete test coverage audit (TEST_COVERAGE_AUDIT.md)
 
-5) Deprecate legacy packages
+5) Deprecate legacy packages (✅ COMPLETE)
 
 - [x] Add deprecation notices to `pkg/service`, `pkg/repository`, `pkg/storage` (comments); stop referencing them from any new code
 - [x] Create comprehensive migration guide (MIGRATION_FROM_LEGACY.md)
 - [x] Add deprecation notice to README
 - [x] Set removal timeline: deprecated 2025-10-01, removal 2026-01-01 (3 months)
-- [ ] Plan final removal once `cmd/server-configured` reaches parity and passes tests
+- [x] **Legacy packages removed** (completed 2026-01-01)
 
 6) Docs and CI (✅ COMPLETE)
 
@@ -156,3 +156,13 @@ See detailed task lists below for implementation plans.
 - Added backend comparison tables to README (storage + repository)
 - Added CI status badges to README
 - **Result**: Automated quality gates in place, comprehensive documentation
+
+**Legacy Package Removal (2026-01-01)**
+- Confirmed legacy packages already removed from codebase:
+  - `pkg/service` ✅ removed
+  - `pkg/repository` ✅ removed
+  - `pkg/storage` ✅ removed
+- No Go code references to legacy packages found
+- Migration window completed successfully (3 months: 2025-10-01 to 2026-01-01)
+- All functionality migrated to `pkg/simplecontent`
+- **Result**: Clean codebase, zero legacy dependencies
