@@ -14,6 +14,7 @@ A flexible content management system with simplified APIs that focus on content 
 - **[5-Minute Quickstart](./QUICKSTART.md)** - Get started immediately
 - **[API Reference](./API.md)** - Complete API documentation
 - **[Configuration Guide](./CONFIGURATION_GUIDE.md)** - Presets, builder, environment variables
+- **[Presigned URLs Guide](./PRESIGNED_URLS.md)** - Client uploads, downloads, security
 - **[Photo Gallery Example](./examples/photo-gallery/)** - Real-world application demo
 - **[Hooks Guide](./HOOKS_GUIDE.md)** - Service-level extensibility
 - **[Middleware Guide](./MIDDLEWARE_GUIDE.md)** - HTTP-level extensibility
@@ -467,19 +468,25 @@ See [HOOKS_GUIDE.md](./HOOKS_GUIDE.md) and [MIDDLEWARE_GUIDE.md](./MIDDLEWARE_GU
 ## Documentation
 
 ### Getting Started
-- **[Quickstart Guide](./QUICKSTART.md)**: 5-minute getting started with examples
-- **[Photo Gallery Example](./examples/photo-gallery/)**: Complete application walkthrough
-- **[Middleware Example](./examples/middleware/)**: HTTP middleware demonstration
+- **[Quickstart Guide](./QUICKSTART.md)** - 5-minute getting started with examples
+- **[Configuration Guide](./CONFIGURATION_GUIDE.md)** - Setup and configuration options
+- **[API Reference](./API.md)** - Complete API documentation
+- **[Docker Setup](./DOCKER_SETUP.md)** - Local development with Docker
 
-### Extensibility & Customization
-- **[Hooks & Plugins Guide](./HOOKS_GUIDE.md)**: Service-level extensibility and plugin development
-- **[Middleware Guide](./MIDDLEWARE_GUIDE.md)**: HTTP-level request/response processing
-- **[Developer Adoption](./DEVELOPER_ADOPTION.md)**: Implementation summary and roadmap
+### Core Guides
+- **[Presigned URLs](./PRESIGNED_URLS.md)** - Client uploads, downloads, and security
+- **[Programmatic Usage](./PROGRAMMATIC_USAGE.md)** - Library usage patterns
+- **[Hooks Guide](./HOOKS_GUIDE.md)** - Service-level extensibility
+- **[Middleware Guide](./MIDDLEWARE_GUIDE.md)** - HTTP-level extensibility
 
-### Advanced Topics
-- **[Programmatic Usage](./PROGRAMMATIC_USAGE.md)**: Library usage patterns
-- **[Presigned Upload](./PRESIGNED_CLIENT_UPLOAD.md)**: Presigned upload workflows
-- **Example READMEs**: Each example has detailed documentation
+### Migration & Deployment
+- **[Migration from Legacy](./MIGRATION_FROM_LEGACY.md)** - Code/API migration guide
+- **[Migration Plan](./MIGRATION_PLAN.md)** - Database/deployment migration
+
+### Examples
+- **[Photo Gallery](./examples/photo-gallery/)** - Complete application walkthrough
+- **[Middleware Demo](./examples/middleware/)** - HTTP middleware demonstration
+- **[All Examples](./examples/)** - Complete examples directory
 
 ## License
 
