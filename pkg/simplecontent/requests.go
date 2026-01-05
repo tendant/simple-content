@@ -132,33 +132,6 @@ type UploadObjectForContentRequest struct {
 	MimeType           string // Optional - for metadata
 }
 
-// LinkContentAsDerivedRequest links existing content as derived from a parent.
-// This is used when content was already uploaded separately and needs to be retroactively
-// marked as derived from a parent content.
-//
-// Use cases:
-//   - Migration: bulk-link existing content as derived
-//   - Import workflows: content uploaded first, relationships established later
-//   - Manual curation: retroactively mark "this is a variant of that"
-//
-// Example:
-//   // Content already uploaded separately
-//   content, _ := svc.UploadContent(ctx, uploadReq)
-//
-//   // Later: mark it as derived from parent
-//   err := svc.LinkContentAsDerived(ctx, LinkContentAsDerivedRequest{
-//       ContentID:      content.ID,
-//       ParentID:       parentID,
-//       DerivationType: "thumbnail",
-//       Variant:        "thumbnail_256",
-//   })
-type LinkContentAsDerivedRequest struct {
-	ContentID      uuid.UUID // EXISTING content to mark as derived
-	ParentID       uuid.UUID // Parent content
-	DerivationType string    // e.g., "thumbnail", "preview"
-	Variant        string    // e.g., "thumbnail_256", "preview_1080p"
-}
-
 // ContentDetailsOption provides configuration for GetContentDetails calls
 type ContentDetailsOption func(*ContentDetailsConfig)
 
