@@ -1,493 +1,288 @@
 # Simple Content Management System
 
 [![CI](https://github.com/tendant/simple-content/workflows/CI/badge.svg)](https://github.com/tendant/simple-content/actions)
-[![codecov](https://codecov.io/gh/tendant/simple-content/branch/main/graph/badge.svg)](https://codecov.io/gh/tendant/simple-content)
-[![Go Report Card](https://goreportcard.com/badge/github.com/tendant/simple-content)](https://goreportcard.com/report/github.com/tendant/simple-content)
 [![Go Reference](https://pkg.go.dev/badge/github.com/tendant/simple-content.svg)](https://pkg.go.dev/github.com/tendant/simple-content)
 
-A flexible content management system with simplified APIs that focus on content operations while abstracting storage implementation details.
-
-> **Note:** The current API uses `pkg/simplecontent` which provides a clean, content-focused interface. For migration from legacy packages, see [MIGRATION_FROM_LEGACY.md](./MIGRATION_FROM_LEGACY.md).
-
-## Quick Links
-
-- **[5-Minute Quickstart](./QUICKSTART.md)** - Get started immediately
-- **[API Reference](./API.md)** - Complete API documentation
-- **[Configuration Guide](./CONFIGURATION_GUIDE.md)** - Presets, builder, environment variables
-- **[Presigned URLs Guide](./PRESIGNED_URLS.md)** - Client uploads, downloads, security
-- **[Photo Gallery Example](./examples/photo-gallery/)** - Real-world application demo
-- **[Hooks Guide](./HOOKS_GUIDE.md)** - Service-level extensibility
-- **[Middleware Guide](./MIDDLEWARE_GUIDE.md)** - HTTP-level extensibility
-- **[Migration Guide](./MIGRATION_FROM_LEGACY.md)** - Migrate from legacy packages
+A lightweight content management library for Go with unified APIs that focus on content operations while abstracting storage implementation details.
 
 ## Features
 
-### Core Capabilities
-- **Unified Content Operations**: Single-call upload/download operations
-- **Content-Focused API**: Work with content concepts, not storage objects
+- **Unified API**: Single-call upload operations for content and derived content
 - **Multi-Backend Storage**: Support for memory, filesystem, and S3-compatible storage
-- **Pluggable URL Strategies**: Flexible URL generation for different deployment patterns
-- **Derived Content**: Automatic thumbnail, preview, and transcode generation
-- **Flexible Metadata**: Rich metadata support with content details API
+- **Derived Content**: Built-in support for thumbnails, previews, and transcodes
+- **Flexible Configuration**: Presets for quick start, builder pattern, or environment variables
 - **Clean Architecture**: Library-first design with optional HTTP server
 
-### Developer Experience ✨
-- **One-Line Setup**: `NewDevelopment()` and `NewTesting()` presets for instant setup
-- **5-Minute Quickstart**: Get started immediately with copy-paste examples
-- **Complete Examples**: Real-world photo gallery and middleware applications included
-- **Three Configuration Approaches**: Presets, builder pattern, or environment variables
-- **Hook System**: 14 lifecycle hooks for service-level extensibility
-- **Middleware System**: 14 built-in middleware for HTTP-level extensibility
-- **Plugin Architecture**: Build and compose plugins for custom behavior
-- **Good Defaults**: Works out-of-the-box with in-memory storage, customizable for production
-
-## Getting Started
-
-### Prerequisites
-
-- Go 1.21 or higher
-
-### Quick Start
-
-**New to Simple Content?** Start with our [5-Minute Quickstart](./QUICKSTART.md) for immediate hands-on experience with copy-paste examples.
-
-**Want to see it in action?** Check out the [Photo Gallery Example](./examples/photo-gallery/):
-```bash
-cd examples/photo-gallery && go run main.go
-```
+## Quick Start
 
 ### Installation
 
 ```bash
-# Clone and build
-git clone https://github.com/tendant/simple-content.git
-cd simple-content
-go build -o simple-content ./cmd/server-configured
-
-# Run (starts on port 8080)
-./simple-content
+go get github.com/tendant/simple-content
 ```
 
-### Local Development with Docker Compose
+### Basic Usage
 
-The easiest way to get started is using Docker Compose for local development:
+```go
+import (
+    "github.com/tendant/simple-content/pkg/simplecontent/presets"
+)
+
+// One-line setup for development
+svc, cleanup, err := presets.NewDevelopment()
+if err != nil {
+    log.Fatal(err)
+}
+defer cleanup()
+
+// Upload content
+content, err := svc.UploadContent(ctx, simplecontent.UploadContentRequest{
+    OwnerID:      ownerID,
+    TenantID:     tenantID,
+    Name:         "document.pdf",
+    DocumentType: "application/pdf",
+    Reader:       fileReader,
+    FileName:     "document.pdf",
+})
+
+// Download content
+reader, err := svc.DownloadContent(ctx, content.ID)
+defer reader.Close()
+```
+
+## Core APIs
+
+### Content Operations
+
+```go
+// Upload original content (one step)
+content, err := svc.UploadContent(ctx, simplecontent.UploadContentRequest{
+    OwnerID:      ownerID,
+    TenantID:     tenantID,
+    Name:         "photo.jpg",
+    DocumentType: "image/jpeg",
+    Reader:       photoReader,
+    FileName:     "photo.jpg",
+})
+
+// Upload derived content (e.g., thumbnail)
+thumbnail, err := svc.UploadDerivedContent(ctx, simplecontent.UploadDerivedContentRequest{
+    ParentID:       content.ID,
+    OwnerID:        ownerID,
+    TenantID:       tenantID,
+    DerivationType: "thumbnail",
+    Variant:        "thumbnail_256",
+    Reader:         thumbnailReader,
+    FileName:       "thumb.jpg",
+})
+
+// Get content details with metadata
+details, err := svc.GetContentDetails(ctx, content.ID)
+```
+
+### Async Workflow (for workers)
+
+For background processing workflows:
+
+```go
+// Step 1: Create derived content placeholder
+derived, err := svc.CreateDerivedContent(ctx, simplecontent.CreateDerivedContentRequest{
+    ParentID:       parentID,
+    OwnerID:        ownerID,
+    TenantID:       tenantID,
+    DerivationType: "thumbnail",
+    Variant:        "thumbnail_256",
+    InitialStatus:  simplecontent.ContentStatusCreated,
+})
+
+// Step 2: Worker processes and generates thumbnail
+// ... thumbnail generation logic ...
+
+// Step 3: Upload object for existing content
+object, err := svc.UploadObjectForContent(ctx, simplecontent.UploadObjectForContentRequest{
+    ContentID: derived.ID,
+    Reader:    thumbnailData,
+    FileName:  "thumb.jpg",
+})
+
+// Step 4: Mark as processed
+err = svc.UpdateContentStatus(ctx, derived.ID, simplecontent.ContentStatusProcessed)
+```
+
+## Configuration
+
+### 1. Development Preset (Recommended)
+
+```go
+import "github.com/tendant/simple-content/pkg/simplecontent/presets"
+
+// One-line setup with in-memory storage
+svc, cleanup, err := presets.NewDevelopment()
+defer cleanup()
+```
+
+### 2. Production with PostgreSQL + S3
 
 ```bash
-# Start Postgres and MinIO services
-./scripts/docker-dev.sh start
-
-# Run database migrations
-./scripts/run-migrations.sh up
-
-# Create MinIO bucket (optional, for S3 storage)
-aws --endpoint-url http://localhost:9000 s3 mb s3://content-bucket
-
-# Run the application
-ENVIRONMENT=development \
-DATABASE_TYPE=postgres \
-DATABASE_URL='postgresql://content:contentpass@localhost:5433/simple_content?sslmode=disable&search_path=content' \
-STORAGE_BACKEND=memory \
-go run ./cmd/server-configured
+# Environment variables
+export DATABASE_TYPE=postgres
+export DATABASE_URL="postgresql://user:pass@localhost:5432/db?search_path=content"
+export STORAGE_BACKEND=s3
+export AWS_S3_BUCKET=my-bucket
+export AWS_S3_REGION=us-east-1
 ```
 
-**Development Services:**
-- **Postgres**: `localhost:5433` (user: `content`, password: `contentpass`, db: `simple_content`)
-- **MinIO**: `localhost:9000` (console: `localhost:9001`, credentials: `minioadmin/minioadmin`)
+```go
+import "github.com/tendant/simple-content/pkg/simplecontent/config"
 
-**Helper Scripts:**
-- `./scripts/docker-dev.sh start|stop|restart|logs|clean|status` - Manage Docker services
-- `./scripts/run-migrations.sh up|down|status` - Run database migrations
+// Load from environment
+cfg, err := config.Load()
+svc, err := config.BuildService(cfg)
+```
 
-### Manual Database Setup
+### 3. Custom Builder
 
-If you prefer to manage your own database:
+```go
+import (
+    "github.com/tendant/simple-content/pkg/simplecontent"
+    repopg "github.com/tendant/simple-content/pkg/simplecontent/repo/postgres"
+    s3backend "github.com/tendant/simple-content/pkg/simplecontent/storage/s3"
+)
 
-**Postgres Setup:**
-- Uses dedicated `content` schema by default (configurable via `CONTENT_DB_SCHEMA`)
-- Migrations located in `migrations/postgres/`
-- Requires Go migration tool [goose](https://github.com/pressly/goose)
+// Build custom service
+repo := repopg.New(pool)
+s3Store, _ := s3backend.New(s3backend.Config{
+    Bucket: "my-bucket",
+    Region: "us-east-1",
+})
+
+svc, err := simplecontent.New(
+    simplecontent.WithRepository(repo),
+    simplecontent.WithBlobStore("s3", s3Store),
+)
+```
+
+## Database Setup
+
+### PostgreSQL with Goose
 
 ```bash
 # Install goose
 go install github.com/pressly/goose/v3/cmd/goose@latest
 
-# Set your database URL
-export DATABASE_URL="postgresql://user:password@localhost:5432/dbname?sslmode=disable&search_path=content"
-
 # Run migrations
+export DATABASE_URL="postgresql://user:pass@localhost:5432/db?search_path=content"
 goose -dir ./migrations/postgres postgres "$DATABASE_URL" up
 ```
 
-## Configuration
-
-Simple Content provides three ways to configure your service, from simplest to most flexible:
-
-### 1. Configuration Presets (Recommended)
-
-**The fastest way to get started.** One-line setup for common scenarios.
-
-#### Development Preset
-
-```go
-import "github.com/tendant/simple-content/pkg/simplecontent/presets"
-
-// One line - creates fully configured service
-svc, cleanup, err := presets.NewDevelopment()
-if err != nil {
-    log.Fatal(err)
-}
-defer cleanup() // Removes ./dev-data/ when done
-
-// Use service immediately
-content, err := svc.UploadContent(ctx, request)
-```
-
-Features:
-- ✅ In-memory database (no PostgreSQL required)
-- ✅ Filesystem storage at `./dev-data/`
-- ✅ Automatic cleanup
-- ✅ Zero configuration
-
-**See:** [examples/preset-development/](./examples/preset-development/)
-
-#### Testing Preset
-
-```go
-func TestMyFeature(t *testing.T) {
-    // One line - creates isolated service
-    svc := presets.NewTesting(t)
-
-    // Use service in tests
-    content, err := svc.UploadContent(ctx, request)
-    require.NoError(t, err)
-
-    // Cleanup automatic via t.Cleanup()
-}
-```
-
-Features:
-- ✅ In-memory database (isolated per test)
-- ✅ In-memory storage (blazingly fast)
-- ✅ Automatic cleanup
-- ✅ Parallel test execution support
-- ✅ No mocking required
-
-**See:** [examples/preset-testing/](./examples/preset-testing/)
-
-### 2. Configuration Builder
-
-**For custom configurations.** Build services programmatically with functional options.
-
-```go
-import (
-    "github.com/tendant/simple-content/pkg/simplecontent"
-    memoryrepo "github.com/tendant/simple-content/pkg/simplecontent/repo/memory"
-    fsstorage "github.com/tendant/simple-content/pkg/simplecontent/storage/fs"
-)
-
-// Create backends
-repo := memoryrepo.New()
-fsBackend, _ := fsstorage.New(fsstorage.Config{
-    BaseDir: "./content-data",
-})
-
-// Build service with options
-svc, err := simplecontent.New(
-    simplecontent.WithRepository(repo),
-    simplecontent.WithBlobStore("fs", fsBackend),
-)
-```
-
-**See:** [examples/config-options/](./examples/config-options/)
-
-### 3. Environment Variables
-
-**For production deployments.** Configure via environment variables.
-
-```go
-import "github.com/tendant/simple-content/pkg/simplecontent/config"
-
-// Load configuration from environment
-cfg, err := config.Load()
-if err != nil {
-    log.Fatal(err)
-}
-
-// Build service from configuration
-svc, err := config.BuildService(cfg)
-if err != nil {
-    log.Fatal(err)
-}
-```
-
-Required environment variables:
-- `DATABASE_TYPE=postgres` (postgres, mysql, sqlite, memory)
-- `DATABASE_URL=postgresql://...`
-- `STORAGE_BACKEND=s3` (s3, fs, memory)
-- `AWS_S3_BUCKET=my-bucket`
-- `AWS_S3_REGION=us-east-1`
-
-**See:** [CONFIGURATION_GUIDE.md](./CONFIGURATION_GUIDE.md) for complete documentation.
-
-## API Overview
-
-Simple Content provides a clean, content-focused API:
-
-- **Service Interface**: Main API with unified upload operations (`UploadContent`, `UploadDerivedContent`, `GetContentDetails`)
-- **StorageService Interface**: Advanced API for direct object operations and presigned URLs
-- **HTTP API**: RESTful endpoints under `/api/v1` for content management
-
-**Quick Example:**
-```go
-// One-step content upload
-content, err := svc.UploadContent(ctx, simplecontent.UploadContentRequest{
-    Name:         "document.pdf",
-    DocumentType: "application/pdf",
-    Reader:       fileReader,
-})
-
-// Get all content info (URLs + metadata)
-details, err := svc.GetContentDetails(ctx, content.ID)
-```
-
-For complete API documentation, see [API.md](./API.md).
-
-
-## Environment Variables
-
-**Common variables:**
-- `DATABASE_TYPE` - `memory`, `postgres` (default: `memory`)
-- `DATABASE_URL` - Postgres connection string
-- `STORAGE_BACKEND` - `memory`, `fs`, `s3` (default: `memory`)
-- `AWS_S3_BUCKET` / `AWS_S3_REGION` - S3 configuration
-- `URL_STRATEGY` - `content-based`, `cdn`, `storage-delegated` (default: `content-based`)
-- `PORT` - HTTP server port (default: `8080`)
-
-For complete configuration options, see [CONFIGURATION_GUIDE.md](./CONFIGURATION_GUIDE.md).
-
-## Docker Deployment
-
-### Development Environment
-
-Use the provided helper scripts for local development:
+### Docker Development
 
 ```bash
-# Quick start - starts Postgres and MinIO
+# Start Postgres + MinIO
 ./scripts/docker-dev.sh start
 
-# View logs
-./scripts/docker-dev.sh logs
+# Run migrations
+./scripts/run-migrations.sh up
 
-# Stop services
-./scripts/docker-dev.sh stop
-
-# Clean up (removes data volumes)
-./scripts/docker-dev.sh clean
+# Run application
+ENVIRONMENT=development \
+DATABASE_TYPE=postgres \
+DATABASE_URL='postgresql://content:contentpass@localhost:5433/simple_content?sslmode=disable&search_path=content' \
+go run ./cmd/server-configured
 ```
-
-### Full Stack with API Server
-
-To run the complete stack including the API server:
-
-```bash
-# Start all services (Postgres + MinIO + API)
-docker-compose up --build
-
-# Or start in detached mode
-docker-compose up -d --build
-```
-
-This starts:
-- **PostgreSQL** on `localhost:5433` (mapped from container port 5432)
-- **MinIO** on `localhost:9000` (API) and `localhost:9001` (Console)
-- **Content API** server on `localhost:4000`
-
-Access:
-- Content API: http://localhost:4000
-- MinIO Console: http://localhost:9001 (credentials: `minioadmin/minioadmin`)
-
-**Note:** The docker-compose setup uses a local Postgres instance by default. To use an external database, override the environment variables in docker-compose.yml
 
 ## Key Concepts
 
 ### Content vs Objects
-- **Content**: Logical entity that users work with (document, image, video)
-- **Objects**: Storage implementation detail (hidden from main API)
-- **Derived Content**: Generated content (thumbnails, previews, transcodes)
 
-### Derivation Types and Variants
+- **Content**: Logical entity (document, image, video) with metadata and status
+- **Objects**: Physical storage blobs (internal implementation detail)
+- **Derived Content**: Generated variants (thumbnails, previews, transcodes)
+
+### Derivation Types
+
 - **DerivationType**: User-facing category (`thumbnail`, `preview`, `transcode`)
-- **Variant**: Specific variant (`thumbnail_256`, `preview_720p`, `mp4_1080p`)
+- **Variant**: Specific version (`thumbnail_256`, `preview_1080p`, `mp4_720p`)
+
+### Content Status
+
+- `created` - Content record exists, no data uploaded yet
+- `uploaded` - Binary data stored (terminal state for originals)
+- `processing` - Post-upload processing in progress
+- `processed` - Processing completed (terminal state for derived content)
+- `failed` - Upload or processing failed
 
 ### Storage Backends
 
-The system supports multiple pluggable storage backends:
+| Backend | Use Case | Best For |
+|---------|----------|----------|
+| **Memory** | Testing, development | Unit tests, demos |
+| **Filesystem** | Simple deployments | Single server, local dev |
+| **S3/MinIO** | Production | Multi-server, CDN, scalability |
 
-| Backend | Use Case | Presigned URLs | Streaming | Performance | Best For |
-|---------|----------|----------------|-----------|-------------|----------|
-| **Memory** | Testing, development | ❌ | ✅ | Fastest | Unit tests, local dev |
-| **Filesystem** | Simple deployments | ✅ | ✅ | Fast | Single server, development |
-| **S3/MinIO** | Production | ✅ | ✅ | Scalable | Production, multi-server, CDN |
+## HTTP API
 
-**Configuration:**
-- **Memory**: No configuration needed, data lost on restart
-- **Filesystem**: Set `FS_BASE_PATH` (default: `./data`)
-- **S3/MinIO**: Set `AWS_S3_ENDPOINT`, credentials, bucket, region
+The optional HTTP server provides RESTful endpoints:
 
-### Repository Backends
-
-The system supports multiple database backends for metadata storage:
-
-| Backend | Use Case | Transactions | Concurrency | Schema | Best For |
-|---------|----------|--------------|-------------|--------|----------|
-| **Memory** | Testing | ✅ | Thread-safe (mutex) | N/A | Unit tests, demos |
-| **PostgreSQL** | Production | ✅ | Full ACID | Dedicated `content` schema | Production, multi-user |
-
-**PostgreSQL Features:**
-- Dedicated schema support (default: `content`, configurable)
-- Soft delete with `deleted_at` timestamp
-- Optimized indexes for status queries
-- Goose-compatible migrations
-- Search path configuration
-
-**Configuration:**
-- **Memory**: No configuration needed
-- **PostgreSQL**: Set `DATABASE_URL` or individual `CONTENT_PG_*` vars
-
-### URL Strategies
-
-The system supports multiple URL generation strategies:
-
-| Strategy | Download | Upload | Best For |
-|----------|----------|--------|----------|
-| **Content-Based** | Via app `/api/v1/contents/{id}/download` | Via app | Development, debugging, security |
-| **CDN (Hybrid)** | Direct CDN URLs | Via app | Production, performance |
-| **Storage-Delegated** | Via storage backend | Via storage backend | Legacy compatibility |
-
-**Quick Configuration:**
-
-**Development (Default):**
 ```bash
-URL_STRATEGY=content-based
-API_BASE_URL=/api/v1
+# Upload content
+POST /api/v1/contents
+Content-Type: multipart/form-data
+
+# Get content details
+GET /api/v1/contents/{id}/details
+
+# Download content
+GET /api/v1/contents/{id}/download
+
+# Create derived content
+POST /api/v1/contents/{id}/derived
+Content-Type: multipart/form-data
+
+# List derived content
+GET /api/v1/contents/{id}/derived?derivation_type=thumbnail
 ```
-
-**Production with CDN:**
-```bash
-URL_STRATEGY=cdn
-CDN_BASE_URL=https://cdn.example.com
-UPLOAD_BASE_URL=https://api.example.com
-```
-
-## Migration from Legacy API
-
-The modern API replaces 3-step object workflows with single-call operations:
-
-```go
-// Before: 3-step process
-content := svc.CreateContent(...)
-object := svc.CreateObject(...)
-svc.UploadObject(...)
-
-// After: 1-step process
-content := svc.UploadContent(...)
-```
-
-For complete migration instructions, see [MIGRATION_FROM_LEGACY.md](./MIGRATION_FROM_LEGACY.md).
-
-## Architecture
-
-**Clean Architecture Layers:**
-- **Domain**: Core entities (Content, Object, DerivedContent)
-- **Service**: Business logic with simplified interfaces
-- **Repository**: Data persistence abstraction
-- **Storage**: Pluggable backend implementations (Memory, FS, S3)
-- **API**: HTTP handlers with consistent error handling
-
-**Interface Separation:**
-- **Service**: Content-focused operations for most users
-- **StorageService**: Object-level operations for advanced use cases
 
 ## Testing
 
-```bash
-# Unit tests (memory backend)
-go test ./pkg/simplecontent/...
-
-# Integration tests (requires Postgres + MinIO)
-./scripts/docker-dev.sh start
-./scripts/run-migrations.sh up
-DATABASE_TYPE=postgres \
-DATABASE_URL='postgresql://content:contentpass@localhost:5433/simple_content?sslmode=disable&search_path=content' \
-go test -tags=integration ./...
-```
-
-## Examples
-
-Complete working examples in `examples/`:
-
-**Featured:**
-- **[photo-gallery](./examples/photo-gallery/)** - Complete photo app with thumbnails and metadata
-- **[middleware](./examples/middleware/)** - HTTP middleware system demo
-
-**Basic:**
-- **basic** - Simple upload/download
-- **thumbnail-generation** - Image thumbnails
-- **presigned-upload** - Client-side presigned uploads
-- **preset-development** / **preset-testing** - Configuration presets
-
-Run any example: `cd examples/<name> && go run main.go`
-
-## Extensibility
-
-### Hook System
-
-Extend functionality at 14 lifecycle points without modifying core code:
-
 ```go
-hooks := &simplecontent.Hooks{
-    AfterContentUpload: []simplecontent.AfterContentUploadHook{
-        func(hctx *simplecontent.HookContext, contentID uuid.UUID, bytes int64) error {
-            log.Printf("Uploaded %d bytes", bytes)
-            return nil
-        },
-    },
+import "github.com/tendant/simple-content/pkg/simplecontent/presets"
+
+func TestUpload(t *testing.T) {
+    // One-line test setup
+    svc := presets.NewTesting(t)
+
+    content, err := svc.UploadContent(ctx, request)
+    require.NoError(t, err)
+    assert.NotEmpty(t, content.ID)
 }
-
-svc, _ := simplecontent.New(
-    simplecontent.WithRepository(repo),
-    simplecontent.WithBlobStore("fs", backend),
-    simplecontent.WithHooks(hooks),
-)
 ```
-
-**Use cases:** Audit logging, metrics, webhooks, virus scanning, access control
-
-See [HOOKS_GUIDE.md](./HOOKS_GUIDE.md) and [MIDDLEWARE_GUIDE.md](./MIDDLEWARE_GUIDE.md) for details.
 
 ## Documentation
 
-### Getting Started
-- **[Quickstart Guide](./QUICKSTART.md)** - 5-minute getting started with examples
-- **[Configuration Guide](./CONFIGURATION_GUIDE.md)** - Setup and configuration options
 - **[API Reference](./API.md)** - Complete API documentation
-- **[Docker Setup](./DOCKER_SETUP.md)** - Local development with Docker
+- **[Configuration Guide](./CONFIGURATION_GUIDE.md)** - Detailed setup options
+- **[CLAUDE.md](./CLAUDE.md)** - AI assistant development guide
+- **Examples**: See `examples/` directory
 
-### Core Guides
-- **[Presigned URLs](./PRESIGNED_URLS.md)** - Client uploads, downloads, and security
-- **[Programmatic Usage](./PROGRAMMATIC_USAGE.md)** - Library usage patterns
-- **[Hooks Guide](./HOOKS_GUIDE.md)** - Service-level extensibility
-- **[Middleware Guide](./MIDDLEWARE_GUIDE.md)** - HTTP-level extensibility
+## Environment Variables
 
-### Migration & Deployment
-- **[Migration from Legacy](./MIGRATION_FROM_LEGACY.md)** - Code/API migration guide
-- **[Migration Plan](./MIGRATION_PLAN.md)** - Database/deployment migration
+**Database:**
+- `DATABASE_TYPE` - `memory`, `postgres` (default: `memory`)
+- `DATABASE_URL` - PostgreSQL connection string
+- `CONTENT_DB_SCHEMA` - Schema name (default: `content`)
 
-### Examples
-- **[Photo Gallery](./examples/photo-gallery/)** - Complete application walkthrough
-- **[Middleware Demo](./examples/middleware/)** - HTTP middleware demonstration
-- **[All Examples](./examples/)** - Complete examples directory
+**Storage:**
+- `STORAGE_BACKEND` - `memory`, `fs`, `s3` (default: `memory`)
+- `FS_BASE_PATH` - Filesystem storage path (default: `./data`)
+- `AWS_S3_BUCKET` - S3 bucket name
+- `AWS_S3_REGION` - S3 region
+- `AWS_S3_ENDPOINT` - S3 endpoint (for MinIO)
+
+**Server:**
+- `PORT` - HTTP server port (default: `8080`)
+- `ENVIRONMENT` - `development`, `production`
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+MIT License - see LICENSE file for details.
