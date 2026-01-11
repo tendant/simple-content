@@ -1,0 +1,19 @@
+FROM public.ecr.aws/docker/library/alpine:latest
+
+# Install goose and postgresql-client
+RUN apk add --no-cache \
+    ca-certificates \
+    postgresql-client \
+    wget
+
+# Install goose
+RUN wget -O /usr/local/bin/goose https://github.com/pressly/goose/releases/download/v3.22.1/goose_linux_x86_64 && \
+    chmod +x /usr/local/bin/goose
+
+WORKDIR /app
+
+# Copy migrations
+COPY migrations/postgres /app/migrations/postgres
+
+# Default command
+CMD ["goose", "-dir", "/app/migrations/postgres", "postgres", "${DB_URL}", "up"]
