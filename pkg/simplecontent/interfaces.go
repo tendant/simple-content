@@ -130,6 +130,7 @@ type ObjectMeta struct {
 type UploadParams struct {
 	ObjectKey string
 	MimeType  string
+	FileName  string // Original filename for Content-Disposition header
 }
 
 // CreateDerivedContentParams contains parameters for creating derived content relationships

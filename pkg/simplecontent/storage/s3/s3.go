@@ -294,6 +294,11 @@ func (b *Backend) UploadWithParams(ctx context.Context, reader io.Reader, params
 		ContentType: aws.String(params.MimeType),
 	}
 
+	// Set Content-Disposition for proper filename on download
+	if params.FileName != "" {
+		input.ContentDisposition = aws.String(fmt.Sprintf("attachment; filename=\"%s\"", params.FileName))
+	}
+
 	// Add server-side encryption if enabled
 	if b.config.EnableSSE {
 		switch b.config.SSEAlgorithm {

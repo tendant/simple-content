@@ -541,6 +541,7 @@ func (s *service) UploadContent(ctx context.Context, req UploadContentRequest) (
 		uploadParams := UploadParams{
 			ObjectKey: objectKey,
 			MimeType:  req.DocumentType,
+			FileName:  req.FileName,
 		}
 		if err := backend.UploadWithParams(ctx, req.Reader, uploadParams); err != nil {
 			return nil, &ObjectError{ObjectID: objectID, Op: "upload_data", Err: err}
@@ -944,10 +945,11 @@ func (s *service) UploadObjectForContent(ctx context.Context, req UploadObjectFo
 	}
 
 	// Upload with metadata if provided
-	if req.MimeType != "" {
+	if req.MimeType != "" || req.FileName != "" {
 		uploadParams := UploadParams{
 			ObjectKey: objectKey,
 			MimeType:  req.MimeType,
+			FileName:  req.FileName,
 		}
 		if err := backend.UploadWithParams(ctx, req.Reader, uploadParams); err != nil {
 			return nil, &ObjectError{ObjectID: objectID, Op: "upload_object_data", Err: err}
@@ -1269,11 +1271,12 @@ func (s *service) UploadObject(ctx context.Context, req UploadObjectRequest) err
 	}
 
 	// Upload the object with or without metadata
-	if req.MimeType != "" {
+	if req.MimeType != "" || object.FileName != "" {
 		// Upload with metadata
 		uploadParams := UploadParams{
 			ObjectKey: object.ObjectKey,
 			MimeType:  req.MimeType,
+			FileName:  object.FileName,
 		}
 
 		if err := backend.UploadWithParams(ctx, req.Reader, uploadParams); err != nil {
